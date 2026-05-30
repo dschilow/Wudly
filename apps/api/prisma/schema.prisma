@@ -1,0 +1,428 @@
+// Wudly — Prisma schema
+// "Würdest du es wieder kaufen?" — real owner experiences after real usage.
+//
+// Enums here MUST stay in sync with packages/shared/src/enums.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/* ----------------------------------------------------------------- *
+ * Enums
+ * ----------------------------------------------------------------- */
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum ProductStatus {
+  ACTIVE
+  PENDING_REVIEW
+  MERGED
+  HIDDEN
+}
+
+enum WouldBuyAgain {
+  YES
+  NO
+  UNSURE
+}
+
+enum UsageDuration {
+  LESS_THAN_WEEK
+  ONE_TO_FOUR_WEEKS
+  ONE_TO_SIX_MONTHS
+  SIX_TO_TWELVE_MONTHS
+  MORE_THAN_YEAR
+}
+
+enum ExperienceMood {
+  TOP_BUY
+  GOOD_DAILY_USE
+  OKAY
+  ANNOYING
+  DEFECTIVE
+  REGRET
+  SURPRISINGLY_GOOD
+}
+
+enum AspectSentiment {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+
+enum QuickAnswer {
+  YES
+  NO
+  MOSTLY
+  DEPENDS
+  UNSURE
+}
+
+enum QuestionStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+  HIDDEN
+}
+
+enum VerificationStatus {
+  SELF_DECLARED
+  VERIFIED
+  UNVERIFIED
+}
+
+enum ProductIdentifierType {
+  EAN
+  GTIN
+  MPN
+  ASIN
+  SKU
+  OTHER
+}
+
+enum ProductSourceType {
+  USER_SUBMITTED
+  MANUFACTURER
+  IMPORT
+  OTHER
+}
+
+enum CategoryAspectType {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+
+enum MergeCandidateStatus {
+  PENDING
+  MERGED
+  REJECTED
+}
+
+/* ----------------------------------------------------------------- *
+ * Identity
+ * ----------------------------------------------------------------- */
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String?
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownerships        Ownership[]
+  experienceReports ExperienceReport[]
+  askedQuestions    ProductQuestion[]  @relation("AskedBy")
+  answers           ProductAnswer[]
+  badges            UserBadge[]
+
+  @@index([role])
+}
+
+/* ----------------------------------------------------------------- *
+ * Catalog: products, variants, identifiers, sources
+ * ----------------------------------------------------------------- */
+
+model Category {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  products Product[]
+  aspects  CategoryAspect[]
+}
+
+model CategoryAspect {
+  id         String             @id @default(cuid())
+  categoryId String
+  key        String
+  label      String
+  type       CategoryAspectType @default(NEUTRAL)
+  createdAt  DateTime           @default(now())
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, key])
+  @@index([categoryId])
+}
+
+model Product {
+  id             String        @id @default(cuid())
+  canonicalName  String
+  normalizedName String
+  brand          String?
+  categoryId     String?
+  description    String?
+  imageUrl       String?
+  status         ProductStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  variants          ProductVariant[]
+  identifiers       ProductIdentifier[]
+  sources           ProductSource[]
+  ownerships        Ownership[]
+  experienceReports ExperienceReport[]
+  questions         ProductQuestion[]
+  answers           ProductAnswer[]
+  insightSnapshot   ProductInsightSnapshot?
+  aliasesFrom       ProductAlias[]          @relation("CanonicalProduct")
+  aliasAsOld        ProductAlias?           @relation("OldProduct")
+  mergeCandidatesA  AdminMergeCandidate[]   @relation("ProductA")
+  mergeCandidatesB  AdminMergeCandidate[]   @relation("ProductB")
+
+  @@index([normalizedName])
+  @@index([categoryId])
+  @@index([status])
+  @@index([brand])
+}
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String
+  name       String?
+  attributes Json     @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  product           Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  identifiers       ProductIdentifier[]
+  ownerships        Ownership[]
+  experienceReports ExperienceReport[]
+
+  @@index([productId])
+}
+
+model ProductIdentifier {
+  id        String                @id @default(cuid())
+  productId String
+  variantId String?
+  type      ProductIdentifierType
+  value     String
+  source    String?
+  createdAt DateTime              @default(now())
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@unique([type, value])
+  @@index([productId])
+}
+
+model ProductSource {
+  id              String            @id @default(cuid())
+  productId       String
+  sourceType      ProductSourceType
+  sourceUrl       String?
+  externalId      String?
+  rawTitle        String?
+  matchConfidence Float             @default(0)
+  createdAt       DateTime          @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+/* ----------------------------------------------------------------- *
+ * Ownership & experiences
+ * ----------------------------------------------------------------- */
+
+model Ownership {
+  id                 String             @id @default(cuid())
+  userId             String
+  productId          String
+  variantId          String?
+  verificationStatus VerificationStatus @default(SELF_DECLARED)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  experienceReports ExperienceReport[]
+
+  @@unique([userId, productId])
+  @@index([productId])
+  @@index([userId])
+}
+
+model ExperienceReport {
+  id             String         @id @default(cuid())
+  userId         String
+  productId      String
+  variantId      String?
+  ownershipId    String?
+  wouldBuyAgain  WouldBuyAgain
+  usageDuration  UsageDuration
+  experienceMood ExperienceMood
+  wishKnownText  String?
+  freeText       String?
+  isPublic       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  ownership Ownership?      @relation(fields: [ownershipId], references: [id], onDelete: SetNull)
+
+  aspects ExperienceAspect[]
+
+  @@index([productId])
+  @@index([userId])
+  @@index([productId, isPublic])
+}
+
+model ExperienceAspect {
+  id                 String          @id @default(cuid())
+  experienceReportId String
+  aspectKey          String
+  sentiment          AspectSentiment
+  severity           Int?
+  createdAt          DateTime        @default(now())
+
+  experienceReport ExperienceReport @relation(fields: [experienceReportId], references: [id], onDelete: Cascade)
+
+  @@index([experienceReportId])
+  @@index([aspectKey])
+}
+
+/* ----------------------------------------------------------------- *
+ * Questions & answers
+ * ----------------------------------------------------------------- */
+
+model ProductQuestion {
+  id            String         @id @default(cuid())
+  productId     String
+  askedByUserId String?
+  questionText  String
+  status        QuestionStatus @default(OPEN)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  askedBy   User?   @relation("AskedBy", fields: [askedByUserId], references: [id], onDelete: SetNull)
+
+  answers ProductAnswer[]
+
+  @@index([productId])
+  @@index([status])
+}
+
+model ProductAnswer {
+  id               String       @id @default(cuid())
+  questionId       String
+  productId        String
+  answeredByUserId String
+  answerText       String
+  quickAnswer      QuickAnswer?
+  helpfulCount     Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  question   ProductQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  product    Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  answeredBy User            @relation(fields: [answeredByUserId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([productId])
+}
+
+/* ----------------------------------------------------------------- *
+ * Derived insights (snapshot per product)
+ * ----------------------------------------------------------------- */
+
+model ProductInsightSnapshot {
+  id                  String   @id @default(cuid())
+  productId           String   @unique
+  ownerCount          Int      @default(0)
+  experienceCount     Int      @default(0)
+  rebuyScore          Int?
+  regretScore         Int?
+  unsureScore         Int?
+  topPositiveAspects  Json     @default("[]")
+  topNegativeAspects  Json     @default("[]")
+  wishKnownHighlights Json     @default("[]")
+  usageDurationStats  Json     @default("{}")
+  generatedAt         DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([rebuyScore])
+  @@index([regretScore])
+  @@index([experienceCount])
+}
+
+/* ----------------------------------------------------------------- *
+ * Gamification
+ * ----------------------------------------------------------------- */
+
+model Badge {
+  id          String      @id @default(cuid())
+  key         String      @unique
+  label       String
+  description String
+  users       UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+/* ----------------------------------------------------------------- *
+ * Admin: product dedupe / merge tooling
+ * ----------------------------------------------------------------- */
+
+model AdminMergeCandidate {
+  id         String               @id @default(cuid())
+  productAId String
+  productBId String
+  score      Float
+  reason     String?
+  status     MergeCandidateStatus @default(PENDING)
+  createdAt  DateTime             @default(now())
+  resolvedAt DateTime?
+
+  productA Product @relation("ProductA", fields: [productAId], references: [id], onDelete: Cascade)
+  productB Product @relation("ProductB", fields: [productBId], references: [id], onDelete: Cascade)
+
+  @@unique([productAId, productBId])
+  @@index([status])
+}
+
+model ProductAlias {
+  id                 String   @id @default(cuid())
+  oldProductId       String   @unique
+  canonicalProductId String
+  reason             String?
+  createdAt          DateTime @default(now())
+
+  oldProduct       Product @relation("OldProduct", fields: [oldProductId], references: [id], onDelete: Cascade)
+  canonicalProduct Product @relation("CanonicalProduct", fields: [canonicalProductId], references: [id], onDelete: Cascade)
+
+  @@index([canonicalProductId])
+}

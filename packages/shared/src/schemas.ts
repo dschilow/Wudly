@@ -1,0 +1,148 @@
+/**
+ * Zod schemas for API requests/responses, shared between backend and frontend.
+ *
+ * The backend uses these for runtime validation (via a ZodValidationPipe); the
+ * frontend imports the inferred types for fully-typed fetch calls. Keeping the
+ * contract here means the two can never silently drift.
+ */
+
+import { z } from 'zod';
+import {
+  WouldBuyAgain,
+  UsageDuration,
+  ExperienceMood,
+  AspectSentiment,
+  QuickAnswer,
+  enumValues,
+} from './enums';
+
+/* ------------------------------------------------------------------ *
+ * Primitive / shared
+ * ------------------------------------------------------------------ */
+
+export const idSchema = z.string().min(1);
+
+export const paginationQuerySchema = z.object({
+  take: z.coerce.number().int().min(1).max(100).default(20),
+  skip: z.coerce.number().int().min(0).default(0),
+});
+export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
+
+const wouldBuyAgainSchema = z.enum(
+  enumValues(WouldBuyAgain) as [string, ...string[]],
+) as z.ZodType<(typeof WouldBuyAgain)[keyof typeof WouldBuyAgain]>;
+const usageDurationSchema = z.enum(
+  enumValues(UsageDuration) as [string, ...string[]],
+) as z.ZodType<(typeof UsageDuration)[keyof typeof UsageDuration]>;
+const experienceMoodSchema = z.enum(
+  enumValues(ExperienceMood) as [string, ...string[]],
+) as z.ZodType<(typeof ExperienceMood)[keyof typeof ExperienceMood]>;
+const aspectSentimentSchema = z.enum(
+  enumValues(AspectSentiment) as [string, ...string[]],
+) as z.ZodType<(typeof AspectSentiment)[keyof typeof AspectSentiment]>;
+const quickAnswerSchema = z.enum(
+  enumValues(QuickAnswer) as [string, ...string[]],
+) as z.ZodType<(typeof QuickAnswer)[keyof typeof QuickAnswer]>;
+
+/* ------------------------------------------------------------------ *
+ * Auth
+ * ------------------------------------------------------------------ */
+
+export const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8, 'Mindestens 8 Zeichen').max(128),
+  displayName: z.string().min(2).max(60).optional(),
+});
+export type RegisterInput = z.infer<typeof registerSchema>;
+
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1).max(128),
+});
+export type LoginInput = z.infer<typeof loginSchema>;
+
+/* ------------------------------------------------------------------ *
+ * Products
+ * ------------------------------------------------------------------ */
+
+export const productSearchQuerySchema = z.object({
+  q: z.string().trim().min(1).max(120),
+  take: z.coerce.number().int().min(1).max(50).default(10),
+});
+export type ProductSearchQuery = z.infer<typeof productSearchQuerySchema>;
+
+export const createProductSchema = z.object({
+  canonicalName: z.string().trim().min(2, 'Bitte gib einen Produktnamen ein').max(160),
+  brand: z.string().trim().min(1).max(80).optional(),
+  categorySlug: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().max(2000).optional(),
+  imageUrl: z.string().url().max(500).optional(),
+  /**
+   * When the user has been shown duplicate candidates and still wants to create
+   * a new product, the frontend sets this so the backend skips the soft-block.
+   */
+  forceCreate: z.boolean().optional().default(false),
+});
+export type CreateProductInput = z.infer<typeof createProductSchema>;
+
+export const updateProductSchema = createProductSchema.partial().omit({ forceCreate: true });
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+/* ------------------------------------------------------------------ *
+ * Ownership
+ * ------------------------------------------------------------------ */
+
+export const createOwnershipSchema = z.object({
+  productId: idSchema,
+  variantId: idSchema.optional(),
+});
+export type CreateOwnershipInput = z.infer<typeof createOwnershipSchema>;
+
+/* ------------------------------------------------------------------ *
+ * Experiences
+ * ------------------------------------------------------------------ */
+
+export const experienceAspectInputSchema = z.object({
+  aspectKey: z.string().trim().min(1).max(80),
+  sentiment: aspectSentimentSchema,
+  severity: z.number().int().min(0).max(5).optional(),
+});
+export type ExperienceAspectInput = z.infer<typeof experienceAspectInputSchema>;
+
+export const createExperienceSchema = z.object({
+  wouldBuyAgain: wouldBuyAgainSchema,
+  usageDuration: usageDurationSchema,
+  experienceMood: experienceMoodSchema,
+  wishKnownText: z.string().trim().max(1000).optional(),
+  freeText: z.string().trim().max(2000).optional(),
+  isPublic: z.boolean().default(true),
+  variantId: idSchema.optional(),
+  positiveAspects: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  negativeAspects: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+});
+export type CreateExperienceInput = z.infer<typeof createExperienceSchema>;
+
+/* ------------------------------------------------------------------ *
+ * Questions & Answers
+ * ------------------------------------------------------------------ */
+
+export const createQuestionSchema = z.object({
+  questionText: z.string().trim().min(5, 'Frage ist zu kurz').max(300),
+});
+export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
+
+export const createAnswerSchema = z.object({
+  answerText: z.string().trim().min(2, 'Antwort ist zu kurz').max(2000),
+  quickAnswer: quickAnswerSchema.optional(),
+});
+export type CreateAnswerInput = z.infer<typeof createAnswerSchema>;
+
+/* ------------------------------------------------------------------ *
+ * Rankings
+ * ------------------------------------------------------------------ */
+
+export const rankingQuerySchema = z.object({
+  take: z.coerce.number().int().min(1).max(50).default(20),
+  minExperiences: z.coerce.number().int().min(0).max(100).default(1),
+});
+export type RankingQuery = z.infer<typeof rankingQuerySchema>;

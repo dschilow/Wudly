@@ -1,0 +1,23 @@
+# Local development database only.
+# Production uses a managed Railway PostgreSQL service instead.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wudly-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wudly
+      POSTGRES_PASSWORD: wudly
+      POSTGRES_DB: wudly
+    ports:
+      - '5433:5432'
+    volumes:
+      - wudly_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U wudly -d wudly']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  wudly_pgdata:

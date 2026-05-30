@@ -1,0 +1,33 @@
+{
+  "name": "wudly",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wudly — Würdest du es wieder kaufen? Plattform für echte Besitzermeinungen nach echter Nutzung.",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "db:generate": "pnpm --filter @wudly/api prisma:generate",
+    "db:migrate": "pnpm --filter @wudly/api prisma:migrate",
+    "db:migrate:deploy": "pnpm --filter @wudly/api prisma:migrate:deploy",
+    "db:seed": "pnpm --filter @wudly/api prisma:seed",
+    "db:reset": "pnpm --filter @wudly/api prisma:reset",
+    "db:studio": "pnpm --filter @wudly/api prisma:studio",
+    "docker:db:up": "docker compose -f docker-compose.dev.yml up -d",
+    "docker:db:down": "docker compose -f docker-compose.dev.yml down"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  }
+}

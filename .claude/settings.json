@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Write-Output \"node: $\\(node --version\\)\"; Write-Output \"npm: $\\(npm --version\\)\"; try { Write-Output \"pnpm: $\\(pnpm --version\\)\" } catch { Write-Output \"pnpm: NOT INSTALLED\" }; try { Write-Output \"corepack: $\\(corepack --version\\)\" } catch { Write-Output \"corepack: NOT INSTALLED\" }; try { Write-Output \"docker: $\\(docker --version\\)\" } catch { Write-Output \"docker: NOT INSTALLED\" }; Write-Output \"---\"; Get-ChildItem c:\\\\MyProjects\\\\Wodly -Force -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count)",
+      "PowerShell(corepack enable)",
+      "PowerShell(corepack prepare pnpm@9.15.0 --activate)",
+      "PowerShell(pnpm --version)",
+      "PowerShell(pnpm install 2>&1)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"https://registry.npmjs.org/typescript\" -UseBasicParsing -TimeoutSec 15; Write-Output \"npmjs reachable: HTTP $\\($r.StatusCode\\)\" } catch { Write-Output \"npmjs NOT reachable: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(pnpm --filter @wudly/shared test 2>&1)",
+      "PowerShell(docker compose -f docker-compose.dev.yml up -d 2>&1)"
+    ]
+  }
+}
