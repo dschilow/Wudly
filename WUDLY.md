@@ -38,8 +38,23 @@ Projekt **`wudly`** auf Railway (Workspace „dschilow's Projects"), 3 Services:
   Dev-Maschine eingeloggt (`d.schilow@gmx.net`). **Kein** GitHub-Repo nötig (direct upload).
 - Builds nutzen die **Dockerfiles** (erzwungen via Service-Variable `RAILWAY_DOCKERFILE_PATH`).
 - Cross-Service-Variablen sind gesetzt:
-  - api: `DATABASE_URL=${{Postgres-eNfg.DATABASE_URL}}`, `CORS_ORIGIN=<web-url>`, `JWT_SECRET`, `COOKIE_SECURE=true`, `NODE_ENV=production`, `AI_PROVIDER=dummy`
+  - api: `DATABASE_URL=${{Postgres-eNfg.DATABASE_URL}}`, `CORS_ORIGIN=<web-url>`, `JWT_SECRET`, `COOKIE_SECURE=true`, `NODE_ENV=production`, `AI_PROVIDER=openrouter`, `OPENROUTER_MODEL=google/gemini-3.1-flash-lite`, `OPENROUTER_SITE_URL`, `OPENROUTER_APP_TITLE=Wudly`
   - web: `NEXT_PUBLIC_API_URL=<api-url>/api`
+
+### ⚠️ KI aktivieren (einziger offener manueller Schritt)
+
+Die KI (OpenRouter / Gemini Flash 3.1 Lite) ist vollständig integriert, aber sie braucht den
+**`OPENROUTER_API_KEY`** als Variable auf `wudly-api`. Ohne Key fällt alles automatisch auf die
+deterministische Logik zurück (App bleibt voll funktionsfähig). Key setzen:
+
+```bash
+railway variables --service wudly-api --set "OPENROUTER_API_KEY=<dein-openrouter-key>"
+# danach neu deployen (oder Railway re-deployt automatisch beim Var-Change):
+railway up --service wudly-api --ci
+```
+
+Der Key liegt z. B. im Curio/Ideen-Railway-Projekt. (Hinweis: `railway run` injiziert ENV in dieser
+Agent-Umgebung nicht in Subprozesse, daher konnte der Agent den Key nicht automatisch übertragen.)
 
 **Demo-Login (geseedet):** `admin@wudly.app` / `admin12345` (Admin) · Demo-User: `<handle>@demo.wudly.app` / `wudly12345`.
 
@@ -84,6 +99,30 @@ Controller = nur HTTP. Services = Use Cases. Reine Logik (Scoring/Matching/Insig
 ### Scoring (duration-gewichtet, in `@wudly/shared`)
 Gewichte nach Nutzungsdauer: `<1 Woche=0.5`, `1–4 Wochen=0.7`, `1–6 Monate=1.0`, `6–12 Monate=1.3`, `>1 Jahr=1.5`.
 Rebuy = gewichteter Mittelwert (YES=1, UNSURE=0.5, NO=0) ×100. Regret = gewichteter NO-Anteil, ×1.25 bei Mood REGRET/DEFECTIVE.
+
+### KI (OpenRouter / Gemini Flash 3.1 Lite)
+`AiModule` stellt `AI_SERVICE` bereit; per `AI_PROVIDER` wird `OpenRouterAiService` (real) oder
+`DummyAiService` (deterministisch) gewählt. **Alle KI-Ausgaben werden mit Zod validiert** und fallen
+bei Fehler/fehlendem Key auf die Dummy-Logik zurück. Genutzt an 3 Stellen:
+1. **Produkt-Insight-Summary** — `ProductInsightsService` generiert (im Hintergrund, fire-and-forget)
+   eine Headline + „geeignet/ungeeignet"; persistiert auf `ProductInsightSnapshot.aiHeadline/aiSuitedFor/aiNotSuitedFor`,
+   angezeigt als `AiInsightCard` auf der Produktseite.
+2. **Freitext → Aspekte** — beim Anlegen einer Erfahrung mit Freitext extrahiert die KI Pro/Contra.
+3. **Produktanlage** — Marke + Kategorie werden ergänzt, wenn der Nutzer sie leer lässt.
+
+Client: `apps/api/src/ai/openrouter.client.ts` (Modell-Fallback, JSON-Mode, `reasoning: exclude`) —
+gleiche Pattern wie das Curio-Projekt des Nutzers.
+
+### Design (Frontend)
+„Clean & Premium": Tailwind-v4-`@theme` (warm-neutrale Fläche, ein Indigo-Akzent, semantische Score-Farben),
+**lucide-react**-Icons (keine Emojis mehr in der UI-Chrome), **motion** für dezente Animationen
+(Score-Count-up via `ScoreRing`), gestaffelte Schatten/Radii für Tiefe. Reduced-motion wird respektiert.
+Kernkomponenten: `LogoMark/LogoWord`, `ScoreRing`, `ProductCard`, `AiInsightCard`, `AspectList`,
+`OptionGrid`, `AuthGate`, `Button/Card/Pill`, States, `Toast`.
+
+> **Build-Hinweis:** Das `typecheck`-Script nutzt einen separaten `--tsBuildInfoFile`
+> (`node_modules/.cache/tsc-typecheck.tsbuildinfo`), damit der `--noEmit`-Lauf nicht den
+> Incremental-State von `nest build` vergiftet (sonst emittiert der Build nichts).
 
 ---
 
