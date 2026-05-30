@@ -22,8 +22,7 @@ FROM base AS build
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc tsconfig.json ./
 COPY packages ./packages
 COPY apps/api ./apps/api
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-  pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 RUN pnpm --filter @wudly/shared build
 RUN pnpm --filter @wudly/api exec prisma generate

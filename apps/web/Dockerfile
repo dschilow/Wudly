@@ -24,8 +24,7 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc tsconfig.json ./
 COPY packages ./packages
 COPY apps/web ./apps/web
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-  pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 RUN pnpm --filter @wudly/shared build
 RUN pnpm --filter @wudly/web build
