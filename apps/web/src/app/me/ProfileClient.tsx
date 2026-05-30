@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { ProfileSummaryDto, ExperienceDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { Package, Star, MessageSquare, ThumbsUp, PartyPopper, Wrench, Plus, LogOut } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ExperienceCard } from '@/components/ExperienceCard';
@@ -40,17 +41,17 @@ export function ProfileClient() {
   if (!user) return null;
 
   const stats = [
-    { label: 'Produkte', value: summary?.productCount ?? 0, icon: '📦' },
-    { label: 'Erfahrungen', value: summary?.experienceCount ?? 0, icon: '⭐' },
-    { label: 'Antworten', value: summary?.answerCount ?? 0, icon: '💬' },
-    { label: 'Hilfreich', value: summary?.helpfulReceived ?? 0, icon: '👍' },
+    { label: 'Produkte', value: summary?.productCount ?? 0, icon: Package },
+    { label: 'Erfahrungen', value: summary?.experienceCount ?? 0, icon: Star },
+    { label: 'Antworten', value: summary?.answerCount ?? 0, icon: MessageSquare },
+    { label: 'Hilfreich', value: summary?.helpfulReceived ?? 0, icon: ThumbsUp },
   ];
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <span className="grid h-16 w-16 place-items-center rounded-2xl bg-accent-soft text-2xl font-black text-accent">
+        <span className="grid h-16 w-16 place-items-center rounded-[var(--radius-lg)] bg-accent-soft text-2xl font-black text-accent-ink ring-1 ring-accent/10">
           {(user.displayName ?? user.email).charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
@@ -64,12 +65,10 @@ export function ProfileClient() {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-2">
         {stats.map((s) => (
-          <Card key={s.label} padded={false} className="px-2 py-3 text-center">
-            <div className="text-lg" aria-hidden>
-              {s.icon}
-            </div>
-            <div className="mt-0.5 text-xl font-black tabular-nums text-ink">{s.value}</div>
-            <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+          <Card key={s.label} padded={false} className="px-2 py-3.5 text-center">
+            <s.icon className="mx-auto h-[1.1rem] w-[1.1rem] text-faint" strokeWidth={2} aria-hidden />
+            <div className="mt-1 text-xl font-extrabold tnum text-ink">{s.value}</div>
+            <div className="text-[0.62rem] font-semibold uppercase tracking-wide text-muted-foreground">
               {s.label}
             </div>
           </Card>
@@ -78,28 +77,33 @@ export function ProfileClient() {
 
       {/* Impact note */}
       {(summary?.helpfulReceived ?? 0) > 0 && (
-        <Card className="bg-positive-soft/50 text-center">
+        <Card className="flex items-center gap-3 bg-positive-soft/50">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-positive/10 text-positive-ink">
+            <PartyPopper className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+          </div>
           <p className="text-sm font-semibold text-positive-ink">
-            🎉 Deine Beiträge wurden {summary?.helpfulReceived}× als hilfreich markiert!
+            Deine Beiträge wurden {summary?.helpfulReceived}× als hilfreich markiert!
           </p>
         </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2.5">
         <Link href="/me/products">
           <Button variant="secondary" fullWidth>
             Meine Produkte
           </Button>
         </Link>
         <Link href="/check?own=1">
-          <Button fullWidth>+ Erfahrung</Button>
+          <Button fullWidth>
+            <Plus className="h-4 w-4" strokeWidth={2.4} /> Erfahrung
+          </Button>
         </Link>
       </div>
 
       {user.role === 'ADMIN' && (
         <Link href="/admin">
           <Button variant="outline" fullWidth>
-            🛠️ Admin-Bereich
+            <Wrench className="h-4 w-4" strokeWidth={2} /> Admin-Bereich
           </Button>
         </Link>
       )}
@@ -117,7 +121,7 @@ export function ProfileClient() {
           </div>
         ) : (
           <EmptyState
-            icon="⭐"
+            icon={Star}
             title="Noch keine Erfahrungen"
             description="Teile dein erstes Produkt und hilf anderen."
             action={
@@ -134,9 +138,9 @@ export function ProfileClient() {
           await logout();
           router.push('/');
         }}
-        className="mx-auto block py-2 text-sm font-semibold text-muted-foreground hover:text-regret-ink"
+        className="mx-auto flex items-center gap-1.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-regret-ink"
       >
-        Abmelden
+        <LogOut className="h-4 w-4" strokeWidth={2} /> Abmelden
       </button>
     </div>
   );

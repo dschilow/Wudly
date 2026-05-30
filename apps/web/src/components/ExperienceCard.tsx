@@ -26,8 +26,8 @@ export function ExperienceCard({ experience }: { experience: ExperienceDto }) {
   return (
     <Card padded className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-surface-sunken text-sm font-bold text-ink">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent-ink">
             {(experience.authorName ?? 'A').charAt(0).toUpperCase()}
           </span>
           <div className="leading-tight">
@@ -60,7 +60,7 @@ export function ExperienceCard({ experience }: { experience: ExperienceDto }) {
       </div>
 
       {experience.wishKnownText && (
-        <div className="rounded-2xl bg-unsure-soft/60 p-3 text-sm text-unsure-ink">
+        <div className="rounded-[var(--radius-md)] border-l-2 border-unsure bg-unsure-soft/40 px-3.5 py-2.5 text-sm text-unsure-ink">
           <span className="font-semibold">Hätte ich vorher gewusst: </span>
           {experience.wishKnownText}
         </div>

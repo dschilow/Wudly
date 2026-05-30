@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { COMMON_QUESTIONS } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
+import { AuthGate } from '@/components/AuthGate';
 
 export function AskClient({ productId, productName }: { productId: string; productName: string }) {
   const router = useRouter();
@@ -39,21 +39,11 @@ export function AskClient({ productId, productName }: { productId: string; produ
 
   if (!loading && !user) {
     return (
-      <div className="mx-auto max-w-md pt-8 text-center">
-        <div className="text-4xl" aria-hidden>
-          💬
-        </div>
-        <h1 className="mt-3 text-2xl font-extrabold text-ink">Frage an Besitzer</h1>
-        <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-          Melde dich an, um Besitzern von „{productName}" eine Frage zu stellen.
-        </p>
-        <Link
-          href={`/login?redirect=/products/${productId}/ask`}
-          className="mt-5 inline-flex h-12 items-center rounded-2xl bg-primary px-6 text-sm font-bold text-primary-foreground"
-        >
-          Anmelden / Registrieren
-        </Link>
-      </div>
+      <AuthGate
+        title="Frage an Besitzer"
+        description={`Melde dich an, um Besitzern von „${productName}" eine Frage zu stellen.`}
+        redirect={`/products/${productId}/ask`}
+      />
     );
   }
 

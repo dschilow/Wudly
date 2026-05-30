@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
 import {
   normalizeProductName,
   guessBrand,
+  AI_SERVICE,
   DEFAULT_SIMILARITY_THRESHOLDS,
+  type AiService,
   type CreateProductInput,
   type UpdateProductInput,
   type ProductSummaryDto,
@@ -23,10 +25,13 @@ const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
 
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly matching: ProductMatchingService,
     private readonly insights: ProductInsightsService,
+    @Inject(AI_SERVICE) private readonly ai: AiService,
   ) {}
 
   async list(take: number, skip: number): Promise<PaginatedDto<ProductSummaryDto>> {
@@ -92,10 +97,15 @@ export class ProductsService {
       }
     }
 
-    const categoryId = input.categorySlug
-      ? await this.resolveCategoryId(input.categorySlug)
-      : null;
-    const brand = input.brand ?? guessBrand(canonicalName);
+    // Resolve brand + category — enrich with AI when the user left them blank.
+    let brand = input.brand ?? guessBrand(canonicalName);
+    let categorySlug = input.categorySlug;
+    if (!brand || !categorySlug) {
+      const enriched = await this.enrichWithAi(canonicalName, categorySlug);
+      brand = brand ?? enriched.brand;
+      categorySlug = categorySlug ?? enriched.categorySlug;
+    }
+    const categoryId = categorySlug ? await this.resolveCategoryId(categorySlug) : null;
 
     const product = await this.prisma.product.create({
       data: {
@@ -167,6 +177,32 @@ export class ProductsService {
   private async resolveCategoryId(slug: string): Promise<string | null> {
     const category = await this.prisma.category.findUnique({ where: { slug } });
     return category?.id ?? null;
+  }
+
+  /**
+   * Best-effort AI enrichment of brand + category for a new product. Only accepts
+   * a categorySlug the AI returns if it actually exists. Never throws (the dummy
+   * provider already gives a safe brand guess via the fallback).
+   */
+  private async enrichWithAi(
+    rawName: string,
+    categoryHint?: string,
+  ): Promise<{ brand?: string; categorySlug?: string }> {
+    try {
+      const candidate = await this.ai.extractProductCandidate({ rawName, categoryHint });
+      let categorySlug: string | undefined;
+      if (candidate.categorySlug) {
+        const exists = await this.prisma.category.findUnique({
+          where: { slug: candidate.categorySlug },
+          select: { slug: true },
+        });
+        categorySlug = exists?.slug;
+      }
+      return { brand: candidate.brand, categorySlug };
+    } catch (err) {
+      this.logger.warn(`AI product enrichment failed: ${err instanceof Error ? err.message : err}`);
+      return {};
+    }
   }
 
   private async maybeLogMergeCandidate(

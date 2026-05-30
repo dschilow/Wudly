@@ -359,6 +359,11 @@ model ProductInsightSnapshot {
   topNegativeAspects  Json     @default("[]")
   wishKnownHighlights Json     @default("[]")
   usageDurationStats  Json     @default("{}")
+  // AI-generated summary (OpenRouter). Null until generated / when AI is disabled.
+  aiHeadline          String?
+  aiSuitedFor         Json     @default("[]")
+  aiNotSuitedFor      Json     @default("[]")
+  aiGeneratedAt       DateTime?
   generatedAt         DateTime @default(now())
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)

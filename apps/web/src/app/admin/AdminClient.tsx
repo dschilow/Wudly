@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/ui/Toast';
+import { Ban, CheckCircle2, ArrowLeftRight } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Pill } from '@/components/ui/Pill';
@@ -49,7 +50,7 @@ export function AdminClient() {
   if (user.role !== 'ADMIN') {
     return (
       <EmptyState
-        icon="🚫"
+        icon={Ban}
         title="Kein Zugriff"
         description="Dieser Bereich ist nur für Administratoren."
         action={
@@ -91,7 +92,7 @@ export function AdminClient() {
 
       {candidates.length === 0 ? (
         <EmptyState
-          icon="✅"
+          icon={CheckCircle2}
           title="Keine offenen Kandidaten"
           description="Aktuell gibt es keine möglichen Produkt-Duplikate zu prüfen."
         />
@@ -114,9 +115,7 @@ export function AdminClient() {
                     {c.productA.experienceCount} Erf. · behält Daten
                   </div>
                 </Link>
-                <span className="text-center text-muted-foreground" aria-hidden>
-                  ⇄
-                </span>
+                <ArrowLeftRight className="mx-auto h-4 w-4 text-faint" strokeWidth={2} aria-hidden />
                 <Link
                   href={`/products/${c.productB.id}`}
                   className="rounded-2xl bg-surface-sunken p-3 text-sm"

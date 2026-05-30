@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { Trophy, TriangleAlert, Flame, BarChart3, type LucideIcon } from 'lucide-react';
 import type { CategoryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ProductCard } from '@/components/ProductCard';
@@ -9,10 +10,10 @@ import { cn } from '@/lib/utils';
 
 type Tab = 'rebuy' | 'regret' | 'discussed';
 
-const TABS: { id: Tab; label: string; icon: string; emphasis: 'rebuy' | 'regret' }[] = [
-  { id: 'rebuy', label: 'Top Wiederkauf', icon: '🏆', emphasis: 'rebuy' },
-  { id: 'regret', label: 'Größte Fehlkäufe', icon: '⚠️', emphasis: 'regret' },
-  { id: 'discussed', label: 'Meist diskutiert', icon: '🔥', emphasis: 'rebuy' },
+const TABS: { id: Tab; label: string; icon: LucideIcon; emphasis: 'rebuy' | 'regret' }[] = [
+  { id: 'rebuy', label: 'Top Wiederkauf', icon: Trophy, emphasis: 'rebuy' },
+  { id: 'regret', label: 'Größte Fehlkäufe', icon: TriangleAlert, emphasis: 'regret' },
+  { id: 'discussed', label: 'Meist diskutiert', icon: Flame, emphasis: 'rebuy' },
 ];
 
 export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
@@ -26,7 +27,6 @@ export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
     try {
       let data: RankingEntryDto[];
       if (category) {
-        // Category view always sorts by rebuy on the backend.
         data = await api.rankings.byCategory(category, 30, { cache: 'no-store' });
       } else if (tab === 'rebuy') {
         data = await api.rankings.topRebuy(30, { cache: 'no-store' });
@@ -59,35 +59,41 @@ export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => {
-              setTab(t.id);
-              setCategory('');
-            }}
-            className={cn(
-              'flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors',
-              !category && tab === t.id
-                ? 'bg-ink text-white'
-                : 'bg-surface text-ink ring-1 ring-border hover:bg-surface-sunken',
-            )}
-          >
-            <span aria-hidden>{t.icon}</span>
-            {t.label}
-          </button>
-        ))}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {TABS.map((t) => {
+          const active = !category && tab === t.id;
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => {
+                setTab(t.id);
+                setCategory('');
+              }}
+              className={cn(
+                'flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all active:scale-95',
+                active
+                  ? 'bg-ink text-white shadow-sm'
+                  : 'bg-surface text-ink ring-1 ring-border hover:bg-surface-sunken',
+              )}
+            >
+              <Icon className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Category filter */}
       {categories.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={() => setCategory('')}
             className={cn(
               'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors',
-              !category ? 'bg-accent text-white' : 'bg-surface text-muted-foreground ring-1 ring-border',
+              !category
+                ? 'bg-accent text-white'
+                : 'bg-surface text-muted-foreground ring-1 ring-border hover:text-ink',
             )}
           >
             Alle Kategorien
@@ -111,13 +117,13 @@ export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
 
       {/* List */}
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-24" />
+            <Skeleton key={i} className="h-[5.5rem]" />
           ))}
         </div>
       ) : entries && entries.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {entries.map((entry) => (
             <ProductCard
               key={entry.product.id}
@@ -129,7 +135,7 @@ export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
         </div>
       ) : (
         <EmptyState
-          icon="📊"
+          icon={BarChart3}
           title="Noch keine Platzierungen"
           description="Sobald genügend Erfahrungen vorliegen, erscheinen hier Rankings."
         />

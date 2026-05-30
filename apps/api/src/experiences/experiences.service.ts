@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
 import {
   AspectSentiment,
+  AI_SERVICE,
+  type AiService,
   type CreateExperienceInput,
   type ExperienceDto,
 } from '@wudly/shared';
@@ -15,9 +17,12 @@ const EXPERIENCE_INCLUDE = {
 
 @Injectable()
 export class ExperiencesService {
+  private readonly logger = new Logger(ExperiencesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly insights: ProductInsightsService,
+    @Inject(AI_SERVICE) private readonly ai: AiService,
   ) {}
 
   /**
@@ -47,12 +52,34 @@ export class ExperiencesService {
       update: {},
     });
 
+    const positiveKeys = new Map<string, string>();
+    const negativeKeys = new Map<string, string>();
+    for (const key of input.positiveAspects ?? []) positiveKeys.set(key, key);
+    for (const key of input.negativeAspects ?? []) negativeKeys.set(key, key);
+
+    // Enrich with AI-extracted aspects from the free text (best-effort, never fatal).
+    // Only when there's enough text and the user didn't already tag a lot.
+    const totalTagged = positiveKeys.size + negativeKeys.size;
+    if (input.freeText && input.freeText.trim().length >= 12 && totalTagged < 6) {
+      try {
+        const extracted = await this.ai.normalizeExperienceText(input.freeText);
+        for (const a of extracted.positiveAspects) {
+          if (!negativeKeys.has(a.key)) positiveKeys.set(a.key, a.key);
+        }
+        for (const a of extracted.negativeAspects) {
+          if (!positiveKeys.has(a.key)) negativeKeys.set(a.key, a.key);
+        }
+      } catch (err) {
+        this.logger.warn(`AI aspect extraction failed: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
     const aspectData = [
-      ...(input.positiveAspects ?? []).map((key) => ({
+      ...[...positiveKeys.keys()].map((key) => ({
         aspectKey: key,
         sentiment: AspectSentiment.POSITIVE,
       })),
-      ...(input.negativeAspects ?? []).map((key) => ({
+      ...[...negativeKeys.keys()].map((key) => ({
         aspectKey: key,
         sentiment: AspectSentiment.NEGATIVE,
       })),

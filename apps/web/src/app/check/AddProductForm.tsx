@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Lock, Sparkles } from 'lucide-react';
 import type { CategoryDto, ProductSummaryDto, CreateProductResultDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
@@ -82,10 +83,10 @@ export function AddProductForm({ initialName, ownIntent }: AddProductFormProps) 
   if (!authLoading && !user) {
     return (
       <Card className="text-center">
-        <div className="text-3xl" aria-hidden>
-          🔐
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-accent-soft text-accent-ink">
+          <Lock className="h-5 w-5" strokeWidth={2} aria-hidden />
         </div>
-        <h3 className="mt-2 text-lg font-bold text-ink">Melde dich an</h3>
+        <h3 className="mt-3 text-lg font-bold text-ink">Melde dich an</h3>
         <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
           Um ein Produkt vorzuschlagen, brauchst du ein (kostenloses) Konto.
         </p>
@@ -142,7 +143,10 @@ export function AddProductForm({ initialName, ownIntent }: AddProductFormProps) 
 
       {duplicates && duplicates.length > 0 ? (
         <div className="space-y-3 rounded-2xl bg-surface-sunken p-4">
-          <p className="text-sm font-semibold text-ink">Meinst du eines dieser Produkte?</p>
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+            <Sparkles className="h-4 w-4 text-accent" strokeWidth={2.2} aria-hidden />
+            Meinst du eines dieser Produkte?
+          </p>
           <div className="space-y-2">
             {duplicates.map((p) => (
               <button key={p.id} onClick={() => goToProduct(p.id)} className="block w-full text-left">

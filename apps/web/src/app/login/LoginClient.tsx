@@ -8,6 +8,7 @@ import { ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { LogoMark } from '@/components/Logo';
 
 export function LoginClient() {
   const router = useRouter();
@@ -61,12 +62,10 @@ export function LoginClient() {
   };
 
   return (
-    <div className="mx-auto max-w-md pt-6">
-      <div className="mb-6 text-center">
-        <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-ink text-xl font-black text-white">
-          W
-        </span>
-        <h1 className="mt-3 text-2xl font-extrabold text-ink">
+    <div className="mx-auto max-w-md pt-8">
+      <div className="mb-7 flex flex-col items-center text-center">
+        <LogoMark size={48} />
+        <h1 className="mt-4 text-2xl font-extrabold text-ink">
           {mode === 'login' ? 'Willkommen zurück' : 'Konto erstellen'}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">

@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ProductInsightsService } from '../src/products/product-insights.service';
 import type { PrismaService } from '../src/prisma/prisma.service';
+import { DummyAiService } from '../src/ai/dummy-ai.service';
 import { testPrisma } from './prisma-test.util';
 
 /**
  * Integration test for snapshot generation against the seeded local database.
+ * Uses the deterministic DummyAiService so the suite stays hermetic (no network).
  * Requires `pnpm db:seed`.
  */
 describe('ProductInsightsService (integration)', () => {
@@ -12,7 +14,10 @@ describe('ProductInsightsService (integration)', () => {
 
   beforeAll(async () => {
     await testPrisma.$connect();
-    service = new ProductInsightsService(testPrisma as unknown as PrismaService);
+    service = new ProductInsightsService(
+      testPrisma as unknown as PrismaService,
+      new DummyAiService(),
+    );
   });
 
   afterAll(async () => {

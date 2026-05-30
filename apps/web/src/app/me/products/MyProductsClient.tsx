@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { OwnershipDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { Package } from 'lucide-react';
 import { ProductCard } from '@/components/ProductCard';
 import { Button } from '@/components/ui/Button';
 import { LoadingState, EmptyState } from '@/components/states/States';
@@ -49,7 +50,7 @@ export function MyProductsClient() {
         </div>
       ) : (
         <EmptyState
-          icon="📦"
+          icon={Package}
           title="Noch keine Produkte"
           description="Sobald du ein Produkt bewertest, erscheint es hier."
           action={

@@ -15,10 +15,10 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     <div
       ref={ref}
       className={cn(
-        'rounded-3xl bg-surface shadow-card ring-1 ring-border/70',
+        'rounded-[var(--radius-2xl)] bg-surface shadow-card ring-1 ring-border',
         padded && 'p-5',
         interactive &&
-          'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-pop cursor-pointer',
+          'cursor-pointer transition-all duration-300 ease-[var(--ease-out-soft)] hover:-translate-y-0.5 hover:shadow-pop',
         className,
       )}
       {...rest}

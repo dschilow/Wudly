@@ -80,6 +80,8 @@ export interface ProductInsightsDto {
   /** Lightweight derived audience hints for "for whom (not) suited". */
   suitedFor: string[];
   notSuitedFor: string[];
+  /** AI-written one-line summary of owner experiences (null when unavailable). */
+  aiHeadline: string | null;
   generatedAt: string;
 }
 

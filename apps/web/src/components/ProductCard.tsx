@@ -1,8 +1,8 @@
 import Link from 'next/link';
+import { Package, MessageSquare, Users, ChevronRight } from 'lucide-react';
 import type { ProductSummaryDto } from '@wudly/shared';
 import { Card } from './ui/Card';
-import { Pill } from './ui/Pill';
-import { formatScore, scoreTone } from '@/lib/utils';
+import { cn, formatScore, scoreColor } from '@/lib/utils';
 
 interface ProductCardProps {
   product: ProductSummaryDto;
@@ -11,33 +11,28 @@ interface ProductCardProps {
   emphasis?: 'rebuy' | 'regret';
 }
 
-const toneToPill = {
-  positive: 'positive',
-  mixed: 'unsure',
-  negative: 'negative',
-  unknown: 'neutral',
-} as const;
-
 /** Compact, tappable product summary card used across lists and rankings. */
 export function ProductCard({ product, rank, emphasis = 'rebuy' }: ProductCardProps) {
   const showRegret = emphasis === 'regret';
   const score = showRegret ? product.regretScore : product.rebuyScore;
-  const tone = showRegret
-    ? product.regretScore !== null && product.regretScore >= 40
-      ? 'negative'
-      : 'neutral'
-    : toneToPill[scoreTone(product.rebuyScore)];
+  const color = scoreColor(score, showRegret ? 'regret' : 'rebuy');
+  const pct = score ?? 0;
 
   return (
-    <Link href={`/products/${product.id}`} className="block">
-      <Card interactive padded className="flex items-center gap-4">
+    <Link href={`/products/${product.id}`} className="group block">
+      <Card interactive padded className="flex items-center gap-3.5">
         {rank !== undefined && (
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-sm font-extrabold text-white">
+          <div
+            className={cn(
+              'grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold tnum',
+              rank <= 3 ? 'bg-ink text-white' : 'bg-surface-sunken text-muted-foreground',
+            )}
+          >
             {rank}
           </div>
         )}
 
-        <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-surface-sunken text-2xl">
+        <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[var(--radius-md)] bg-surface-sunken text-muted-foreground ring-1 ring-border">
           {product.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -46,51 +41,51 @@ export function ProductCard({ product, rank, emphasis = 'rebuy' }: ProductCardPr
               className="h-full w-full object-cover"
             />
           ) : (
-            <span aria-hidden>📦</span>
+            <Package className="h-5 w-5" strokeWidth={1.75} aria-hidden />
           )}
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3 className="truncate font-bold text-ink">{product.canonicalName}</h3>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            {product.brand && <span className="font-medium">{product.brand}</span>}
-            {product.category && (
-              <>
-                <span aria-hidden>·</span>
-                <span>{product.category.name}</span>
-              </>
-            )}
+          <h3 className="truncate text-[0.95rem] font-semibold text-ink">{product.canonicalName}</h3>
+          <div className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+            {product.brand && <span className="font-medium text-ink-soft">{product.brand}</span>}
+            {product.brand && product.category && <span className="text-faint">·</span>}
+            {product.category && <span className="truncate">{product.category.name}</span>}
           </div>
-          <div className="mt-2 flex items-center gap-2">
-            <Pill tone={product.experienceCount > 0 ? 'accent' : 'neutral'}>
-              {product.experienceCount} Erfahrung{product.experienceCount === 1 ? '' : 'en'}
-            </Pill>
-            <span className="text-xs text-muted-foreground">
-              {product.ownerCount} Besitzer
+          <div className="mt-2 flex items-center gap-3 text-[0.7rem] font-medium text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <MessageSquare className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+              {product.experienceCount}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Users className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+              {product.ownerCount}
             </span>
           </div>
         </div>
 
-        <div className="shrink-0 text-right">
-          <div
-            className="text-2xl font-extrabold tabular-nums"
-            style={{
-              color:
-                tone === 'positive'
-                  ? 'var(--color-positive)'
-                  : tone === 'negative'
-                    ? 'var(--color-regret)'
-                    : tone === 'unsure'
-                      ? 'var(--color-unsure)'
-                      : 'var(--color-muted-foreground)',
-            }}
-          >
-            {formatScore(score)}
+        {/* Score chip with a thin progress meter */}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <div className="flex items-baseline gap-0.5">
+            <span className="text-[1.35rem] font-bold tnum leading-none" style={{ color }}>
+              {formatScore(score)}
+            </span>
           </div>
-          <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-            {showRegret ? 'Regret' : 'Wiederkauf'}
+          <div className="h-1 w-12 overflow-hidden rounded-full bg-surface-sunken">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${pct}%`, backgroundColor: color }}
+            />
           </div>
+          <span className="text-[0.6rem] font-semibold uppercase tracking-wide text-faint">
+            {showRegret ? 'Regret' : 'Rekauf'}
+          </span>
         </div>
+
+        <ChevronRight
+          className="h-4 w-4 shrink-0 text-faint transition-transform group-hover:translate-x-0.5"
+          aria-hidden
+        />
       </Card>
     </Link>
   );

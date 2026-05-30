@@ -61,9 +61,15 @@ export function toProductInsightsDto(
       usageDurationStats: { ...EMPTY_DURATION_STATS },
       suitedFor: [],
       notSuitedFor: [],
+      aiHeadline: null,
       generatedAt: new Date().toISOString(),
     };
   }
+
+  // Prefer AI-generated audience hints when present; the service may still
+  // overlay rule-based ones for products without an AI summary.
+  const aiSuited = asStringArray(snap.aiSuitedFor);
+  const aiNotSuited = asStringArray(snap.aiNotSuitedFor);
 
   return {
     productId,
@@ -76,9 +82,9 @@ export function toProductInsightsDto(
     topNegativeAspects: asAspectStats(snap.topNegativeAspects),
     wishKnownHighlights: asStringArray(snap.wishKnownHighlights),
     usageDurationStats: asDurationStats(snap.usageDurationStats),
-    // suitedFor/notSuitedFor are derived live in the service (not persisted in MVP).
-    suitedFor: [],
-    notSuitedFor: [],
+    suitedFor: aiSuited,
+    notSuitedFor: aiNotSuited,
+    aiHeadline: snap.aiHeadline ?? null,
     generatedAt: snap.generatedAt.toISOString(),
   };
 }

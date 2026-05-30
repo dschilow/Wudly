@@ -59,11 +59,12 @@ export class DummyAiService implements AiService {
   }
 
   async summarizeProductInsights(productId: string): Promise<ProductInsightSummary> {
-    // The real summary is computed deterministically in ProductInsightsService;
-    // this stub returns an empty scaffold so the contract is satisfiable.
+    // The dummy provider has no real model, so it returns an EMPTY headline. The
+    // insights service treats an empty headline as "no AI summary" and keeps using
+    // the deterministic rule-based audience hints instead of persisting a placeholder.
     return {
       productId,
-      headline: 'Zusammenfassung folgt, sobald genügend Erfahrungen vorliegen.',
+      headline: '',
       strengths: [],
       weaknesses: [],
       suitedFor: [],

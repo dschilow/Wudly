@@ -19,6 +19,7 @@ import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/Button';
 import { OptionGrid, MultiSelectChips } from '@/components/OptionGrid';
+import { AuthGate } from '@/components/AuthGate';
 
 interface FlowProps {
   productId: string;
@@ -79,21 +80,11 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   /* ----- Auth gate ----- */
   if (!authLoading && !user) {
     return (
-      <div className="mx-auto max-w-md pt-8 text-center">
-        <div className="text-4xl" aria-hidden>
-          🔐
-        </div>
-        <h1 className="mt-3 text-2xl font-extrabold text-ink">Kurz anmelden</h1>
-        <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-          Damit deine Erfahrung dir zugeordnet werden kann, brauchst du ein kostenloses Konto.
-        </p>
-        <Link
-          href={`/login?redirect=/products/${productId}/own`}
-          className="mt-5 inline-flex h-12 items-center rounded-2xl bg-primary px-6 text-sm font-bold text-primary-foreground"
-        >
-          Anmelden / Registrieren
-        </Link>
-      </div>
+      <AuthGate
+        title="Kurz anmelden"
+        description="Damit deine Erfahrung dir zugeordnet werden kann, brauchst du ein kostenloses Konto."
+        redirect={`/products/${productId}/own`}
+      />
     );
   }
 
