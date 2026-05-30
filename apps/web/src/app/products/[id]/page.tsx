@@ -267,7 +267,7 @@ export default async function ProductPage({ params }: PageProps) {
           </Link>
         </div>
       </div>
-      <div className="h-14" aria-hidden />
+      <div className="h-16" aria-hidden />
     </div>
   );
 }
