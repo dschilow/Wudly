@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { MessageCircle, ThumbsUp } from 'lucide-react';
+import { ThumbsUp } from 'lucide-react';
 import type { QuestionDto, AnswerDto, QuickAnswer } from '@wudly/shared';
 import { QUICK_ANSWER_OPTIONS, QUICK_ANSWER_LABEL } from '@wudly/shared';
 import { api } from '@/lib/api';
@@ -45,23 +45,25 @@ function AnswerRow({ answer }: { answer: AnswerDto }) {
   };
 
   return (
-    <div className="rounded-2xl bg-surface-sunken p-3">
+    <div className="rounded-[var(--radius-md)] bg-fill px-3.5 py-3">
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-sm font-semibold text-ink">{answer.authorName ?? 'Besitzer'}</span>
+        <span className="text-[0.875rem] font-semibold text-label">
+          {answer.authorName ?? 'Besitzer'}
+        </span>
         {answer.quickAnswer && (
           <Pill tone={quickTone[answer.quickAnswer]}>{QUICK_ANSWER_LABEL[answer.quickAnswer]}</Pill>
         )}
       </div>
-      <p className="text-sm text-ink/90">{answer.answerText}</p>
+      <p className="text-[0.9375rem] leading-snug text-label">{answer.answerText}</p>
       <div className="mt-2 flex items-center gap-3">
         <button
           onClick={markHelpful}
           disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-xs font-semibold text-ink ring-1 ring-border transition-all hover:bg-surface-sunken active:scale-95 disabled:opacity-50"
+          className="tap-dim inline-flex items-center gap-1.5 text-[0.8125rem] font-medium text-accent disabled:opacity-50"
         >
-          <ThumbsUp className="h-3.5 w-3.5" strokeWidth={2} /> Hilfreich · {count}
+          <ThumbsUp className="h-[0.9rem] w-[0.9rem]" strokeWidth={2.2} /> Hilfreich · {count}
         </button>
-        <span className="text-[0.7rem] text-muted-foreground">{formatDate(answer.createdAt)}</span>
+        <span className="text-[0.75rem] text-faint">{formatDate(answer.createdAt)}</span>
       </div>
     </div>
   );
@@ -99,15 +101,12 @@ export function QuestionCard({ question }: { question: QuestionDto }) {
 
   return (
     <Card padded className="space-y-3">
-      <div className="flex items-start gap-2.5">
-        <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={2} aria-hidden />
-        <div className="flex-1">
-          <p className="font-semibold text-ink">{question.questionText}</p>
-          <p className="text-xs text-muted-foreground">
-            {question.authorName ? `von ${question.authorName} · ` : ''}
-            {formatDate(question.createdAt)}
-          </p>
-        </div>
+      <div>
+        <p className="text-[1.0625rem] leading-snug text-label">{question.questionText}</p>
+        <p className="mt-0.5 text-[0.8125rem] text-faint">
+          {question.authorName ? `${question.authorName} · ` : ''}
+          {formatDate(question.createdAt)}
+        </p>
       </div>
 
       {answers.length > 0 && (
@@ -127,21 +126,19 @@ export function QuestionCard({ question }: { question: QuestionDto }) {
             }
             setOpen(true);
           }}
-          className="text-sm font-semibold text-accent hover:underline"
+          className="tap-dim text-[0.9375rem] font-medium text-accent"
         >
-          {user ? '+ Antworten' : 'Anmelden zum Antworten'}
+          {user ? 'Antworten' : 'Anmelden zum Antworten'}
         </button>
       ) : (
-        <div className="space-y-2.5 rounded-2xl bg-surface-sunken p-3">
+        <div className="space-y-2.5 rounded-[var(--radius-md)] bg-fill p-3">
           <div className="flex flex-wrap gap-1.5">
             {QUICK_ANSWER_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setQuick((q) => (q === opt.value ? '' : opt.value))}
-                className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 transition-colors ${
-                  quick === opt.value
-                    ? 'bg-ink text-white ring-ink'
-                    : 'bg-surface text-ink ring-border'
+                className={`tap-dim rounded-full px-3 py-1 text-[0.8125rem] font-medium transition-colors ${
+                  quick === opt.value ? 'bg-accent text-white' : 'bg-surface text-label'
                 }`}
               >
                 {opt.label}
@@ -153,13 +150,13 @@ export function QuestionCard({ question }: { question: QuestionDto }) {
             onChange={(e) => setText(e.target.value)}
             placeholder="Deine Antwort als Besitzer…"
             rows={3}
-            className="w-full rounded-xl border border-border-strong bg-surface p-3 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent"
+            className="w-full rounded-[var(--radius-md)] bg-surface p-3 text-[1.0625rem] text-label outline-none placeholder:text-faint"
           />
           <div className="flex gap-2">
             <Button size="sm" loading={submitting} onClick={submitAnswer}>
-              Antwort posten
+              Posten
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+            <Button size="sm" variant="plain" onClick={() => setOpen(false)}>
               Abbrechen
             </Button>
           </div>
@@ -167,7 +164,7 @@ export function QuestionCard({ question }: { question: QuestionDto }) {
       )}
 
       {!user && answers.length === 0 && (
-        <Link href="/login" className="text-xs text-muted-foreground hover:underline">
+        <Link href="/login" className="text-[0.8125rem] text-faint">
           Besitzt du es? Melde dich an und hilf weiter.
         </Link>
       )}

@@ -6,7 +6,11 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   padded?: boolean;
 }
 
-/** Soft, rounded surface — the building block of the card-based UI. */
+/**
+ * iOS grouped-content container: a rounded white surface on the grouped
+ * background. Flat by design — iOS separates content with the background gap and
+ * hairlines, not drop shadows. `interactive` adds a subtle press-dim.
+ */
 export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   { interactive, padded = true, className, children, ...rest },
   ref,
@@ -15,10 +19,9 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     <div
       ref={ref}
       className={cn(
-        'rounded-[var(--radius-2xl)] bg-surface shadow-card ring-1 ring-border',
-        padded && 'p-5',
-        interactive &&
-          'cursor-pointer transition-all duration-300 ease-[var(--ease-out-soft)] hover:-translate-y-0.5 hover:shadow-pop',
+        'rounded-[var(--radius-lg)] bg-surface',
+        padded && 'p-4',
+        interactive && 'tap cursor-pointer',
         className,
       )}
       {...rest}

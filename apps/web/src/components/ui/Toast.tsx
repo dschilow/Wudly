@@ -23,16 +23,10 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-const toneStyles: Record<ToastTone, string> = {
-  success: 'bg-positive text-white',
-  error: 'bg-regret text-white',
-  info: 'bg-ink text-white',
-};
-
-const toneIcon: Record<ToastTone, string> = {
-  success: '✓',
-  error: '!',
-  info: 'i',
+const dotColor: Record<ToastTone, string> = {
+  success: 'bg-positive',
+  error: 'bg-regret',
+  info: 'bg-faint',
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -43,28 +37,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => [...prev, { id, message, tone }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3200);
+    }, 3000);
   }, []);
 
   return (
     <ToastContext.Provider value={{ show }}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex flex-col items-center gap-2 px-4 md:bottom-8">
+      <div className="safe-top pointer-events-none fixed inset-x-0 top-2 z-50 flex flex-col items-center gap-2 px-4">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={cn(
-              'animate-pop pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-2xl px-4 py-3 text-sm font-semibold shadow-pop',
-              toneStyles[toast.tone],
-            )}
+            className="animate-sheet pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-full bg-ink/85 px-4 py-2.5 text-[0.9375rem] font-medium text-white shadow-[0_8px_24px_-6px_rgba(0,0,0,0.3)] backdrop-blur-xl"
             role="status"
           >
-            <span
-              className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/20 text-xs"
-              aria-hidden
-            >
-              {toneIcon[toast.tone]}
-            </span>
+            <span className={cn('h-2 w-2 shrink-0 rounded-full', dotColor[toast.tone])} aria-hidden />
             {toast.message}
           </div>
         ))}

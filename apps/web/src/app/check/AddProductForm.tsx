@@ -3,15 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Lock, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import type { CategoryDto, ProductSummaryDto, CreateProductResultDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { ProductCard } from '@/components/ProductCard';
+import { ProductList } from '@/components/ProductList';
 
 interface AddProductFormProps {
   initialName: string;
@@ -82,92 +81,69 @@ export function AddProductForm({ initialName, ownIntent }: AddProductFormProps) 
 
   if (!authLoading && !user) {
     return (
-      <Card className="text-center">
-        <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-accent-soft text-accent-ink">
-          <Lock className="h-5 w-5" strokeWidth={2} aria-hidden />
-        </div>
-        <h3 className="mt-3 text-lg font-bold text-ink">Melde dich an</h3>
-        <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+      <div className="rounded-[var(--radius-lg)] bg-surface px-5 py-8 text-center">
+        <h3 className="text-[1.0625rem] font-semibold text-label">Melde dich an</h3>
+        <p className="mx-auto mt-1.5 max-w-sm text-[0.9375rem] text-muted-foreground">
           Um ein Produkt vorzuschlagen, brauchst du ein (kostenloses) Konto.
         </p>
         <Link href="/login" className="mt-4 inline-block">
-          <Button>Anmelden / Registrieren</Button>
+          <Button>Anmelden</Button>
         </Link>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card className="space-y-4">
-      <div>
-        <h3 className="text-lg font-bold text-ink">Produkt vorschlagen</h3>
-        <p className="text-sm text-muted-foreground">
-          Kein Datenblatt nötig — der Name genügt. Details kannst du später ergänzen.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <p className="px-1 text-[0.9375rem] leading-snug text-muted-foreground">
+        Kein Datenblatt nötig — der Name genügt. Details kannst du später ergänzen.
+      </p>
 
-      <div className="space-y-3">
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-ink">Produktname</span>
-          <input
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setDuplicates(null);
-            }}
-            placeholder="z. B. Roborock S8 Pro Ultra"
-            className="h-12 w-full rounded-2xl border border-border-strong bg-surface px-4 text-base text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent"
-          />
-        </label>
-
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-ink">
-            Kategorie <span className="font-normal text-muted-foreground">(optional)</span>
-          </span>
+      <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+        <input
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setDuplicates(null);
+          }}
+          placeholder="Produktname"
+          className="hairline w-full bg-transparent px-4 py-3 text-[1.0625rem] text-label outline-none placeholder:text-faint"
+        />
+        <div className="flex items-center justify-between px-4 py-3">
+          <span className="text-[1.0625rem] text-label">Kategorie</span>
           <select
             value={categorySlug}
             onChange={(e) => setCategorySlug(e.target.value)}
-            className="h-12 w-full rounded-2xl border border-border-strong bg-surface px-4 text-base text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent"
+            className="max-w-[55%] truncate bg-transparent text-right text-[1.0625rem] text-muted-foreground outline-none"
           >
-            <option value="">Später ergänzen</option>
+            <option value="">Optional</option>
             {categories.map((c) => (
               <option key={c.id} value={c.slug}>
                 {c.name}
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </div>
 
-      {error && <p className="text-sm font-medium text-regret-ink">{error}</p>}
+      {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
 
       {duplicates && duplicates.length > 0 ? (
-        <div className="space-y-3 rounded-2xl bg-surface-sunken p-4">
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
-            <Sparkles className="h-4 w-4 text-accent" strokeWidth={2.2} aria-hidden />
+        <div className="space-y-3">
+          <p className="flex items-center gap-1.5 px-1 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
+            <Sparkles className="h-3.5 w-3.5 text-accent" strokeWidth={2.2} aria-hidden />
             Meinst du eines dieser Produkte?
           </p>
-          <div className="space-y-2">
-            {duplicates.map((p) => (
-              <button key={p.id} onClick={() => goToProduct(p.id)} className="block w-full text-left">
-                <ProductCard product={p} />
-              </button>
-            ))}
-          </div>
-          <Button
-            variant="outline"
-            fullWidth
-            loading={submitting}
-            onClick={() => void submit(true)}
-          >
+          <ProductList products={duplicates} />
+          <Button variant="gray" fullWidth loading={submitting} onClick={() => void submit(true)}>
             Nein, neues Produkt anlegen
           </Button>
         </div>
       ) : (
-        <Button fullWidth loading={submitting} onClick={() => void submit(false)}>
+        <Button fullWidth size="lg" loading={submitting} onClick={() => void submit(false)}>
           Produkt anlegen
         </Button>
       )}
-    </Card>
+    </div>
   );
 }

@@ -8,11 +8,12 @@ import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/ui/Toast';
-import { Ban, CheckCircle2, ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Pill } from '@/components/ui/Pill';
 import { LoadingState, EmptyState } from '@/components/states/States';
+import { LargeTitle } from '@/components/ios/LargeTitle';
 
 export function AdminClient() {
   const router = useRouter();
@@ -50,7 +51,6 @@ export function AdminClient() {
   if (user.role !== 'ADMIN') {
     return (
       <EmptyState
-        icon={Ban}
         title="Kein Zugriff"
         description="Dieser Bereich ist nur für Administratoren."
         action={
@@ -81,21 +81,16 @@ export function AdminClient() {
   };
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">Admin · Merge-Kandidaten</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Mögliche doppelte Produkte. Zusammenführen verschiebt alle Erfahrungen auf das erste
-          Produkt.
-        </p>
-      </div>
+    <div className="animate-fade space-y-4 pt-2">
+      <LargeTitle title="Merge-Kandidaten" subtitle="Mögliche doppelte Produkte." />
 
       {candidates.length === 0 ? (
-        <EmptyState
-          icon={CheckCircle2}
-          title="Keine offenen Kandidaten"
-          description="Aktuell gibt es keine möglichen Produkt-Duplikate zu prüfen."
-        />
+        <div className="rounded-[var(--radius-lg)] bg-surface">
+          <EmptyState
+            title="Keine offenen Kandidaten"
+            description="Aktuell gibt es keine möglichen Produkt-Duplikate zu prüfen."
+          />
+        </div>
       ) : (
         <div className="space-y-3">
           {candidates.map((c) => (

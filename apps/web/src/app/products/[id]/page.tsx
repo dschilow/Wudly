@@ -1,16 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import {
-  Package,
-  MessageSquarePlus,
-  Lightbulb,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Leaf,
-  HelpCircle,
-} from 'lucide-react';
+import { Package } from 'lucide-react';
 import type { ExperienceDto, QuestionDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
@@ -20,9 +11,7 @@ import { AiInsightCard } from '@/components/AiInsightCard';
 import { UsageDurationChart } from '@/components/UsageDurationChart';
 import { ExperienceCard } from '@/components/ExperienceCard';
 import { QuestionCard } from '@/components/QuestionCard';
-import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
-import { SectionHeading } from '@/components/ui/SectionHeading';
 import { EmptyState } from '@/components/states/States';
 
 export const revalidate = 20;
@@ -55,6 +44,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
+function GroupTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="px-1 pb-1.5 pt-1 text-[0.8125rem] font-normal uppercase tracking-[0.02em] text-muted-foreground">
+      {children}
+    </h2>
+  );
+}
+
 export default async function ProductPage({ params }: PageProps) {
   const { id } = await params;
 
@@ -75,152 +72,156 @@ export default async function ProductPage({ params }: PageProps) {
   const hasData = ins.experienceCount > 0;
 
   return (
-    <div className="space-y-5 pb-4">
+    <div className="animate-fade space-y-6 pb-4 pt-1">
       {/* Header */}
-      <section className="animate-rise flex items-start gap-4">
-        <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[var(--radius-lg)] bg-surface-sunken text-muted-foreground ring-1 ring-border">
+      <header className="flex items-center gap-3.5 px-1 pt-1">
+        <div className="grid h-[3.75rem] w-[3.75rem] shrink-0 place-items-center overflow-hidden rounded-[var(--radius-md)] bg-fill-2 text-muted-foreground">
           {product.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={product.imageUrl} alt={product.canonicalName} className="h-full w-full object-cover" />
+            <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
           ) : (
             <Package className="h-7 w-7" strokeWidth={1.5} aria-hidden />
           )}
         </div>
-        <div className="min-w-0 flex-1 pt-0.5">
-          <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight text-ink">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[1.6875rem] font-bold leading-[1.1] tracking-tight text-label">
             {product.canonicalName}
           </h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            {product.brand && <span className="font-semibold text-ink-soft">{product.brand}</span>}
-            {product.category && <Pill tone="accent">{product.category.name}</Pill>}
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[0.9375rem] text-muted-foreground">
+            {product.brand && <span>{product.brand}</span>}
+            {product.category && <Pill tone="neutral">{product.category.name}</Pill>}
           </div>
         </div>
-      </section>
+      </header>
 
       {/* Scores */}
-      <Card className="grid grid-cols-3 items-center gap-2 py-6 text-center">
+      <div className="grid grid-cols-3 items-center gap-2 rounded-[var(--radius-lg)] bg-surface px-2 py-5 text-center">
         <ScoreRing score={ins.rebuyScore} tone="auto" label="Wiederkauf" />
         <ScoreRing score={ins.regretScore} tone="regret" label="Regret" />
-        <div className="flex flex-col items-center justify-center gap-0.5">
-          <div className="text-[1.75rem] font-extrabold tnum leading-none text-ink">
+        <div className="flex flex-col items-center justify-center gap-1">
+          <div className="text-[1.625rem] font-semibold tnum leading-none text-label">
             {ins.experienceCount}
           </div>
-          <div className="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            Erfahrungen
+          <div className="text-[0.8125rem] text-muted-foreground">
+            Erfahrung{ins.experienceCount === 1 ? '' : 'en'}
           </div>
-          <div className="mt-1 text-xs text-faint">{ins.ownerCount} Besitzer</div>
+          <div className="text-[0.75rem] text-faint">{ins.ownerCount} Besitzer</div>
         </div>
-      </Card>
+      </div>
 
       {/* AI summary */}
       {ins.aiHeadline && <AiInsightCard headline={ins.aiHeadline} />}
 
       {!hasData && (
-        <EmptyState
-          icon={Leaf}
-          title="Noch keine Erfahrungen"
-          description="Sei der erste Besitzer und teile, ob du es wieder kaufen würdest."
-          action={
-            <Link
-              href={`/products/${id}/own`}
-              className="inline-flex h-11 items-center gap-1.5 rounded-[var(--radius-lg)] bg-primary px-5 text-sm font-semibold text-primary-foreground"
-            >
-              <Package className="h-4 w-4" /> Ich besitze es
-            </Link>
-          }
-        />
+        <div className="rounded-[var(--radius-lg)] bg-surface">
+          <EmptyState
+            title="Noch keine Erfahrungen"
+            description="Sei der erste Besitzer und teile, ob du es wieder kaufen würdest."
+            action={
+              <Link
+                href={`/products/${id}/own`}
+                className="tap-dim inline-flex h-11 items-center rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white"
+              >
+                Ich besitze es
+              </Link>
+            }
+          />
+        </div>
       )}
 
       {/* Strengths & problems */}
       {hasData && (ins.topPositiveAspects.length > 0 || ins.topNegativeAspects.length > 0) && (
-        <Card className="grid gap-6 sm:grid-cols-2">
-          <AspectList title="Top-Stärken" aspects={ins.topPositiveAspects} tone="positive" />
-          <AspectList title="Top-Probleme" aspects={ins.topNegativeAspects} tone="negative" />
-        </Card>
+        <div className="space-y-4">
+          {ins.topPositiveAspects.length > 0 && (
+            <section>
+              <GroupTitle>Stärken</GroupTitle>
+              <div className="rounded-[var(--radius-lg)] bg-surface p-4">
+                <AspectList title="" aspects={ins.topPositiveAspects} tone="positive" />
+              </div>
+            </section>
+          )}
+          {ins.topNegativeAspects.length > 0 && (
+            <section>
+              <GroupTitle>Probleme</GroupTitle>
+              <div className="rounded-[var(--radius-lg)] bg-surface p-4">
+                <AspectList title="" aspects={ins.topNegativeAspects} tone="negative" />
+              </div>
+            </section>
+          )}
+        </div>
       )}
 
       {/* Wish known */}
       {ins.wishKnownHighlights.length > 0 && (
-        <Card>
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-ink">
-            <Lightbulb className="h-4 w-4 text-unsure" strokeWidth={2.2} aria-hidden />
-            Das hätten Besitzer gerne vorher gewusst
-          </h3>
-          <ul className="space-y-2">
+        <section>
+          <GroupTitle>Das hätten Besitzer vorher gern gewusst</GroupTitle>
+          <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
             {ins.wishKnownHighlights.map((wish, i) => (
-              <li
+              <div
                 key={i}
-                className="rounded-[var(--radius-md)] border-l-2 border-unsure bg-unsure-soft/40 px-3.5 py-2.5 text-sm text-unsure-ink"
+                className={
+                  'px-4 py-3 text-[0.9375rem] leading-snug text-label ' +
+                  (i < ins.wishKnownHighlights.length - 1 ? 'hairline' : '')
+                }
+                style={{ ['--hairline-inset' as string]: '1rem' }}
               >
                 {wish}
-              </li>
+              </div>
             ))}
-          </ul>
-        </Card>
+          </div>
+        </section>
       )}
 
       {/* Audience */}
       {hasData && (ins.suitedFor.length > 0 || ins.notSuitedFor.length > 0) && (
-        <Card className="grid gap-6 sm:grid-cols-2">
-          <div>
-            <h3 className="mb-2.5 flex items-center gap-2 text-sm font-bold text-positive-ink">
-              <CheckCircle2 className="h-4 w-4" strokeWidth={2.2} /> Geeignet für
-            </h3>
-            {ins.suitedFor.length > 0 ? (
-              <ul className="space-y-2 text-sm text-ink">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {ins.suitedFor.length > 0 && (
+            <section>
+              <GroupTitle>Geeignet für</GroupTitle>
+              <ul className="space-y-2 rounded-[var(--radius-lg)] bg-surface p-4 text-[0.9375rem] text-label">
                 {ins.suitedFor.map((s, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
+                    <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
                     {s}
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">Noch offen.</p>
-            )}
-          </div>
-          <div>
-            <h3 className="mb-2.5 flex items-center gap-2 text-sm font-bold text-regret-ink">
-              <XCircle className="h-4 w-4" strokeWidth={2.2} /> Eher nicht für
-            </h3>
-            {ins.notSuitedFor.length > 0 ? (
-              <ul className="space-y-2 text-sm text-ink">
+            </section>
+          )}
+          {ins.notSuitedFor.length > 0 && (
+            <section>
+              <GroupTitle>Eher nicht für</GroupTitle>
+              <ul className="space-y-2 rounded-[var(--radius-lg)] bg-surface p-4 text-[0.9375rem] text-label">
                 {ins.notSuitedFor.map((s, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-regret" />
+                    <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-regret" />
                     {s}
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">Noch offen.</p>
-            )}
-          </div>
-        </Card>
+            </section>
+          )}
+        </div>
       )}
 
       {/* Usage duration */}
       {hasData && (
-        <Card>
-          <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-ink">
-            <Clock className="h-4 w-4 text-accent" strokeWidth={2.2} aria-hidden />
-            Wie lange im Einsatz
-          </h3>
-          <UsageDurationChart stats={ins.usageDurationStats} />
-        </Card>
+        <section>
+          <GroupTitle>Wie lange im Einsatz</GroupTitle>
+          <div className="rounded-[var(--radius-lg)] bg-surface p-4">
+            <UsageDurationChart stats={ins.usageDurationStats} />
+          </div>
+        </section>
       )}
 
       {/* Questions */}
       <section>
-        <SectionHeading
-          title="Fragen an Besitzer"
-          subtitle={
-            questions.length > 0
-              ? `${questions.length} Frage${questions.length === 1 ? '' : 'n'}`
-              : undefined
-          }
-          action={{ label: 'Frage stellen', href: `/products/${id}/ask` }}
-        />
+        <div className="flex items-end justify-between px-1 pb-1.5">
+          <GroupTitle>Fragen an Besitzer</GroupTitle>
+          <Link href={`/products/${id}/ask`} className="tap-dim pb-1 text-[0.9375rem] text-accent">
+            Frage stellen
+          </Link>
+        </div>
         {questions.length > 0 ? (
           <div className="space-y-2.5">
             {questions.map((q) => (
@@ -228,26 +229,19 @@ export default async function ProductPage({ params }: PageProps) {
             ))}
           </div>
         ) : (
-          <EmptyState
-            icon={HelpCircle}
-            title="Noch keine Fragen"
-            description="Stell den Besitzern, was dich wirklich interessiert."
-            action={
-              <Link
-                href={`/products/${id}/ask`}
-                className="inline-flex h-11 items-center rounded-[var(--radius-lg)] bg-surface px-5 text-sm font-semibold text-ink ring-1 ring-border"
-              >
-                Besitzer fragen
-              </Link>
-            }
-          />
+          <div className="rounded-[var(--radius-lg)] bg-surface">
+            <EmptyState
+              title="Noch keine Fragen"
+              description="Stell den Besitzern, was dich wirklich interessiert."
+            />
+          </div>
         )}
       </section>
 
       {/* Recent experiences */}
       {experiences.length > 0 && (
         <section>
-          <SectionHeading title="Echte Erfahrungen" subtitle={`${experiences.length} geteilt`} />
+          <GroupTitle>Echte Erfahrungen · {experiences.length}</GroupTitle>
           <div className="space-y-2.5">
             {experiences.map((exp) => (
               <ExperienceCard key={exp.id} experience={exp} />
@@ -256,26 +250,24 @@ export default async function ProductPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* Sticky action bar */}
-      <div className="safe-bottom fixed inset-x-0 bottom-16 z-30 border-t border-border bg-surface/80 px-4 py-3 backdrop-blur-xl md:bottom-0">
-        <div className="mx-auto flex max-w-3xl gap-2.5">
+      {/* Sticky action bar (iOS bottom toolbar, material) */}
+      <div className="safe-bottom fixed inset-x-0 bottom-[3.75rem] z-30 border-t border-separator bg-canvas/80 px-4 py-2.5 backdrop-blur-2xl backdrop-saturate-150 md:bottom-0">
+        <div className="mx-auto flex max-w-2xl gap-2.5">
           <Link
             href={`/products/${id}/own`}
-            className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-lg)] bg-primary text-sm font-semibold text-primary-foreground transition-transform active:scale-[0.98]"
+            className="tap-dim flex h-[2.875rem] flex-1 items-center justify-center rounded-[var(--radius-md)] bg-accent text-[1.0625rem] font-semibold text-white"
           >
-            <Package className="h-[1.05rem] w-[1.05rem]" strokeWidth={2.2} />
             Ich besitze es
           </Link>
           <Link
             href={`/products/${id}/ask`}
-            className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-lg)] bg-surface text-sm font-semibold text-ink ring-1 ring-border transition-transform active:scale-[0.98]"
+            className="tap-dim flex h-[2.875rem] flex-1 items-center justify-center rounded-[var(--radius-md)] bg-fill-2 text-[1.0625rem] font-semibold text-label"
           >
-            <MessageSquarePlus className="h-[1.05rem] w-[1.05rem]" strokeWidth={2} />
             Besitzer fragen
           </Link>
         </div>
       </div>
-      <div className="h-16" aria-hidden />
+      <div className="h-14" aria-hidden />
     </div>
   );
 }

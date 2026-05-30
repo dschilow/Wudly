@@ -1,19 +1,20 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { Trophy, TriangleAlert, Flame, BarChart3, type LucideIcon } from 'lucide-react';
+import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { CategoryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
-import { ProductCard } from '@/components/ProductCard';
+import { ProductList } from '@/components/ProductList';
 import { EmptyState, Skeleton } from '@/components/states/States';
+import { LargeTitle } from '@/components/ios/LargeTitle';
+import { SegmentedControl } from '@/components/ios/SegmentedControl';
 import { cn } from '@/lib/utils';
 
 type Tab = 'rebuy' | 'regret' | 'discussed';
 
-const TABS: { id: Tab; label: string; icon: LucideIcon; emphasis: 'rebuy' | 'regret' }[] = [
-  { id: 'rebuy', label: 'Top Wiederkauf', icon: Trophy, emphasis: 'rebuy' },
-  { id: 'regret', label: 'Größte Fehlkäufe', icon: TriangleAlert, emphasis: 'regret' },
-  { id: 'discussed', label: 'Meist diskutiert', icon: Flame, emphasis: 'rebuy' },
+const SEGMENTS = [
+  { value: 'rebuy' as const, label: 'Top' },
+  { value: 'regret' as const, label: 'Flop' },
+  { value: 'discussed' as const, label: 'Diskutiert' },
 ];
 
 export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
@@ -47,99 +48,76 @@ export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
     void load();
   }, [load]);
 
-  const emphasis = category ? 'rebuy' : (TABS.find((t) => t.id === tab)?.emphasis ?? 'rebuy');
+  const emphasis = !category && tab === 'regret' ? 'regret' : 'rebuy';
 
   return (
-    <div className="space-y-5">
-      <div className="animate-rise">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">Top &amp; Flop</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Entdecke, was sich lohnt — und was nicht.
-        </p>
-      </div>
+    <div className="animate-fade space-y-4 pt-2">
+      <LargeTitle title="Charts" subtitle="Was sich lohnt — und was nicht." />
 
-      {/* Tabs */}
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {TABS.map((t) => {
-          const active = !category && tab === t.id;
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.id}
-              onClick={() => {
-                setTab(t.id);
-                setCategory('');
-              }}
-              className={cn(
-                'flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all active:scale-95',
-                active
-                  ? 'bg-ink text-white shadow-sm'
-                  : 'bg-surface text-ink ring-1 ring-border hover:bg-surface-sunken',
-              )}
-            >
-              <Icon className="h-4 w-4" strokeWidth={2.2} aria-hidden />
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
+      <SegmentedControl
+        segments={SEGMENTS}
+        value={category ? 'rebuy' : tab}
+        onChange={(v) => {
+          setTab(v);
+          setCategory('');
+        }}
+      />
 
-      {/* Category filter */}
+      {/* Category filter — iOS-style scrolling chips */}
       {categories.length > 0 && (
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <button
-            onClick={() => setCategory('')}
-            className={cn(
-              'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors',
-              !category
-                ? 'bg-accent text-white'
-                : 'bg-surface text-muted-foreground ring-1 ring-border hover:text-ink',
-            )}
-          >
-            Alle Kategorien
-          </button>
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+          <Chip active={!category} onClick={() => setCategory('')}>
+            Alle
+          </Chip>
           {categories.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setCategory(c.slug)}
-              className={cn(
-                'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors',
-                category === c.slug
-                  ? 'bg-accent text-white'
-                  : 'bg-surface text-muted-foreground ring-1 ring-border hover:text-ink',
-              )}
-            >
+            <Chip key={c.id} active={category === c.slug} onClick={() => setCategory(c.slug)}>
               {c.name}
-            </button>
+            </Chip>
           ))}
         </div>
       )}
 
-      {/* List */}
       {loading ? (
-        <div className="space-y-2.5">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-[5.5rem]" />
+        <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className={cn('px-4 py-3', i < 5 && 'hairline')}>
+              <Skeleton className="h-10" />
+            </div>
           ))}
         </div>
       ) : entries && entries.length > 0 ? (
-        <div className="space-y-2.5">
-          {entries.map((entry) => (
-            <ProductCard
-              key={entry.product.id}
-              product={entry.product}
-              rank={entry.rank}
-              emphasis={emphasis}
-            />
-          ))}
-        </div>
+        <ProductList
+          products={entries.map((e) => ({ product: e.product, rank: e.rank }))}
+          emphasis={emphasis}
+        />
       ) : (
         <EmptyState
-          icon={BarChart3}
           title="Noch keine Platzierungen"
           description="Sobald genügend Erfahrungen vorliegen, erscheinen hier Rankings."
         />
       )}
     </div>
+  );
+}
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'tap-dim shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[0.8125rem] font-medium',
+        active ? 'bg-accent text-white' : 'bg-fill-2 text-muted-foreground',
+      )}
+    >
+      {children}
+    </button>
   );
 }

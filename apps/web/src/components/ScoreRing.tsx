@@ -65,32 +65,30 @@ export function ScoreRing({
   }, [inView, score, animate]);
 
   const shown = score === null ? null : display;
-  const inner = size - 13;
+  const inner = size - 9; // thinner ring than before (more refined)
   const ringStyle: CSSProperties = {
     width: size,
     height: size,
     // @ts-expect-error CSS custom props
     '--score': animate ? (inView ? (score ?? 0) : 0) : (score ?? 0),
     '--ring-color': color,
-    transition: 'background 0.9s var(--ease-out-soft)',
+    transition: 'background 0.9s var(--ease-ios)',
   };
 
   return (
-    <div ref={ref} className={cn('inline-flex flex-col items-center gap-2', className)}>
+    <div ref={ref} className={cn('inline-flex flex-col items-center gap-1.5', className)}>
       <div className="score-ring grid place-items-center rounded-full" style={ringStyle}>
         <div
-          className="grid place-items-center rounded-full bg-surface shadow-xs"
+          className="grid place-items-center rounded-full bg-surface"
           style={{ width: inner, height: inner }}
         >
-          <span className="text-[1.6rem] font-bold tnum leading-none" style={{ color }}>
+          <span className="text-[1.5rem] font-semibold tnum leading-none" style={{ color }}>
             {formatScore(shown)}
           </span>
         </div>
       </div>
       {label && (
-        <span className="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          {label}
-        </span>
+        <span className="text-[0.8125rem] font-normal text-muted-foreground">{label}</span>
       )}
     </div>
   );

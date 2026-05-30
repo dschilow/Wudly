@@ -7,7 +7,6 @@ import { useAuth } from '@/lib/auth-context';
 import { ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { LogoMark } from '@/components/Logo';
 
 export function LoginClient() {
@@ -61,74 +60,66 @@ export function LoginClient() {
     }
   };
 
+  const inputCls =
+    'w-full bg-transparent px-4 py-3 text-[1.0625rem] text-label outline-none placeholder:text-faint';
+
   return (
-    <div className="mx-auto max-w-md pt-8">
-      <div className="mb-7 flex flex-col items-center text-center">
-        <LogoMark size={48} />
-        <h1 className="mt-4 text-2xl font-extrabold text-ink">
+    <div className="animate-fade mx-auto max-w-md pt-10">
+      <div className="mb-8 flex flex-col items-center text-center">
+        <LogoMark size={56} />
+        <h1 className="mt-4 text-[1.75rem] font-bold tracking-tight text-label">
           {mode === 'login' ? 'Willkommen zurück' : 'Konto erstellen'}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1.5 text-[0.9375rem] text-muted-foreground">
           {mode === 'login'
             ? 'Melde dich an, um Erfahrungen zu teilen.'
             : 'Kostenlos. Teile Erfahrungen und frage Besitzer.'}
         </p>
       </div>
 
-      <Card>
-        <form onSubmit={submit} className="space-y-3.5">
+      <form onSubmit={submit} className="space-y-4">
+        <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
           {mode === 'register' && (
-            <label className="block">
-              <span className="mb-1 block text-sm font-semibold text-ink">
-                Anzeigename <span className="font-normal text-muted-foreground">(optional)</span>
-              </span>
-              <input
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="z. B. Lena"
-                className="h-12 w-full rounded-2xl border border-border-strong bg-surface px-4 text-base text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent"
-              />
-            </label>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Name (optional)"
+              className={inputCls + ' hairline'}
+            />
           )}
-          <label className="block">
-            <span className="mb-1 block text-sm font-semibold text-ink">E-Mail</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="du@example.com"
-              autoComplete="email"
-              className="h-12 w-full rounded-2xl border border-border-strong bg-surface px-4 text-base text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-semibold text-ink">Passwort</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === 'register' ? 'Mindestens 8 Zeichen' : '••••••••'}
-              autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-              className="h-12 w-full rounded-2xl border border-border-strong bg-surface px-4 text-base text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent"
-            />
-          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="E-Mail"
+            autoComplete="email"
+            className={inputCls + ' hairline'}
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={mode === 'register' ? 'Passwort (min. 8 Zeichen)' : 'Passwort'}
+            autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+            className={inputCls}
+          />
+        </div>
 
-          {error && <p className="text-sm font-medium text-regret-ink">{error}</p>}
+        {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
 
-          <Button type="submit" fullWidth size="lg" loading={submitting}>
-            {mode === 'login' ? 'Anmelden' : 'Konto erstellen'}
-          </Button>
-        </form>
-      </Card>
+        <Button type="submit" fullWidth size="lg" loading={submitting}>
+          {mode === 'login' ? 'Anmelden' : 'Konto erstellen'}
+        </Button>
+      </form>
 
-      <p className="mt-4 text-center text-sm text-muted-foreground">
-        {mode === 'login' ? 'Noch kein Konto?' : 'Schon registriert?'}{' '}
+      <p className="mt-5 text-center text-[0.9375rem] text-muted-foreground">
+        {mode === 'login' ? 'Noch kein Konto? ' : 'Schon registriert? '}
         <button
           onClick={() => {
             setMode((m) => (m === 'login' ? 'register' : 'login'));
             setError(null);
           }}
-          className="font-semibold text-accent hover:underline"
+          className="font-medium text-accent"
         >
           {mode === 'login' ? 'Registrieren' : 'Anmelden'}
         </button>

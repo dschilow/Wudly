@@ -48,12 +48,10 @@ export function AskClient({ productId, productName }: { productId: string; produ
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-5">
-      <div className="animate-rise">
-        <h1 className="text-2xl font-extrabold text-ink">Besitzer fragen</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Zu <span className="font-semibold text-ink">{productName}</span>
-        </p>
+    <div className="animate-fade mx-auto max-w-md space-y-5 pt-2">
+      <div className="px-1">
+        <h1 className="text-[1.75rem] font-bold tracking-tight text-label">Besitzer fragen</h1>
+        <p className="mt-1 text-[0.9375rem] text-muted-foreground">Zu {productName}</p>
       </div>
 
       <textarea
@@ -62,19 +60,23 @@ export function AskClient({ productId, productName }: { productId: string; produ
         rows={4}
         autoFocus
         placeholder="Was möchtest du von echten Besitzern wissen?"
-        className="w-full rounded-2xl border border-border-strong bg-surface p-4 text-base text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent"
+        className="w-full rounded-[var(--radius-lg)] bg-surface p-4 text-[1.0625rem] leading-snug text-label outline-none placeholder:text-faint"
       />
 
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="px-1 pb-1.5 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
           Häufige Fragen
         </p>
-        <div className="flex flex-wrap gap-2">
-          {COMMON_QUESTIONS.map((q) => (
+        <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+          {COMMON_QUESTIONS.map((q, i) => (
             <button
               key={q}
               onClick={() => setText(q)}
-              className="rounded-full border border-border-strong bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+              className={
+                'tap flex w-full items-center px-4 py-3 text-left text-[1.0625rem] text-label ' +
+                (i < COMMON_QUESTIONS.length - 1 ? 'hairline' : '')
+              }
+              style={{ ['--hairline-inset' as string]: '1rem' }}
             >
               {q}
             </button>
@@ -82,7 +84,7 @@ export function AskClient({ productId, productName }: { productId: string; produ
         </div>
       </div>
 
-      {error && <p className="text-sm font-medium text-regret-ink">{error}</p>}
+      {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
 
       <Button fullWidth size="lg" loading={submitting} onClick={submit}>
         Frage abschicken

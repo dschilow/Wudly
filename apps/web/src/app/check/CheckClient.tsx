@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, X, PackageSearch, Plus, Lightbulb } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import type { ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
-import { ProductCard } from '@/components/ProductCard';
+import { ProductList } from '@/components/ProductList';
 import { EmptyState, Skeleton } from '@/components/states/States';
+import { LargeTitle } from '@/components/ios/LargeTitle';
 import { AddProductForm } from './AddProductForm';
 
 export function CheckClient() {
@@ -51,79 +52,66 @@ export function CheckClient() {
   const hasNoResults = results !== null && results.length === 0 && !loading;
 
   return (
-    <div className="space-y-5">
-      <div className="animate-rise">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">
-          {ownIntent ? 'Welches Produkt besitzt du?' : 'Welches Produkt prüfst du?'}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {ownIntent
-            ? 'Finde dein Produkt und teile in 3 Klicks deine Erfahrung.'
-            : 'Sieh, ob echte Besitzer es wieder kaufen würden.'}
-        </p>
+    <div className="animate-fade space-y-4 pt-2">
+      <LargeTitle
+        title={ownIntent ? 'Dein Produkt' : 'Prüfen'}
+        subtitle={
+          ownIntent
+            ? 'Finde dein Produkt und teile deine Erfahrung.'
+            : 'Sieh, ob echte Besitzer es wieder kaufen würden.'
+        }
+      />
+
+      {/* iOS search field */}
+      <div className="flex h-9 items-center gap-1.5 rounded-[0.625rem] bg-fill-2 px-2">
+        <Search className="h-[1.05rem] w-[1.05rem] shrink-0 text-faint" strokeWidth={2.2} aria-hidden />
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setShowAdd(false);
+          }}
+          placeholder="Suchen"
+          className="h-full flex-1 bg-transparent text-[1.0625rem] text-label outline-none placeholder:text-faint"
+          inputMode="search"
+          aria-label="Produktsuche"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery('')}
+            className="tap-dim grid h-5 w-5 shrink-0 place-items-center rounded-full bg-faint/60 text-white"
+            aria-label="Leeren"
+          >
+            <X className="h-3 w-3" strokeWidth={3} />
+          </button>
+        )}
       </div>
 
-      {/* Search box */}
-      <div className="sticky top-14 z-20 -mx-4 bg-canvas/80 px-4 py-2 backdrop-blur-xl">
-        <div className="flex items-center gap-2.5 rounded-[var(--radius-lg)] bg-surface px-4 shadow-sm ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent">
-          <Search className="h-[1.15rem] w-[1.15rem] shrink-0 text-faint" strokeWidth={2} aria-hidden />
-          <input
-            autoFocus
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setShowAdd(false);
-            }}
-            placeholder="z. B. Dyson V15, MacBook Air…"
-            className="h-12 flex-1 bg-transparent text-[0.95rem] text-ink outline-none placeholder:text-faint"
-            inputMode="search"
-            aria-label="Produktsuche"
-          />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-faint transition-colors hover:bg-surface-sunken hover:text-ink"
-              aria-label="Leeren"
-            >
-              <X className="h-4 w-4" strokeWidth={2.2} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Results */}
       {loading && (
-        <div className="space-y-2.5">
-          <Skeleton className="h-[5.5rem]" />
-          <Skeleton className="h-[5.5rem]" />
-          <Skeleton className="h-[5.5rem]" />
-        </div>
-      )}
-
-      {error && <p className="text-sm font-medium text-regret-ink">{error}</p>}
-
-      {!loading && results && results.length > 0 && (
-        <div className="space-y-2.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-faint">
-            {results.length} Treffer
-          </p>
-          {results.map((product) => (
-            <ProductCard key={product.id} product={product} />
+        <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className={i < 3 ? 'hairline px-4 py-3' : 'px-4 py-3'}>
+              <Skeleton className="h-10" />
+            </div>
           ))}
         </div>
       )}
 
+      {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
+
+      {!loading && results && results.length > 0 && <ProductList products={results} />}
+
       {hasNoResults && !showAdd && (
         <EmptyState
-          icon={PackageSearch}
           title="Kein Produkt gefunden"
-          description={`Für „${query}" gibt es noch keinen Eintrag. Du kannst es als Erster vorschlagen.`}
+          description={`Für „${query}" gibt es noch keinen Eintrag — schlag es als Erster vor.`}
           action={
             <button
               onClick={() => setShowAdd(true)}
-              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[var(--radius-lg)] bg-primary px-5 text-sm font-semibold text-primary-foreground transition-transform active:scale-[0.98]"
+              className="tap-dim inline-flex h-11 items-center justify-center rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white"
             >
-              <Plus className="h-4 w-4" strokeWidth={2.4} /> Produkt vorschlagen
+              Produkt vorschlagen
             </button>
           }
         />
@@ -132,13 +120,9 @@ export function CheckClient() {
       {hasNoResults && showAdd && <AddProductForm initialName={query} ownIntent={ownIntent} />}
 
       {results === null && !loading && (
-        <div className="flex items-start gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4 text-sm text-muted-foreground">
-          <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-unsure" strokeWidth={2} aria-hidden />
-          <span>
-            <span className="font-semibold text-ink">Tipp:</span> Du brauchst keine Modellnummer. Der
-            normale Produktname reicht völlig.
-          </span>
-        </div>
+        <p className="px-1 pt-2 text-[0.9375rem] leading-snug text-muted-foreground">
+          Du brauchst keine Modellnummer — der normale Produktname reicht völlig.
+        </p>
       )}
     </div>
   );

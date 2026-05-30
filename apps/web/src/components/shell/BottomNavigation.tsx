@@ -15,17 +15,17 @@ interface NavItem {
 const items: NavItem[] = [
   { href: '/', label: 'Start', icon: Home, match: (p) => p === '/' },
   { href: '/check', label: 'Prüfen', icon: Search, match: (p) => p.startsWith('/check') },
-  { href: '/rankings', label: 'Top & Flop', icon: BarChart3, match: (p) => p.startsWith('/rankings') },
+  { href: '/rankings', label: 'Charts', icon: BarChart3, match: (p) => p.startsWith('/rankings') },
   { href: '/me', label: 'Profil', icon: User, match: (p) => p === '/me' || p.startsWith('/me/') },
 ];
 
-/** Fixed bottom navigation — the primary mobile navigation pattern. */
+/** iOS UITabBar — translucent material, top hairline, filled active tint. */
 export function BottomNavigation() {
   const pathname = usePathname();
 
   return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/80 backdrop-blur-xl md:hidden">
-      <ul className="mx-auto flex max-w-lg items-stretch justify-around px-2">
+    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-separator bg-canvas/80 backdrop-blur-2xl backdrop-saturate-150 md:hidden">
+      <ul className="mx-auto flex max-w-lg items-stretch justify-around">
         {items.map((item) => {
           const active = item.match(pathname);
           const Icon = item.icon;
@@ -34,16 +34,13 @@ export function BottomNavigation() {
               <Link
                 href={item.href}
                 className={cn(
-                  'relative flex flex-col items-center gap-1 py-2.5 text-[0.65rem] font-semibold transition-colors duration-200',
-                  active ? 'text-accent' : 'text-faint hover:text-muted-foreground',
+                  'tap-dim flex flex-col items-center gap-1 pb-1 pt-2 text-[0.625rem] font-medium tracking-tight',
+                  active ? 'text-accent' : 'text-faint',
                 )}
               >
-                {active && (
-                  <span className="absolute -top-px h-0.5 w-8 rounded-full bg-accent" aria-hidden />
-                )}
                 <Icon
-                  className={cn('h-[1.35rem] w-[1.35rem] transition-transform', active && 'scale-105')}
-                  strokeWidth={active ? 2.4 : 2}
+                  className="h-[1.55rem] w-[1.55rem]"
+                  strokeWidth={active ? 2.4 : 1.9}
                   aria-hidden
                 />
                 {item.label}

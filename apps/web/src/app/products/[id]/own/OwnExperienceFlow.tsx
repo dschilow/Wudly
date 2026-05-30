@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Check } from 'lucide-react';
 import type {
   CategoryAspectDto,
   WouldBuyAgain,
@@ -17,6 +18,7 @@ import {
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { OptionGrid, MultiSelectChips } from '@/components/OptionGrid';
 import { AuthGate } from '@/components/AuthGate';
@@ -91,24 +93,24 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   /* ----- Thank you ----- */
   if (done) {
     return (
-      <div className="mx-auto max-w-md pt-10 text-center">
-        <div className="animate-pop text-6xl" aria-hidden>
-          🎉
+      <div className="mx-auto max-w-md px-2 pt-16 text-center">
+        <div className="animate-pop mx-auto grid h-16 w-16 place-items-center rounded-full bg-positive text-white">
+          <Check className="h-9 w-9" strokeWidth={3} aria-hidden />
         </div>
-        <h1 className="mt-4 text-2xl font-black text-ink">Danke!</h1>
-        <p className="mx-auto mt-2 max-w-sm text-pretty text-muted-foreground">
+        <h1 className="mt-5 text-[1.75rem] font-bold text-label">Danke!</h1>
+        <p className="mx-auto mt-2 max-w-sm text-pretty text-[1.0625rem] leading-snug text-muted-foreground">
           Deine Erfahrung hilft anderen, bessere Kaufentscheidungen zu treffen.
         </p>
-        <div className="mt-7 grid gap-3">
+        <div className="mt-8 space-y-2.5">
           <Link
             href={`/products/${productId}`}
-            className="flex h-12 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground"
+            className="tap-dim flex h-[3.125rem] items-center justify-center rounded-[var(--radius-md)] bg-accent text-[1.0625rem] font-semibold text-white"
           >
             Produktseite ansehen
           </Link>
           <Link
             href="/check"
-            className="flex h-12 items-center justify-center rounded-2xl bg-surface text-sm font-bold text-ink ring-1 ring-border"
+            className="tap-dim flex h-[3.125rem] items-center justify-center rounded-[var(--radius-md)] bg-fill-2 text-[1.0625rem] font-semibold text-label"
           >
             Weiteres Produkt bewerten
           </Link>
@@ -118,143 +120,140 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   }
 
   /* ----- Steps ----- */
+  const titles = [
+    'Würdest du es wieder kaufen?',
+    'Wie lange nutzt du es?',
+    'Wie war deine Erfahrung?',
+    'Noch etwas?',
+  ];
+
   return (
-    <div className="mx-auto max-w-md">
-      {/* Progress */}
-      <div className="mb-5">
-        <div className="mb-2 flex items-center justify-between text-xs font-semibold text-muted-foreground">
-          <span className="truncate pr-2">{productName}</span>
-          <span>
-            Schritt {step}/{TOTAL_STEPS}
-          </span>
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-surface-sunken">
+    <div className="mx-auto max-w-md pb-28 pt-2">
+      {/* Progress — thin iOS segments */}
+      <div className="mb-6 flex items-center gap-1.5 px-1">
+        {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
           <div
-            className="h-full rounded-full bg-accent transition-all duration-300"
-            style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
-          />
-        </div>
+            key={i}
+            className="h-1 flex-1 overflow-hidden rounded-full bg-fill-2"
+            aria-hidden
+          >
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-300 ease-[var(--ease-ios)]"
+              style={{ width: i < step ? '100%' : '0%' }}
+            />
+          </div>
+        ))}
       </div>
 
       <div key={step} className="animate-rise space-y-5">
+        <div className="px-1">
+          <p className="text-[0.8125rem] text-faint">
+            Schritt {step} von {TOTAL_STEPS}
+            {step === 4 && ' · optional'}
+          </p>
+          <h1 className="mt-1 text-[1.6875rem] font-bold leading-tight tracking-tight text-label">
+            {titles[step - 1]}
+          </h1>
+        </div>
+
         {step === 1 && (
-          <>
-            <h1 className="text-2xl font-extrabold text-ink">Würdest du es wieder kaufen?</h1>
-            <OptionGrid options={WOULD_BUY_AGAIN_OPTIONS} value={buyAgain} onChange={setBuyAgain} />
-          </>
+          <OptionGrid options={WOULD_BUY_AGAIN_OPTIONS} value={buyAgain} onChange={setBuyAgain} />
         )}
-
         {step === 2 && (
-          <>
-            <h1 className="text-2xl font-extrabold text-ink">Wie lange nutzt du es?</h1>
-            <OptionGrid options={USAGE_DURATION_OPTIONS} value={duration} onChange={setDuration} />
-          </>
+          <OptionGrid options={USAGE_DURATION_OPTIONS} value={duration} onChange={setDuration} />
         )}
-
         {step === 3 && (
-          <>
-            <h1 className="text-2xl font-extrabold text-ink">
-              Was beschreibt deine Erfahrung am besten?
-            </h1>
-            <OptionGrid options={EXPERIENCE_MOOD_OPTIONS} value={mood} onChange={setMood} />
-          </>
+          <OptionGrid options={EXPERIENCE_MOOD_OPTIONS} value={mood} onChange={setMood} />
         )}
 
         {step === 4 && (
-          <>
-            <h1 className="text-2xl font-extrabold text-ink">Noch etwas? (optional)</h1>
-            <div className="space-y-5">
+          <div className="space-y-5">
+            <div>
+              <label className="mb-1.5 block px-1 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
+                Was hättest du gerne vorher gewusst?
+              </label>
+              <textarea
+                value={wish}
+                onChange={(e) => setWish(e.target.value)}
+                rows={3}
+                placeholder="z. B. Dass die Station ziemlich groß ist…"
+                className="w-full rounded-[var(--radius-lg)] bg-surface p-3.5 text-[1.0625rem] text-label outline-none placeholder:text-faint"
+              />
+            </div>
+
+            {positiveAspects.length > 0 && (
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-ink">
-                  Was hättest du gerne vor dem Kauf gewusst?
+                <label className="mb-2 block px-1 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
+                  Was gefällt dir?
                 </label>
-                <textarea
-                  value={wish}
-                  onChange={(e) => setWish(e.target.value)}
-                  rows={3}
-                  placeholder="z. B. Dass die Station ziemlich groß ist…"
-                  className="w-full rounded-2xl border border-border-strong bg-surface p-3 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent"
+                <MultiSelectChips
+                  options={positiveAspects}
+                  selected={positives}
+                  onToggle={(k) => toggle(positives, setPositives, k)}
+                  tone="positive"
                 />
               </div>
+            )}
 
-              {positiveAspects.length > 0 && (
-                <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-positive-ink">
-                    Was gefällt dir?
-                  </label>
-                  <MultiSelectChips
-                    options={positiveAspects}
-                    selected={positives}
-                    onToggle={(k) => toggle(positives, setPositives, k)}
-                    tone="positive"
-                  />
-                </div>
-              )}
-
-              {negativeAspects.length > 0 && (
-                <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-regret-ink">
-                    Was nervt?
-                  </label>
-                  <MultiSelectChips
-                    options={negativeAspects}
-                    selected={negatives}
-                    onToggle={(k) => toggle(negatives, setNegatives, k)}
-                    tone="negative"
-                  />
-                </div>
-              )}
-
-              <label className="flex items-center gap-3 rounded-2xl bg-surface-sunken p-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={isPublic}
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                  className="h-5 w-5 accent-[color:var(--color-accent)]"
+            {negativeAspects.length > 0 && (
+              <div>
+                <label className="mb-2 block px-1 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
+                  Was nervt?
+                </label>
+                <MultiSelectChips
+                  options={negativeAspects}
+                  selected={negatives}
+                  onToggle={(k) => toggle(negatives, setNegatives, k)}
+                  tone="negative"
                 />
-                <span className="text-ink">
-                  Öffentlich teilen{' '}
-                  <span className="text-muted-foreground">(hilft anderen Käufern)</span>
-                </span>
-              </label>
-            </div>
-          </>
+              </div>
+            )}
+
+            {/* iOS toggle switch */}
+            <button
+              type="button"
+              onClick={() => setIsPublic((v) => !v)}
+              className="flex w-full items-center justify-between rounded-[var(--radius-lg)] bg-surface px-4 py-3 text-left"
+            >
+              <span className="text-[1.0625rem] text-label">Öffentlich teilen</span>
+              <span
+                className={cn(
+                  'relative h-[1.575rem] w-[2.75rem] shrink-0 rounded-full transition-colors duration-200',
+                  isPublic ? 'bg-positive' : 'bg-faint/50',
+                )}
+              >
+                <span
+                  className={cn(
+                    'absolute top-[0.125rem] h-[1.325rem] w-[1.325rem] rounded-full bg-white shadow transition-transform duration-200 ease-[var(--ease-ios)]',
+                    isPublic ? 'translate-x-[1.3rem]' : 'translate-x-[0.125rem]',
+                  )}
+                />
+              </span>
+            </button>
+          </div>
         )}
 
-        {error && <p className="text-sm font-medium text-regret-ink">{error}</p>}
+        {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
+      </div>
 
-        {/* Nav */}
-        <div className="flex gap-3 pt-1">
+      {/* Fixed bottom action bar */}
+      <div className="safe-bottom fixed inset-x-0 bottom-[3.75rem] z-30 border-t border-separator bg-canvas/80 px-4 py-2.5 backdrop-blur-2xl md:bottom-0">
+        <div className="mx-auto flex max-w-md items-center gap-2.5">
           {step > 1 && (
-            <Button variant="ghost" onClick={() => setStep((s) => s - 1)} className="flex-1">
+            <Button variant="gray" onClick={() => setStep((s) => s - 1)} size="lg">
               Zurück
             </Button>
           )}
           {step < TOTAL_STEPS ? (
-            <Button
-              onClick={() => setStep((s) => s + 1)}
-              disabled={!canNext}
-              fullWidth={step === 1}
-              className={step > 1 ? 'flex-1' : ''}
-            >
+            <Button onClick={() => setStep((s) => s + 1)} disabled={!canNext} size="lg" className="flex-1">
               Weiter
             </Button>
           ) : (
-            <Button onClick={submit} loading={submitting} className="flex-1">
-              Erfahrung abschicken
+            <Button onClick={submit} loading={submitting} size="lg" className="flex-1">
+              Abschicken
             </Button>
           )}
         </div>
-
-        {step === TOTAL_STEPS && (
-          <button
-            onClick={submit}
-            disabled={submitting}
-            className="mx-auto block text-sm font-semibold text-muted-foreground hover:text-ink"
-          >
-            Ohne Extras abschicken
-          </button>
-        )}
       </div>
     </div>
   );

@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation';
 import type { OwnershipDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Package } from 'lucide-react';
-import { ProductCard } from '@/components/ProductCard';
+import { ProductList } from '@/components/ProductList';
 import { Button } from '@/components/ui/Button';
 import { LoadingState, EmptyState } from '@/components/states/States';
+import { LargeTitle } from '@/components/ios/LargeTitle';
 
 export function MyProductsClient() {
   const router = useRouter();
@@ -33,32 +33,26 @@ export function MyProductsClient() {
   if (loading || dataLoading) return <LoadingState />;
   if (!user) return null;
 
-  return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">Meine Produkte</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Produkte, die du besitzt oder bewertet hast.
-        </p>
-      </div>
+  const products = ownerships.map((o) => o.product).filter((p): p is NonNullable<typeof p> => !!p);
 
-      {ownerships.length > 0 ? (
-        <div className="space-y-3">
-          {ownerships.map((o) =>
-            o.product ? <ProductCard key={o.id} product={o.product} /> : null,
-          )}
-        </div>
+  return (
+    <div className="animate-fade space-y-4 pt-2">
+      <LargeTitle title="Meine Produkte" subtitle="Produkte, die du besitzt oder bewertet hast." />
+
+      {products.length > 0 ? (
+        <ProductList products={products} />
       ) : (
-        <EmptyState
-          icon={Package}
-          title="Noch keine Produkte"
-          description="Sobald du ein Produkt bewertest, erscheint es hier."
-          action={
-            <Link href="/check?own=1">
-              <Button>Produkt hinzufügen</Button>
-            </Link>
-          }
-        />
+        <div className="rounded-[var(--radius-lg)] bg-surface">
+          <EmptyState
+            title="Noch keine Produkte"
+            description="Sobald du ein Produkt bewertest, erscheint es hier."
+            action={
+              <Link href="/check?own=1">
+                <Button>Produkt hinzufügen</Button>
+              </Link>
+            }
+          />
+        </div>
       )}
     </div>
   );

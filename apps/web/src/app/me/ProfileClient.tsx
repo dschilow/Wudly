@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import type { ProfileSummaryDto, ExperienceDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Package, Star, MessageSquare, ThumbsUp, PartyPopper, Wrench, Plus, LogOut } from 'lucide-react';
-import { Card } from '@/components/ui/Card';
+import { cn } from '@/lib/utils';
+import { ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ExperienceCard } from '@/components/ExperienceCard';
 import { LoadingState, EmptyState } from '@/components/states/States';
@@ -41,107 +41,110 @@ export function ProfileClient() {
   if (!user) return null;
 
   const stats = [
-    { label: 'Produkte', value: summary?.productCount ?? 0, icon: Package },
-    { label: 'Erfahrungen', value: summary?.experienceCount ?? 0, icon: Star },
-    { label: 'Antworten', value: summary?.answerCount ?? 0, icon: MessageSquare },
-    { label: 'Hilfreich', value: summary?.helpfulReceived ?? 0, icon: ThumbsUp },
+    { label: 'Produkte', value: summary?.productCount ?? 0 },
+    { label: 'Erfahrungen', value: summary?.experienceCount ?? 0 },
+    { label: 'Antworten', value: summary?.answerCount ?? 0 },
+    { label: 'Hilfreich', value: summary?.helpfulReceived ?? 0 },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="animate-fade space-y-6 pt-2">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <span className="grid h-16 w-16 place-items-center rounded-[var(--radius-lg)] bg-accent-soft text-2xl font-black text-accent-ink ring-1 ring-accent/10">
+      <div className="flex items-center gap-3.5 px-1 pt-1">
+        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-fill-2 text-[1.75rem] font-medium text-muted-foreground">
           {(user.displayName ?? user.email).charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-extrabold text-ink">
-            {user.displayName ?? 'Mein Profil'}
+          <h1 className="truncate text-[1.625rem] font-bold tracking-tight text-label">
+            {user.displayName ?? 'Profil'}
           </h1>
-          <p className="truncate text-sm text-muted-foreground">{user.email}</p>
+          <p className="truncate text-[0.9375rem] text-muted-foreground">{user.email}</p>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-2">
-        {stats.map((s) => (
-          <Card key={s.label} padded={false} className="px-2 py-3.5 text-center">
-            <s.icon className="mx-auto h-[1.1rem] w-[1.1rem] text-faint" strokeWidth={2} aria-hidden />
-            <div className="mt-1 text-xl font-extrabold tnum text-ink">{s.value}</div>
-            <div className="text-[0.62rem] font-semibold uppercase tracking-wide text-muted-foreground">
-              {s.label}
-            </div>
-          </Card>
+      {/* Stats — 4-up grouped card with hairline dividers */}
+      <div className="grid grid-cols-4 overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+        {stats.map((s, i) => (
+          <div
+            key={s.label}
+            className={cn('px-1 py-4 text-center', i < stats.length - 1 && 'border-r border-separator')}
+          >
+            <div className="text-[1.5rem] font-semibold tnum leading-none text-label">{s.value}</div>
+            <div className="mt-1 text-[0.6875rem] text-muted-foreground">{s.label}</div>
+          </div>
         ))}
       </div>
 
-      {/* Impact note */}
       {(summary?.helpfulReceived ?? 0) > 0 && (
-        <Card className="flex items-center gap-3 bg-positive-soft/50">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-positive/10 text-positive-ink">
-            <PartyPopper className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
-          </div>
-          <p className="text-sm font-semibold text-positive-ink">
-            Deine Beiträge wurden {summary?.helpfulReceived}× als hilfreich markiert!
-          </p>
-        </Card>
+        <p className="px-1 text-[0.9375rem] text-positive-ink">
+          Deine Beiträge wurden {summary?.helpfulReceived}× als hilfreich markiert.
+        </p>
       )}
 
-      <div className="grid grid-cols-2 gap-2.5">
-        <Link href="/me/products">
-          <Button variant="secondary" fullWidth>
-            Meine Produkte
-          </Button>
+      {/* Actions as an iOS list group */}
+      <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+        <Link href="/check?own=1" className="tap hairline flex items-center justify-between px-4 py-3">
+          <span className="text-[1.0625rem] text-label">Erfahrung teilen</span>
+          <ChevronRight className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3" strokeWidth={2.5} />
         </Link>
-        <Link href="/check?own=1">
-          <Button fullWidth>
-            <Plus className="h-4 w-4" strokeWidth={2.4} /> Erfahrung
-          </Button>
+        <Link
+          href="/me/products"
+          className={cn(
+            'tap flex items-center justify-between px-4 py-3',
+            user.role === 'ADMIN' && 'hairline',
+          )}
+        >
+          <span className="text-[1.0625rem] text-label">Meine Produkte</span>
+          <ChevronRight className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3" strokeWidth={2.5} />
         </Link>
+        {user.role === 'ADMIN' && (
+          <Link href="/admin" className="tap flex items-center justify-between px-4 py-3">
+            <span className="text-[1.0625rem] text-label">Admin-Bereich</span>
+            <ChevronRight className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3" strokeWidth={2.5} />
+          </Link>
+        )}
       </div>
-
-      {user.role === 'ADMIN' && (
-        <Link href="/admin">
-          <Button variant="outline" fullWidth>
-            <Wrench className="h-4 w-4" strokeWidth={2} /> Admin-Bereich
-          </Button>
-        </Link>
-      )}
 
       {/* My experiences */}
       <section>
-        <h2 className="mb-3 text-lg font-extrabold text-ink">Meine Erfahrungen</h2>
+        <h2 className="px-1 pb-1.5 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
+          Meine Erfahrungen
+        </h2>
         {dataLoading ? (
           <LoadingState />
         ) : experiences.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {experiences.map((e) => (
               <ExperienceCard key={e.id} experience={e} />
             ))}
           </div>
         ) : (
-          <EmptyState
-            icon={Star}
-            title="Noch keine Erfahrungen"
-            description="Teile dein erstes Produkt und hilf anderen."
-            action={
-              <Link href="/check?own=1">
-                <Button>Erfahrung teilen</Button>
-              </Link>
-            }
-          />
+          <div className="rounded-[var(--radius-lg)] bg-surface">
+            <EmptyState
+              title="Noch keine Erfahrungen"
+              description="Teile dein erstes Produkt und hilf anderen."
+              action={
+                <Link href="/check?own=1">
+                  <Button>Erfahrung teilen</Button>
+                </Link>
+              }
+            />
+          </div>
         )}
       </section>
 
-      <button
-        onClick={async () => {
-          await logout();
-          router.push('/');
-        }}
-        className="mx-auto flex items-center gap-1.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-regret-ink"
-      >
-        <LogOut className="h-4 w-4" strokeWidth={2} /> Abmelden
-      </button>
+      {/* Sign out — its own group, destructive, centered (iOS) */}
+      <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+        <button
+          onClick={async () => {
+            await logout();
+            router.push('/');
+          }}
+          className="tap w-full py-3 text-center text-[1.0625rem] text-regret"
+        >
+          Abmelden
+        </button>
+      </div>
     </div>
   );
 }
