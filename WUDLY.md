@@ -163,6 +163,23 @@ pnpm lint
 Wiederkauf-/Regret-Score + Snapshots, Fragen & Antworten (+Hilfreich), Top&Flop-Rankings (inkl. Kategorie),
 Profil, Admin-Merge-Kandidaten, AI-Stub (`DummyAiService` hinter `AiService`-Interface), Dockerized, auf Railway live.
 
+**Neu (2026-06-03):**
+- **In-App-Benachrichtigungen / Q&A-Loop** — neues `Notification`-Modell (Migration `20260603130000_add_notifications`,
+  muss in prod per `prisma migrate deploy` laufen). Frage zu eigenem Produkt → alle Besitzer werden benachrichtigt;
+  beantwortete Frage → Fragesteller; „Hilfreich" → Antwortgeber. Glocke im Header mit Badge (`/me/inbox`),
+  „Fragen zu deinen Produkten"-Inbox mit Inline-Antwort. Endpoints unter `GET/PATCH /me/notifications*`.
+  `NotificationsModule` ist `@Global` (kein Import-Zyklus mit Questions).
+- **Produktbilder** — die bereits vorhandenen generierten Preview-SVGs werden jetzt überall als Thumbnail genutzt
+  (neuer Endpoint `GET /products/:id/image`); Fallback-Helper `productThumbUrl` im Web. Keine grauen Boxen mehr.
+- **KI-Frage-Vorschläge** — `AiService.suggestQuestions(productId)` (real: produktspezifisch via OpenRouter,
+  Dummy: kuratierte `COMMON_QUESTIONS`). Endpoint `GET /products/:id/question-suggestions`, genutzt im Ask-Flow.
+- **Share-Card / OG-Image** — `GET /products/:id/share.svg` (1200×630, Wiederkauf-Score), als OG/Twitter-Image
+  in `generateMetadata` der Produktseite + `ShareButton` (Web Share API / Clipboard-Fallback).
+- **Produktvergleich** — `/compare?ids=a,b[,c]` (Frontend-only, nutzt `GET /products/:id`), Suche/Auswahl,
+  Side-by-side von Scores/Stärken/Schwächen mit „BEST"-Markierung. Einstieg über die Charts-Seite.
+- **Fix:** ESLint-Flat-Config der Web-App registriert jetzt `@next/next`- und `react-hooks`-Plugins
+  (vorher brach `pnpm lint` mit „rule not found"). Plus latente strict-mode-Fixes in `product-preview-svg.ts`.
+
 **Bewusst nicht im MVP:** Amazon/TikTok/Instagram/Reddit-Scraping, Garantie-/Rückgabelogik, volle
 Datenblätter, komplexes Variantenmanagement, Payment, echtes Affiliate, Native App.
 Die Architektur blockiert keinen dieser Punkte.

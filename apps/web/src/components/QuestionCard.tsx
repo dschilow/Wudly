@@ -70,7 +70,14 @@ function AnswerRow({ answer }: { answer: AnswerDto }) {
 }
 
 /** A product question with its answers and an inline answer composer. */
-export function QuestionCard({ question }: { question: QuestionDto }) {
+export function QuestionCard({
+  question,
+  onAnswered,
+}: {
+  question: QuestionDto;
+  /** Called after this user posts an answer (e.g. to drop it from an "open" list). */
+  onAnswered?: (answer: AnswerDto) => void;
+}) {
   const { user } = useAuth();
   const { show } = useToast();
   const [answers, setAnswers] = useState<AnswerDto[]>(question.answers);
@@ -92,6 +99,7 @@ export function QuestionCard({ question }: { question: QuestionDto }) {
       setQuick('');
       setOpen(false);
       show('Antwort gepostet 🙌', 'success');
+      onAnswered?.(created);
     } catch (err) {
       show(err instanceof ApiError ? err.displayMessage : 'Fehler beim Antworten.', 'error');
     } finally {

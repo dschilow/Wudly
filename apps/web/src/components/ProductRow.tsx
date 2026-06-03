@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import type { ProductSummaryDto } from '@wudly/shared';
 import { cn, formatScore, scoreColor } from '@/lib/utils';
+import { productThumbUrl } from '@/lib/product-media';
 
 interface ProductRowProps {
   product: ProductSummaryDto;
@@ -12,22 +13,16 @@ interface ProductRowProps {
 }
 
 function Thumb({ product }: { product: ProductSummaryDto }) {
-  if (product.imageUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={product.imageUrl}
-        alt=""
-        className="h-11 w-11 rounded-[0.5rem] object-cover"
-      />
-    );
-  }
-  // Monogram tile — calmer than a generic box icon.
-  const initials = (product.brand ?? product.canonicalName).slice(0, 1).toUpperCase();
+  // Real image when set, else the API's generated per-category preview.
   return (
-    <div className="grid h-11 w-11 place-items-center rounded-[0.5rem] bg-fill-2 text-[1.0625rem] font-semibold text-muted-foreground">
-      {initials}
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={productThumbUrl(product)}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      className="h-11 w-11 shrink-0 rounded-[0.5rem] bg-fill-2 object-cover"
+    />
   );
 }
 

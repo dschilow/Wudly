@@ -8,6 +8,7 @@ import {
   normalizeProductName,
   guessBrand,
   AspectSentiment,
+  COMMON_QUESTIONS,
 } from '@wudly/shared';
 
 /**
@@ -70,5 +71,10 @@ export class DummyAiService implements AiService {
       suitedFor: [],
       notSuitedFor: [],
     };
+  }
+
+  async suggestQuestions(_productId: string): Promise<string[]> {
+    // No model → fall back to the curated common questions.
+    return [...COMMON_QUESTIONS].slice(0, 4);
   }
 }

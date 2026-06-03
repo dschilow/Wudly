@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback, type ReactNode } from 'react';
+import Link from 'next/link';
+import { GitCompareArrows } from 'lucide-react';
 import type { CategoryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ProductList } from '@/components/ProductList';
@@ -53,6 +55,21 @@ export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
   return (
     <div className="animate-fade space-y-4 pt-2">
       <LargeTitle title="Charts" subtitle="Was sich lohnt — und was nicht." />
+
+      <Link
+        href="/compare"
+        className="tap flex items-center gap-3 rounded-[var(--radius-lg)] bg-surface px-4 py-3"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
+          <GitCompareArrows className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.1} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[1.0625rem] leading-tight text-label">Produkte vergleichen</span>
+          <span className="mt-0.5 block text-[0.8125rem] text-muted-foreground">
+            Wiederkauf, Regret & Schwächen direkt nebeneinander.
+          </span>
+        </span>
+      </Link>
 
       <SegmentedControl
         segments={SEGMENTS}

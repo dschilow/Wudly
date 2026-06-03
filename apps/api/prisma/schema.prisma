@@ -107,6 +107,12 @@ enum MergeCandidateStatus {
   REJECTED
 }
 
+enum NotificationType {
+  QUESTION_ASKED // a question was asked about a product you own
+  QUESTION_ANSWERED // your question got an answer
+  ANSWER_HELPFUL // your answer was marked helpful
+}
+
 /* ----------------------------------------------------------------- *
  * Identity
  * ----------------------------------------------------------------- */
@@ -125,6 +131,7 @@ model User {
   askedQuestions    ProductQuestion[]  @relation("AskedBy")
   answers           ProductAnswer[]
   badges            UserBadge[]
+  notifications     Notification[]
 
   @@index([role])
 }
@@ -371,6 +378,30 @@ model ProductInsightSnapshot {
   @@index([rebuyScore])
   @@index([regretScore])
   @@index([experienceCount])
+}
+
+/* ----------------------------------------------------------------- *
+ * Notifications — close the Q&A loop (owner gets asked, asker gets answered)
+ * ----------------------------------------------------------------- */
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  type       NotificationType
+  title      String
+  body       String?
+  // Where tapping the notification takes the user (e.g. /products/<id>).
+  link       String?
+  // Loose references to the entities involved — no FK so deletes don't cascade away history.
+  productId  String?
+  questionId String?
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
 }
 
 /* ----------------------------------------------------------------- *

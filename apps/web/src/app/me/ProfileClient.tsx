@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation';
 import type { ProfileSummaryDto, ExperienceDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useNotifications } from '@/lib/notifications-context';
 import { cn } from '@/lib/utils';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ExperienceCard } from '@/components/ExperienceCard';
 import { LoadingState, EmptyState } from '@/components/states/States';
@@ -15,6 +16,7 @@ import { LoadingState, EmptyState } from '@/components/states/States';
 export function ProfileClient() {
   const router = useRouter();
   const { user, loading, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const [summary, setSummary] = useState<ProfileSummaryDto | null>(null);
   const [experiences, setExperiences] = useState<ExperienceDto[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -83,6 +85,20 @@ export function ProfileClient() {
 
       {/* Actions as an iOS list group */}
       <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+        <Link href="/me/inbox" className="tap hairline flex items-center justify-between px-4 py-3">
+          <span className="flex items-center gap-2.5 text-[1.0625rem] text-label">
+            <Bell className="h-[1.15rem] w-[1.15rem] text-muted-foreground" strokeWidth={2} />
+            Mitteilungen
+          </span>
+          <span className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-regret px-1.5 text-[0.75rem] font-bold text-white">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+            <ChevronRight className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3" strokeWidth={2.5} />
+          </span>
+        </Link>
         <Link href="/check?own=1" className="tap hairline flex items-center justify-between px-4 py-3">
           <span className="text-[1.0625rem] text-label">Erfahrung teilen</span>
           <ChevronRight className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3" strokeWidth={2.5} />

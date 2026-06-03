@@ -112,6 +112,13 @@ export const UserRole = {
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
+export const NotificationType = {
+  QUESTION_ASKED: 'QUESTION_ASKED',
+  QUESTION_ANSWERED: 'QUESTION_ANSWERED',
+  ANSWER_HELPFUL: 'ANSWER_HELPFUL',
+} as const;
+export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
+
 /** Helper to turn a const-enum object into an array of its values. */
 export function enumValues<T extends Record<string, string>>(e: T): Array<T[keyof T]> {
   return Object.values(e) as Array<T[keyof T]>;

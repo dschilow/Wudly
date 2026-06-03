@@ -40,6 +40,11 @@ export interface AiService {
   summarizeProductInsights(productId: string): Promise<ProductInsightSummary>;
   extractProductCandidate(input: ProductInput): Promise<ProductCandidate>;
   normalizeExperienceText(text: string): Promise<NormalizedExperience>;
+  /**
+   * Suggest a handful of sharp, product-specific questions a prospective buyer
+   * might want answered by real owners. Returns short German question strings.
+   */
+  suggestQuestions(productId: string): Promise<string[]>;
 }
 
 /** DI token string for the AiService binding in the backend. */

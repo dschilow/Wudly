@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Bell } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useNotifications } from '@/lib/notifications-context';
 
 const ROOT_ROUTES = new Set(['/', '/check', '/rankings', '/me']);
 
@@ -16,6 +17,7 @@ export function MobileHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
+  const { unreadCount } = useNotifications();
 
   const isRoot = ROOT_ROUTES.has(pathname);
 
@@ -35,16 +37,34 @@ export function MobileHeader() {
           <span className="pl-2 text-[1.0625rem] font-semibold text-label">Wudly</span>
         )}
 
-        <div className="ml-auto flex items-center pr-1">
+        <div className="ml-auto flex items-center gap-1.5 pr-1">
           {!loading &&
             (user ? (
-              <Link
-                href="/me"
-                className="tap-dim grid h-8 w-8 place-items-center rounded-full bg-fill-2 text-[0.875rem] font-semibold text-label"
-                aria-label="Profil"
-              >
-                {(user.displayName ?? user.email).charAt(0).toUpperCase()}
-              </Link>
+              <>
+                <Link
+                  href="/me/inbox"
+                  className="tap-dim relative grid h-8 w-8 place-items-center rounded-full text-label"
+                  aria-label={
+                    unreadCount > 0
+                      ? `Mitteilungen, ${unreadCount} ungelesen`
+                      : 'Mitteilungen'
+                  }
+                >
+                  <Bell className="h-[1.3rem] w-[1.3rem]" strokeWidth={2} />
+                  {unreadCount > 0 && (
+                    <span className="absolute right-0.5 top-0.5 grid h-[1.05rem] min-w-[1.05rem] place-items-center rounded-full bg-regret px-1 text-[0.625rem] font-bold leading-none text-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </Link>
+                <Link
+                  href="/me"
+                  className="tap-dim grid h-8 w-8 place-items-center rounded-full bg-fill-2 text-[0.875rem] font-semibold text-label"
+                  aria-label="Profil"
+                >
+                  {(user.displayName ?? user.email).charAt(0).toUpperCase()}
+                </Link>
+              </>
             ) : (
               <Link href="/login" className="tap-dim px-2 text-[1.0625rem] font-normal text-accent">
                 Anmelden

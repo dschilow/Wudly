@@ -16,15 +16,18 @@ import {
 } from '@wudly/shared';
 import {
   CATEGORIES,
-  PRODUCTS,
-  QUESTIONS,
+  PRODUCTS as CURATED_PRODUCTS,
+  QUESTIONS as CURATED_QUESTIONS,
   SEED_USERS,
   type SeedExperience,
 } from './seed-data';
+import { buildProductImageUrl, buildProducts } from './seed-generator';
 
 const prisma = new PrismaClient();
 
 const DEFAULT_PASSWORD = 'wudly12345';
+const PRODUCTS = buildProducts(CURATED_PRODUCTS, CATEGORIES);
+const QUESTIONS = CURATED_QUESTIONS;
 
 async function main() {
   console.warn('🌱  Seeding Wudly database…');
@@ -103,6 +106,7 @@ async function main() {
         brand: seedProduct.brand ?? null,
         categoryId,
         description: seedProduct.description ?? null,
+        imageUrl: buildProductImageUrl(seedProduct.canonicalName),
         status: 'ACTIVE',
         sources: {
           create: {

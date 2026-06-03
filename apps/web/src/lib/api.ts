@@ -18,6 +18,8 @@ import type {
   ProfileSummaryDto,
   CategoryDto,
   PaginatedDto,
+  NotificationListDto,
+  OpenQuestionDto,
   RegisterInput,
   LoginInput,
   CreateProductInput,
@@ -61,6 +63,8 @@ export const api = {
       apiFetch<ExperienceDto[]>(`/products/${id}/experiences`, opts),
     questions: (id: string, opts?: RequestOptions) =>
       apiFetch<QuestionDto[]>(`/products/${id}/questions`, opts),
+    questionSuggestions: (id: string, opts?: RequestOptions) =>
+      apiFetch<{ questions: string[] }>(`/products/${id}/question-suggestions`, opts),
     create: (input: CreateProductInput) =>
       apiFetch<CreateProductResultDto>('/products', { method: 'POST', json: input }),
   },
@@ -102,6 +106,19 @@ export const api = {
 
   profile: {
     summary: (opts?: RequestOptions) => apiFetch<ProfileSummaryDto>('/me/profile', opts),
+  },
+
+  notifications: {
+    list: (take = 30, opts?: RequestOptions) =>
+      apiFetch<NotificationListDto>(`/me/notifications${qs({ take })}`, opts),
+    unreadCount: (opts?: RequestOptions) =>
+      apiFetch<{ count: number }>('/me/notifications/unread-count', opts),
+    openQuestions: (opts?: RequestOptions) =>
+      apiFetch<OpenQuestionDto[]>('/me/notifications/open-questions', opts),
+    markRead: (id: string) =>
+      apiFetch<void>(`/me/notifications/${id}/read`, { method: 'PATCH' }),
+    markAllRead: () =>
+      apiFetch<void>('/me/notifications/read-all', { method: 'PATCH' }),
   },
 
   admin: {

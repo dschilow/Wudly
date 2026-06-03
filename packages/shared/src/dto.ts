@@ -16,6 +16,7 @@ import type {
   ProductStatus,
   MergeCandidateStatus,
   UserRole,
+  NotificationType,
 } from './enums';
 import type { UsageDurationStats } from './scoring';
 
@@ -198,4 +199,27 @@ export interface PaginatedDto<T> {
   total: number;
   take: number;
   skip: number;
+}
+
+export interface NotificationDto {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  link: string | null;
+  productId: string | null;
+  questionId: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationListDto {
+  items: NotificationDto[];
+  unreadCount: number;
+}
+
+/** An unanswered question on a product the current user owns — drives the "answer the owner" loop. */
+export interface OpenQuestionDto {
+  question: QuestionDto;
+  product: ProductSummaryDto;
 }

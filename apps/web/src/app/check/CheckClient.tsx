@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, X } from 'lucide-react';
-import type { ProductSummaryDto } from '@wudly/shared';
+import type { ProductSummaryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { ProductList } from '@/components/ProductList';
@@ -17,6 +17,7 @@ export function CheckClient() {
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ProductSummaryDto[] | null>(null);
+  const [featured, setFeatured] = useState<ProductSummaryDto[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -49,20 +50,40 @@ export function CheckClient() {
     };
   }, [query, runSearch]);
 
+  useEffect(() => {
+    api.rankings
+      .mostDiscussed(24, { cache: 'no-store' })
+      .then((entries: RankingEntryDto[]) => {
+        const seenCategories = new Set<string>();
+        const unique = entries
+          .map((entry) => entry.product)
+          .filter((product) => {
+            const key = product.category?.slug ?? product.id;
+            if (seenCategories.has(key)) return false;
+            seenCategories.add(key);
+            return true;
+          })
+          .slice(0, 8);
+        setFeatured(unique);
+      })
+      .catch(() => setFeatured([]));
+  }, []);
+
   const hasNoResults = results !== null && results.length === 0 && !loading;
+  const featuredProducts = featured ?? [];
+  const showFeatured = query.trim().length === 0 && featuredProducts.length > 0;
 
   return (
     <div className="animate-fade space-y-4 pt-2">
       <LargeTitle
-        title={ownIntent ? 'Dein Produkt' : 'Prüfen'}
+        title={ownIntent ? 'Dein Produkt' : 'Pruefen'}
         subtitle={
           ownIntent
             ? 'Finde dein Produkt und teile deine Erfahrung.'
-            : 'Sieh, ob echte Besitzer es wieder kaufen würden.'
+            : 'Sieh, ob echte Besitzer es wieder kaufen wuerden.'
         }
       />
 
-      {/* iOS search field */}
       <div className="flex h-9 items-center gap-1.5 rounded-[0.625rem] bg-fill-2 px-2">
         <Search className="h-[1.05rem] w-[1.05rem] shrink-0 text-faint" strokeWidth={2.2} aria-hidden />
         <input
@@ -100,12 +121,21 @@ export function CheckClient() {
 
       {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
 
+      {showFeatured && (
+        <section className="space-y-2.5">
+          <p className="px-1 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
+            Vorgeschlagen
+          </p>
+          <ProductList products={featuredProducts} />
+        </section>
+      )}
+
       {!loading && results && results.length > 0 && <ProductList products={results} />}
 
       {hasNoResults && !showAdd && (
         <EmptyState
           title="Kein Produkt gefunden"
-          description={`Für „${query}" gibt es noch keinen Eintrag — schlag es als Erster vor.`}
+          description={`Fuer "${query}" gibt es noch keinen Eintrag - schlag es als Erster vor.`}
           action={
             <button
               onClick={() => setShowAdd(true)}
@@ -118,12 +148,6 @@ export function CheckClient() {
       )}
 
       {hasNoResults && showAdd && <AddProductForm initialName={query} ownIntent={ownIntent} />}
-
-      {results === null && !loading && (
-        <p className="px-1 pt-2 text-[0.9375rem] leading-snug text-muted-foreground">
-          Du brauchst keine Modellnummer — der normale Produktname reicht völlig.
-        </p>
-      )}
     </div>
   );
 }

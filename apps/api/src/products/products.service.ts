@@ -15,6 +15,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
 import { ProductInsightsService } from './product-insights.service';
+import { renderProductPreviewSvg } from './product-preview-svg';
+import { renderProductShareSvg } from './product-share-svg';
 import {
   toProductSummaryDto,
   toProductDetailDto,
@@ -64,9 +66,66 @@ export class ProductsService {
     return toProductDetailDto(product, insights);
   }
 
+  /** AI-suggested (or curated-fallback) questions a buyer might ask owners. */
+  async suggestQuestions(id: string): Promise<string[]> {
+    await this.findOrThrow(id);
+    try {
+      return await this.ai.suggestQuestions(id);
+    } catch (err) {
+      this.logger.warn(`Question suggestion failed: ${err instanceof Error ? err.message : err}`);
+      return [];
+    }
+  }
+
   async getSummaryOrThrow(id: string): Promise<ProductSummaryDto> {
     const product = await this.findOrThrow(id);
     return toProductSummaryDto(product);
+  }
+
+  async getPreviewSvgByNormalizedName(normalizedName: string): Promise<string> {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        normalizedName,
+        status: { in: ['ACTIVE', 'PENDING_REVIEW'] },
+      },
+      include: { category: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Produkt nicht gefunden.');
+    }
+
+    return renderProductPreviewSvg(product);
+  }
+
+  /** Generated preview SVG addressed by product id (stable, used by the UI thumbnails). */
+  async getPreviewSvgById(id: string): Promise<string> {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: { category: true },
+    });
+    if (!product || product.status === 'HIDDEN') {
+      throw new NotFoundException('Produkt nicht gefunden.');
+    }
+    return renderProductPreviewSvg(product);
+  }
+
+  /** 1200×630 social share card (rebuy score + product) addressed by product id. */
+  async getShareSvgById(id: string): Promise<string> {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: { category: true, insightSnapshot: true },
+    });
+    if (!product || product.status === 'HIDDEN') {
+      throw new NotFoundException('Produkt nicht gefunden.');
+    }
+    return renderProductShareSvg({
+      canonicalName: product.canonicalName,
+      brand: product.brand,
+      category: product.category ? { name: product.category.name } : null,
+      rebuyScore: product.insightSnapshot?.rebuyScore ?? null,
+      experienceCount: product.insightSnapshot?.experienceCount ?? 0,
+    });
   }
 
   /**

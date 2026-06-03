@@ -45,7 +45,10 @@ export class QuestionsController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @RateLimit({ limit: 60, windowMs: 60_000 })
-  markHelpful(@Param('id') answerId: string): Promise<AnswerDto> {
-    return this.questions.markHelpful(answerId);
+  markHelpful(
+    @Param('id') answerId: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<AnswerDto> {
+    return this.questions.markHelpful(answerId, user.id);
   }
 }

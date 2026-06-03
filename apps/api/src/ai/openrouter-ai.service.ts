@@ -11,6 +11,7 @@ import {
   EXPERIENCE_MOOD_LABEL,
   USAGE_DURATION_LABEL,
   WOULD_BUY_AGAIN_LABEL,
+  COMMON_QUESTIONS,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { DummyAiService } from './dummy-ai.service';
@@ -40,6 +41,10 @@ const summarySchema = z.object({
   weaknesses: z.array(z.string().trim().min(1).max(80)).max(6).optional().default([]),
   suitedFor: z.array(z.string().trim().min(1).max(90)).max(4).optional().default([]),
   notSuitedFor: z.array(z.string().trim().min(1).max(90)).max(4).optional().default([]),
+});
+
+const questionsSchema = z.object({
+  questions: z.array(z.string().trim().min(5).max(120)).max(6).optional().default([]),
 });
 
 /**
@@ -183,5 +188,66 @@ export class OpenRouterAiService implements AiService {
     if (!parsed.success) return this.fallback.summarizeProductInsights(productId);
 
     return { productId, ...parsed.data };
+  }
+
+  async suggestQuestions(productId: string): Promise<string[]> {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: { category: true },
+    });
+    if (!product) return this.fallback.suggestQuestions(productId);
+
+    // Give the model some context: existing questions (avoid repeats) and known aspects.
+    const [existing, snapshot] = await Promise.all([
+      this.prisma.productQuestion.findMany({
+        where: { productId, status: { not: 'HIDDEN' } },
+        select: { questionText: true },
+        take: 12,
+      }),
+      this.prisma.productInsightSnapshot.findUnique({ where: { productId } }),
+    ]);
+
+    const asked = existing.map((q) => q.questionText).join(' | ');
+    const negatives = Array.isArray(snapshot?.topNegativeAspects)
+      ? (snapshot?.topNegativeAspects as Array<{ label?: string }>)
+          .map((a) => a?.label)
+          .filter(Boolean)
+          .join(', ')
+      : '';
+
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content:
+          'Du hilfst Kaufinteressenten, die richtigen Fragen an echte Besitzer eines Produkts zu ' +
+          'stellen. Erzeuge 4 kurze, konkrete, alltagsnahe Fragen auf Deutsch (max 90 Zeichen je Frage). ' +
+          'Keine Ja/Nein-Floskeln ohne Inhalt, keine Wiederholung bereits gestellter Fragen. ' +
+          'Antworte ausschließlich als valides JSON ohne Markdown: {"questions": string[]}.',
+      },
+      {
+        role: 'user',
+        content:
+          `Produkt: ${product.canonicalName}${product.brand ? ` (${product.brand})` : ''}` +
+          `${product.category ? `, Kategorie: ${product.category.name}` : ''}` +
+          (negatives ? `\nBekannte Schwachpunkte: ${negatives}` : '') +
+          (asked ? `\nBereits gestellt: ${asked}` : ''),
+      },
+    ];
+
+    const parsed = questionsSchema.safeParse(
+      parseJsonObject(await this.client.completeJson(messages, { temperature: 0.7, maxTokens: 300 })),
+    );
+    const questions = parsed.success
+      ? parsed.data.questions.filter((q) => q.trim().length > 0)
+      : [];
+
+    // Top up from the curated list if the model returned too few.
+    if (questions.length < 3) {
+      for (const q of COMMON_QUESTIONS) {
+        if (questions.length >= 4) break;
+        if (!questions.includes(q)) questions.push(q);
+      }
+    }
+    return questions.slice(0, 4);
   }
 }

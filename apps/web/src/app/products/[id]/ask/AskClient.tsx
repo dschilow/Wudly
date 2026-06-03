@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Sparkles } from 'lucide-react';
 import { COMMON_QUESTIONS } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
@@ -18,6 +19,26 @@ export function AskClient({ productId, productName }: { productId: string; produ
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // AI-suggested questions (falls back to the curated list while loading / on error).
+  const [suggestions, setSuggestions] = useState<string[]>([...COMMON_QUESTIONS]);
+  const [aiSuggested, setAiSuggested] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api.products
+      .questionSuggestions(productId, { cache: 'no-store' })
+      .then((res) => {
+        if (active && res.questions.length > 0) {
+          setSuggestions(res.questions);
+          setAiSuggested(true);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [productId]);
 
   const submit = async () => {
     if (text.trim().length < 5) {
@@ -64,17 +85,24 @@ export function AskClient({ productId, productName }: { productId: string; produ
       />
 
       <div>
-        <p className="px-1 pb-1.5 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
-          Häufige Fragen
+        <p className="flex items-center gap-1.5 px-1 pb-1.5 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
+          {aiSuggested ? (
+            <>
+              <Sparkles className="h-3.5 w-3.5 text-accent" strokeWidth={2.2} />
+              Vorgeschlagene Fragen
+            </>
+          ) : (
+            'Häufige Fragen'
+          )}
         </p>
         <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
-          {COMMON_QUESTIONS.map((q, i) => (
+          {suggestions.map((q, i) => (
             <button
               key={q}
               onClick={() => setText(q)}
               className={
                 'tap flex w-full items-center px-4 py-3 text-left text-[1.0625rem] text-label ' +
-                (i < COMMON_QUESTIONS.length - 1 ? 'hairline' : '')
+                (i < suggestions.length - 1 ? 'hairline' : '')
               }
               style={{ ['--hairline-inset' as string]: '1rem' }}
             >

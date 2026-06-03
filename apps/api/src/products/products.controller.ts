@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Header,
   Param,
   Query,
   Body,
@@ -53,6 +54,13 @@ export class ProductsController {
     return this.products.search(query.q, query.take);
   }
 
+  @Get('image/:normalizedName')
+  @Header('Content-Type', 'image/svg+xml; charset=utf-8')
+  @Header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
+  getPreviewImage(@Param('normalizedName') normalizedName: string): Promise<string> {
+    return this.products.getPreviewSvgByNormalizedName(normalizedName);
+  }
+
   @Get(':id')
   getOne(@Param('id') id: string): Promise<ProductDetailDto> {
     return this.products.getDetail(id);
@@ -71,6 +79,25 @@ export class ProductsController {
   @Get(':id/questions')
   getQuestions(@Param('id') id: string): Promise<QuestionDto[]> {
     return this.questions.listForProduct(id);
+  }
+
+  @Get(':id/question-suggestions')
+  getQuestionSuggestions(@Param('id') id: string): Promise<{ questions: string[] }> {
+    return this.products.suggestQuestions(id).then((questions) => ({ questions }));
+  }
+
+  @Get(':id/image')
+  @Header('Content-Type', 'image/svg+xml; charset=utf-8')
+  @Header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
+  getPreviewImageById(@Param('id') id: string): Promise<string> {
+    return this.products.getPreviewSvgById(id);
+  }
+
+  @Get(':id/share.svg')
+  @Header('Content-Type', 'image/svg+xml; charset=utf-8')
+  @Header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+  getShareImageById(@Param('id') id: string): Promise<string> {
+    return this.products.getShareSvgById(id);
   }
 
   @Post()

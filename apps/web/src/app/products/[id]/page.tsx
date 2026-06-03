@@ -1,10 +1,11 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Package } from 'lucide-react';
 import type { ExperienceDto, QuestionDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
+import { productThumbUrl, productShareImageUrl } from '@/lib/product-media';
+import { ShareButton } from '@/components/ShareButton';
 import { ScoreRing } from '@/components/ScoreRing';
 import { AspectList } from '@/components/AspectList';
 import { AiInsightCard } from '@/components/AiInsightCard';
@@ -33,11 +34,24 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     const product = await api.products.get(id, { next: { revalidate: 60 } });
     const score = product.insights.rebuyScore;
+    const description =
+      product.insights.aiHeadline ??
+      `Wiederkauf-Score ${score ?? '–'} · ${product.insights.experienceCount} echte Erfahrungen.`;
+    const ogImage = productShareImageUrl(id);
     return {
       title: product.canonicalName,
-      description:
-        product.insights.aiHeadline ??
-        `Wiederkauf-Score ${score ?? '–'} · ${product.insights.experienceCount} echte Erfahrungen.`,
+      description,
+      openGraph: {
+        title: `${product.canonicalName} — Würdest du es wieder kaufen?`,
+        description,
+        images: [{ url: ogImage, width: 1200, height: 630 }],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: `${product.canonicalName} — Würdest du es wieder kaufen?`,
+        description,
+        images: [ogImage],
+      },
     };
   } catch {
     return { title: 'Produkt' };
@@ -75,13 +89,15 @@ export default async function ProductPage({ params }: PageProps) {
     <div className="animate-fade space-y-6 pb-4 pt-1">
       {/* Header */}
       <header className="flex items-center gap-3.5 px-1 pt-1">
-        <div className="grid h-[3.75rem] w-[3.75rem] shrink-0 place-items-center overflow-hidden rounded-[var(--radius-md)] bg-fill-2 text-muted-foreground">
-          {product.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <Package className="h-7 w-7" strokeWidth={1.5} aria-hidden />
-          )}
+        <div className="h-[3.75rem] w-[3.75rem] shrink-0 overflow-hidden rounded-[var(--radius-md)] bg-fill-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={productThumbUrl(product)}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="text-[1.6875rem] font-bold leading-[1.1] tracking-tight text-label">
@@ -91,7 +107,19 @@ export default async function ProductPage({ params }: PageProps) {
             {product.brand && <span>{product.brand}</span>}
             {product.category && <Pill tone="neutral">{product.category.name}</Pill>}
           </div>
+          {product.description && (
+            <p className="mt-2 max-w-2xl text-[0.9375rem] leading-snug text-muted-foreground">
+              {product.description}
+            </p>
+          )}
         </div>
+        <ShareButton
+          title={`${product.canonicalName} — Würdest du es wieder kaufen?`}
+          text={
+            product.insights.aiHeadline ??
+            `Wiederkauf-Score ${ins.rebuyScore ?? '–'} auf Wudly`
+          }
+        />
       </header>
 
       {/* Scores */}
