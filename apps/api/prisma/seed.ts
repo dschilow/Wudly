@@ -23,6 +23,10 @@ import {
 } from './seed-data';
 import { buildProductImageUrl, buildProducts } from './seed-generator';
 
+if (process.env.SEED_USE_PUBLIC_DATABASE_URL === 'true' && process.env.DATABASE_PUBLIC_URL) {
+  process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
+}
+
 const prisma = new PrismaClient();
 
 const DEFAULT_PASSWORD = 'wudly12345';
