@@ -25,7 +25,7 @@ export function ListGroup({
           {header}
         </h2>
       )}
-      <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">{children}</div>
+      <div className="card overflow-hidden">{children}</div>
       {footer && (
         <p className="px-4 pt-1.5 text-[0.8rem] leading-snug text-muted-foreground">{footer}</p>
       )}

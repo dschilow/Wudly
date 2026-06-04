@@ -53,7 +53,7 @@ export function ProfileClient() {
     <div className="animate-fade space-y-6 pt-2">
       {/* Header */}
       <div className="flex items-center gap-3.5 px-1 pt-1">
-        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-fill-2 text-[1.75rem] font-medium text-muted-foreground">
+        <span className="brand-gradient grid h-16 w-16 shrink-0 place-items-center rounded-full text-[1.75rem] font-semibold text-white shadow-[var(--shadow-glow)]">
           {(user.displayName ?? user.email).charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
@@ -65,7 +65,7 @@ export function ProfileClient() {
       </div>
 
       {/* Stats — 4-up grouped card with hairline dividers */}
-      <div className="grid grid-cols-4 overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+      <div className="card grid grid-cols-4 overflow-hidden">
         {stats.map((s, i) => (
           <div
             key={s.label}
@@ -84,7 +84,7 @@ export function ProfileClient() {
       )}
 
       {/* Actions as an iOS list group */}
-      <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+      <div className="card overflow-hidden">
         <Link href="/me/inbox" className="tap hairline flex items-center justify-between px-4 py-3">
           <span className="flex items-center gap-2.5 text-[1.0625rem] text-label">
             <Bell className="h-[1.15rem] w-[1.15rem] text-muted-foreground" strokeWidth={2} />
@@ -135,7 +135,7 @@ export function ProfileClient() {
             ))}
           </div>
         ) : (
-          <div className="rounded-[var(--radius-lg)] bg-surface">
+          <div className="card">
             <EmptyState
               title="Noch keine Erfahrungen"
               description="Teile dein erstes Produkt und hilf anderen."
@@ -150,7 +150,7 @@ export function ProfileClient() {
       </section>
 
       {/* Sign out — its own group, destructive, centered (iOS) */}
-      <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+      <div className="card overflow-hidden">
         <button
           onClick={async () => {
             await logout();

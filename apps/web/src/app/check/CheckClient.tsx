@@ -1,23 +1,36 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, X } from 'lucide-react';
-import type { ProductSummaryDto, RankingEntryDto } from '@wudly/shared';
+import { Search, X, ChevronRight } from 'lucide-react';
+import type { CategoryDto, ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { ProductList } from '@/components/ProductList';
 import { EmptyState, Skeleton } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
+import { categoryEmoji, categoryTile } from '@/lib/categories';
 import { AddProductForm } from './AddProductForm';
 
-export function CheckClient() {
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-1 pb-2 text-[1.0625rem] font-bold tracking-tight text-label">{children}</p>
+  );
+}
+
+export function CheckClient({
+  categories,
+  featured,
+}: {
+  categories: CategoryDto[];
+  featured: ProductSummaryDto[];
+}) {
   const searchParams = useSearchParams();
   const ownIntent = searchParams.get('own') === '1';
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ProductSummaryDto[] | null>(null);
-  const [featured, setFeatured] = useState<ProductSummaryDto[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -50,42 +63,23 @@ export function CheckClient() {
     };
   }, [query, runSearch]);
 
-  useEffect(() => {
-    api.rankings
-      .mostDiscussed(24, { cache: 'no-store' })
-      .then((entries: RankingEntryDto[]) => {
-        const seenCategories = new Set<string>();
-        const unique = entries
-          .map((entry) => entry.product)
-          .filter((product) => {
-            const key = product.category?.slug ?? product.id;
-            if (seenCategories.has(key)) return false;
-            seenCategories.add(key);
-            return true;
-          })
-          .slice(0, 8);
-        setFeatured(unique);
-      })
-      .catch(() => setFeatured([]));
-  }, []);
-
   const hasNoResults = results !== null && results.length === 0 && !loading;
-  const featuredProducts = featured ?? [];
-  const showFeatured = query.trim().length === 0 && featuredProducts.length > 0;
+  const idle = query.trim().length === 0;
 
   return (
-    <div className="animate-fade space-y-4 pt-2">
+    <div className="animate-fade space-y-5 pt-2">
       <LargeTitle
-        title={ownIntent ? 'Dein Produkt' : 'Pruefen'}
+        title={ownIntent ? 'Dein Produkt' : 'Prüfen'}
         subtitle={
           ownIntent
             ? 'Finde dein Produkt und teile deine Erfahrung.'
-            : 'Sieh, ob echte Besitzer es wieder kaufen wuerden.'
+            : 'Sieh, ob echte Besitzer es wieder kaufen würden.'
         }
       />
 
-      <div className="flex h-9 items-center gap-1.5 rounded-[0.625rem] bg-fill-2 px-2">
-        <Search className="h-[1.05rem] w-[1.05rem] shrink-0 text-faint" strokeWidth={2.2} aria-hidden />
+      {/* Search field — substantial, rounded, with a clear affordance */}
+      <div className="flex h-12 items-center gap-2 rounded-[0.9rem] bg-fill-2 px-3.5">
+        <Search className="h-[1.15rem] w-[1.15rem] shrink-0 text-faint" strokeWidth={2.2} aria-hidden />
         <input
           autoFocus
           value={query}
@@ -93,7 +87,7 @@ export function CheckClient() {
             setQuery(e.target.value);
             setShowAdd(false);
           }}
-          placeholder="Suchen"
+          placeholder="Produkt oder Marke suchen"
           className="h-full flex-1 bg-transparent text-[1.0625rem] text-label outline-none placeholder:text-faint"
           inputMode="search"
           aria-label="Produktsuche"
@@ -101,7 +95,7 @@ export function CheckClient() {
         {query && (
           <button
             onClick={() => setQuery('')}
-            className="tap-dim grid h-5 w-5 shrink-0 place-items-center rounded-full bg-faint/60 text-white"
+            className="tap-dim grid h-5 w-5 shrink-0 place-items-center rounded-full bg-faint/70 text-white"
             aria-label="Leeren"
           >
             <X className="h-3 w-3" strokeWidth={3} />
@@ -110,10 +104,10 @@ export function CheckClient() {
       </div>
 
       {loading && (
-        <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+        <div className="card overflow-hidden">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className={i < 3 ? 'hairline px-4 py-3' : 'px-4 py-3'}>
-              <Skeleton className="h-10" />
+              <Skeleton className="h-11" />
             </div>
           ))}
         </div>
@@ -121,25 +115,16 @@ export function CheckClient() {
 
       {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
 
-      {showFeatured && (
-        <section className="space-y-2.5">
-          <p className="px-1 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
-            Vorgeschlagen
-          </p>
-          <ProductList products={featuredProducts} />
-        </section>
-      )}
-
       {!loading && results && results.length > 0 && <ProductList products={results} />}
 
       {hasNoResults && !showAdd && (
         <EmptyState
           title="Kein Produkt gefunden"
-          description={`Fuer "${query}" gibt es noch keinen Eintrag - schlag es als Erster vor.`}
+          description={`Für „${query}" gibt es noch keinen Eintrag – schlag es als Erster vor.`}
           action={
             <button
               onClick={() => setShowAdd(true)}
-              className="tap-dim inline-flex h-11 items-center justify-center rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white"
+              className="press inline-flex h-11 items-center justify-center rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white shadow-[var(--shadow-glow)]"
             >
               Produkt vorschlagen
             </button>
@@ -148,6 +133,52 @@ export function CheckClient() {
       )}
 
       {hasNoResults && showAdd && <AddProductForm initialName={query} ownIntent={ownIntent} />}
+
+      {/* Idle state — browse, never an empty void */}
+      {idle && (
+        <>
+          {categories.length > 0 && (
+            <section>
+              <GroupLabel>Kategorien</GroupLabel>
+              <div className="grid grid-cols-2 gap-2.5">
+                {categories.map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/rankings?cat=${c.slug}`}
+                    className="card press flex min-h-[4.25rem] items-center gap-3 p-2.5"
+                  >
+                    <span
+                      className="grid h-12 w-12 shrink-0 place-items-center rounded-[0.75rem] text-[1.5rem] ring-1 ring-black/[0.04]"
+                      style={{ backgroundImage: categoryTile(c.slug) }}
+                    >
+                      {categoryEmoji(c.slug, c.name)}
+                    </span>
+                    <span className="min-w-0 flex-1 text-[0.9375rem] font-medium leading-tight text-label [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
+                      {c.name}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {featured.length > 0 && (
+            <section>
+              <div className="mb-2 flex items-end justify-between px-1">
+                <p className="text-[1.0625rem] font-bold tracking-tight text-label">Beliebt gerade</p>
+                <Link
+                  href="/rankings"
+                  className="tap-dim flex items-center gap-0.5 text-[0.9375rem] font-medium text-accent"
+                >
+                  Alle
+                  <ChevronRight className="h-4 w-4" strokeWidth={2.6} />
+                </Link>
+              </div>
+              <ProductList products={featured} />
+            </section>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -23,7 +23,7 @@ export function ExperienceCard({ experience }: { experience: ExperienceDto }) {
   const mood = moodMap[experience.experienceMood];
 
   return (
-    <div className="space-y-2.5 rounded-[var(--radius-lg)] bg-surface p-4">
+    <div className="card space-y-2.5 p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <span className="grid h-8 w-8 place-items-center rounded-full bg-fill-2 text-[0.8125rem] font-semibold text-muted-foreground">

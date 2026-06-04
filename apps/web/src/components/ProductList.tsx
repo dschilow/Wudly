@@ -26,7 +26,7 @@ export function ProductList({
   );
 
   return (
-    <div className={'overflow-hidden rounded-[var(--radius-lg)] bg-surface ' + (className ?? '')}>
+    <div className={'card overflow-hidden ' + (className ?? '')}>
       {entries.map((entry, i) => (
         <ProductRow
           key={entry.product.id}

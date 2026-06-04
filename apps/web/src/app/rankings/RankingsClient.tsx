@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { GitCompareArrows } from 'lucide-react';
 import type { CategoryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
@@ -20,8 +21,12 @@ const SEGMENTS = [
 ];
 
 export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
+  const searchParams = useSearchParams();
+  const initialCat = searchParams.get('cat') ?? '';
   const [tab, setTab] = useState<Tab>('rebuy');
-  const [category, setCategory] = useState<string>('');
+  const [category, setCategory] = useState<string>(
+    categories.some((c) => c.slug === initialCat) ? initialCat : '',
+  );
   const [entries, setEntries] = useState<RankingEntryDto[] | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,10 +63,10 @@ export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
 
       <Link
         href="/compare"
-        className="tap flex items-center gap-3 rounded-[var(--radius-lg)] bg-surface px-4 py-3"
+        className="card press tap flex items-center gap-3 px-4 py-3.5"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
-          <GitCompareArrows className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.1} />
+        <span className="brand-gradient grid h-10 w-10 shrink-0 place-items-center rounded-full text-white shadow-[var(--shadow-glow)]">
+          <GitCompareArrows className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.1} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[1.0625rem] leading-tight text-label">Produkte vergleichen</span>
@@ -95,7 +100,7 @@ export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
       )}
 
       {loading ? (
-        <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+        <div className="card overflow-hidden">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className={cn('px-4 py-3', i < 5 && 'hairline')}>
               <Skeleton className="h-10" />

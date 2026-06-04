@@ -1,75 +1,84 @@
 @import 'tailwindcss';
 
 /*
- * Wudly — authentic iOS design system (Tailwind v4 CSS-first theme).
+ * Wudly — premium design system (Tailwind v4 CSS-first theme).
  *
- * Goal: feel like a real native iOS app, not a "designed" website. That means the
- * system font (SF Pro on Apple devices), Apple's systemGray hierarchy, inset-grouped
- * lists with hairline separators, materials (blur) for chrome, restrained color, and
- * physical tap feedback (opacity dim, not scale). Restraint over decoration.
+ * Built on authentic iOS bones (SF type, grouped lists, materials, restraint)
+ * but elevated to feel like a flagship consumer app, not the Settings screen:
+ * a signature brand gradient for hero/score moments, soft layered elevation so
+ * cards lift off the canvas, a designed "verdict" color language, and generous
+ * continuous-corner radii. Color is used with intent, not decoration.
  */
 @theme {
   /* ---- Labels (text) — iOS label hierarchy on light bg ---- */
-  --color-label: #000000; /* label */
+  --color-label: #0a0a0c; /* near-black, a touch warmer than pure #000 */
   --color-label-2: #3c3c4399; /* secondaryLabel  (60%) */
   --color-label-3: #3c3c434d; /* tertiaryLabel   (30%) */
   --color-label-4: #3c3c432e; /* quaternaryLabel (18%) */
   /* solid mirrors for places transparency reads poorly */
-  --color-ink: #000000;
+  --color-ink: #0a0a0c;
   --color-ink-soft: #3a3a3c;
-  --color-muted-foreground: #6c6c70; /* ≈ secondaryLabel solid */
-  --color-faint: #aeaeb2; /* systemGray3-ish */
+  --color-muted-foreground: #6c6c72; /* ≈ secondaryLabel solid */
+  --color-faint: #a0a0a8; /* systemGray3-ish */
 
-  /* ---- Backgrounds — iOS grouped backgrounds ---- */
-  --color-canvas: #f2f2f7; /* systemGroupedBackground */
-  --color-surface-muted: #f2f2f7; /* back-compat alias */
-  --color-surface: #ffffff; /* secondarySystemGroupedBackground (cards/rows) */
+  /* ---- Backgrounds — layered, with a faint cool depth ---- */
+  --color-canvas: #f4f5f7; /* app background (slightly cooler/cleaner) */
+  --color-surface-muted: #eceef2; /* sunken wells / fills */
+  --color-surface: #ffffff; /* cards / rows */
   --color-surface-soft: #ffffff;
-  --color-surface-sunken: #e9e9ec; /* pressed row / fills */
+  --color-surface-2: #fbfbfd; /* nested surface on a card */
+  --color-surface-sunken: #e8e9ee; /* pressed row / fills */
   --color-fill: #78788014; /* systemFill-ish (8%) */
-  --color-fill-2: #7878801f; /* secondarySystemFill */
+  --color-fill-2: #76768019; /* secondarySystemFill */
 
   /* ---- Separators (hairlines) ---- */
-  --color-separator: #3c3c4338; /* opaque-ish separator on light */
-  --color-border: #3c3c431f; /* subtle */
+  --color-separator: #3c3c4326; /* hairline on light */
+  --color-border: #3c3c431a; /* subtle */
   --color-border-strong: #3c3c4340;
 
-  /* ---- Tints ---- */
-  --color-accent: #007aff; /* iOS systemBlue */
-  --color-accent-hover: #0a6fe0;
-  --color-accent-soft: #007aff14;
-  --color-accent-ink: #0062cc;
+  /* ---- Brand / Tints ---- */
+  --color-accent: #0a74ff; /* Wudly blue — a touch more saturated than systemBlue */
+  --color-accent-hover: #0a66e6;
+  --color-accent-soft: #0a74ff14;
+  --color-accent-ink: #0058cc;
+  /* Signature brand gradient stops (hero, score ring, key CTAs) */
+  --brand-from: #2b6bff; /* royal blue */
+  --brand-mid: #3f7bff;
+  --brand-to: #6a5cff; /* indigo-violet */
 
-  --color-primary: #000000; /* solid action (rare; iOS prefers tinted text) */
+  --color-primary: #0a0a0c; /* solid action (rare) */
   --color-primary-hover: #1c1c1e;
   --color-primary-foreground: #ffffff;
 
-  /* ---- Semantic scores (iOS system colors) ---- */
-  --color-positive: #34c759; /* systemGreen */
-  --color-positive-soft: #34c75916;
-  --color-positive-ink: #248a3d;
+  /* ---- Semantic scores (iOS system colors, lightly enriched) ---- */
+  --color-positive: #2fb457; /* systemGreen, slightly deeper for contrast */
+  --color-positive-soft: #34c75914;
+  --color-positive-ink: #1f8a40;
 
   --color-regret: #ff3b30; /* systemRed */
-  --color-regret-soft: #ff3b3016;
+  --color-regret-soft: #ff3b3014;
   --color-regret-ink: #c4271f;
 
-  --color-unsure: #ff9500; /* systemOrange */
-  --color-unsure-soft: #ff950016;
+  --color-unsure: #ff9f0a; /* systemOrange */
+  --color-unsure-soft: #ff950014;
   --color-unsure-ink: #b56a00;
 
-  /* ---- Radii — iOS continuous-corner feel ---- */
+  /* ---- Radii — generous continuous-corner feel ---- */
   --radius-sm: 0.5rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.875rem; /* iOS list group radius (~10pt) */
-  --radius-xl: 1.25rem;
-  --radius-2xl: 1.25rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.125rem; /* card / list group radius (~18pt) */
+  --radius-xl: 1.375rem;
+  --radius-2xl: 1.625rem;
 
-  /* ---- Shadows — almost none; iOS uses separators, not drop shadows ---- */
-  --shadow-xs: 0 0 0 transparent;
-  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.03);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-pop: 0 8px 28px -8px rgba(0, 0, 0, 0.18);
-  --shadow-glow: 0 0 0 transparent;
+  /* ---- Shadows — soft, layered elevation (premium lift, never heavy) ---- */
+  --shadow-xs: 0 1px 1px rgba(16, 24, 40, 0.03);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px -6px rgba(16, 24, 40, 0.08);
+  --shadow-elevated:
+    0 2px 6px -2px rgba(16, 24, 40, 0.06), 0 12px 28px -10px rgba(16, 24, 40, 0.14);
+  --shadow-pop: 0 8px 28px -8px rgba(16, 24, 40, 0.22);
+  --shadow-hero: 0 18px 40px -14px rgba(58, 90, 255, 0.5);
+  --shadow-glow: 0 6px 20px -6px rgba(10, 116, 255, 0.45);
 
   /* SF Pro via the system stack — this is what makes it feel native. */
   --font-sans:
@@ -92,15 +101,13 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* iOS body letter-spacing is near-zero; only large titles tighten. */
     letter-spacing: -0.01em;
-    /* prevent rubber-band overscroll glow showing the wrong color */
     overscroll-behavior-y: none;
   }
 
   /* iOS large-title / title tracking */
   h1 {
-    letter-spacing: -0.026em;
+    letter-spacing: -0.028em;
   }
   h2,
   h3 {
@@ -174,10 +181,45 @@
     background-color: var(--color-surface-sunken);
   }
   .tap-dim {
-    transition: opacity 0.1s ease;
+    transition: opacity 0.1s ease, transform 0.1s ease;
   }
   .tap-dim:active {
-    opacity: 0.4;
+    opacity: 0.55;
+  }
+  /* Springy press for prominent cards/CTAs */
+  .press {
+    transition: transform 0.18s var(--ease-ios), box-shadow 0.18s var(--ease-ios);
+  }
+  .press:active {
+    transform: scale(0.975);
+  }
+
+  /* Elevated card surface — soft lift off the canvas (premium). */
+  .card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+  .card-elevated {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-elevated);
+  }
+
+  /* Signature brand gradient (hero, key accents). */
+  .brand-gradient {
+    background-image: linear-gradient(
+      135deg,
+      var(--brand-from) 0%,
+      var(--brand-mid) 45%,
+      var(--brand-to) 100%
+    );
+  }
+  .brand-text {
+    background-image: linear-gradient(120deg, var(--brand-from), var(--brand-to));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
   .text-balance {
@@ -219,12 +261,17 @@
   .animate-sheet {
     animation: ios-sheet 0.42s var(--ease-ios) both;
   }
+  /* Staggered list entrance — set --i on each child. */
+  .animate-stagger > * {
+    animation: ios-rise 0.5s var(--ease-ios) both;
+    animation-delay: calc(var(--i, 0) * 55ms);
+  }
 }
 
 @keyframes ios-rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;

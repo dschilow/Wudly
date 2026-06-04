@@ -19,7 +19,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     <div
       ref={ref}
       className={cn(
-        'rounded-[var(--radius-lg)] bg-surface',
+        'card',
         padded && 'p-4',
         interactive && 'tap cursor-pointer',
         className,

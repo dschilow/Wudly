@@ -78,7 +78,7 @@ export function LoginClient() {
       </div>
 
       <form onSubmit={submit} className="space-y-4">
-        <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+        <div className="card overflow-hidden">
           {mode === 'register' && (
             <input
               value={displayName}

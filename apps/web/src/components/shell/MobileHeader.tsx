@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ChevronLeft, Bell } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useNotifications } from '@/lib/notifications-context';
+import { LogoWord } from '@/components/Logo';
 
 const ROOT_ROUTES = new Set(['/', '/check', '/rankings', '/me']);
 
@@ -34,7 +35,9 @@ export function MobileHeader() {
             <span className="font-normal">Zurück</span>
           </button>
         ) : (
-          <span className="pl-2 text-[1.0625rem] font-semibold text-label">Wudly</span>
+          <Link href="/" className="tap-dim pl-1.5" aria-label="Wudly Start">
+            <LogoWord />
+          </Link>
         )}
 
         <div className="ml-auto flex items-center gap-1.5 pr-1">

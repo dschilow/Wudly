@@ -23,7 +23,7 @@ interface OptionGridProps<T extends string> {
  */
 export function OptionGrid<T extends string>({ options, value, onChange }: OptionGridProps<T>) {
   return (
-    <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+    <div className="card overflow-hidden">
       {options.map((opt, i) => {
         const selected = value === opt.value;
         return (

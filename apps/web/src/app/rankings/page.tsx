@@ -1,7 +1,9 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import type { CategoryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { RankingsClient } from './RankingsClient';
+import { LoadingState } from '@/components/states/States';
 
 export const metadata: Metadata = {
   title: 'Top & Flop',
@@ -18,5 +20,9 @@ export default async function RankingsPage() {
   } catch {
     categories = [];
   }
-  return <RankingsClient categories={categories} />;
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <RankingsClient categories={categories} />
+    </Suspense>
+  );
 }

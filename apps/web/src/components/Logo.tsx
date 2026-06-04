@@ -7,7 +7,10 @@ import { cn } from '@/lib/utils';
 export function LogoMark({ size = 36, className }: { size?: number; className?: string }) {
   return (
     <span
-      className={cn('grid shrink-0 place-items-center bg-accent text-white', className)}
+      className={cn(
+        'brand-gradient grid shrink-0 place-items-center text-white shadow-[var(--shadow-glow)]',
+        className,
+      )}
       style={{ width: size, height: size, borderRadius: size * 0.26 }}
       aria-hidden
     >

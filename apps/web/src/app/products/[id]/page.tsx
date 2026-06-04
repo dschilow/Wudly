@@ -4,9 +4,11 @@ import type { Metadata } from 'next';
 import type { ExperienceDto, QuestionDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
-import { productThumbUrl, productShareImageUrl } from '@/lib/product-media';
+import { productShareImageUrl } from '@/lib/product-media';
+import { rebuyVerdict } from '@/lib/verdict';
 import { ShareButton } from '@/components/ShareButton';
 import { ScoreRing } from '@/components/ScoreRing';
+import { Thumb } from '@/components/Thumb';
 import { AspectList } from '@/components/AspectList';
 import { AiInsightCard } from '@/components/AiInsightCard';
 import { UsageDurationChart } from '@/components/UsageDurationChart';
@@ -60,9 +62,36 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 function GroupTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="px-1 pb-1.5 pt-1 text-[0.8125rem] font-normal uppercase tracking-[0.02em] text-muted-foreground">
+    <h2 className="px-1 pb-2 pt-1 text-[1.0625rem] font-bold tracking-tight text-label">
       {children}
     </h2>
+  );
+}
+
+function Stat({
+  value,
+  label,
+  tone = 'default',
+  divider,
+}: {
+  value: string;
+  label: string;
+  tone?: 'default' | 'regret' | 'muted';
+  divider?: boolean;
+}) {
+  const color =
+    tone === 'regret'
+      ? 'var(--color-regret)'
+      : tone === 'muted'
+        ? 'var(--color-muted-foreground)'
+        : 'var(--color-label)';
+  return (
+    <div className={'px-2 py-3.5 text-center ' + (divider ? 'border-r border-separator' : '')}>
+      <div className="text-[1.4rem] font-bold tnum leading-none" style={{ color }}>
+        {value}
+      </div>
+      <div className="mt-1 text-[0.75rem] text-muted-foreground">{label}</div>
+    </div>
   );
 }
 
@@ -85,33 +114,21 @@ export default async function ProductPage({ params }: PageProps) {
   const ins = product.insights;
   const hasData = ins.experienceCount > 0;
 
+  const verdict = rebuyVerdict(ins.rebuyScore);
+
   return (
-    <div className="animate-fade space-y-6 pb-4 pt-1">
+    <div className="animate-fade space-y-5 pb-4 pt-1">
       {/* Header */}
-      <header className="flex items-center gap-3.5 px-1 pt-1">
-        <div className="h-[3.75rem] w-[3.75rem] shrink-0 overflow-hidden rounded-[var(--radius-md)] bg-fill-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={productThumbUrl(product)}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
-        </div>
+      <header className="flex items-start gap-3.5 px-1 pt-1">
+        <Thumb product={product} className="h-16 w-16" rounded="rounded-[0.95rem]" />
         <div className="min-w-0 flex-1">
-          <h1 className="text-[1.6875rem] font-bold leading-[1.1] tracking-tight text-label">
+          <h1 className="text-balance text-[1.625rem] font-bold leading-[1.12] tracking-tight text-label">
             {product.canonicalName}
           </h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[0.9375rem] text-muted-foreground">
-            {product.brand && <span>{product.brand}</span>}
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[0.9375rem] text-muted-foreground">
+            {product.brand && <span className="font-medium">{product.brand}</span>}
             {product.category && <Pill tone="neutral">{product.category.name}</Pill>}
           </div>
-          {product.description && (
-            <p className="mt-2 max-w-2xl text-[0.9375rem] leading-snug text-muted-foreground">
-              {product.description}
-            </p>
-          )}
         </div>
         <ShareButton
           title={`${product.canonicalName} — Würdest du es wieder kaufen?`}
@@ -122,18 +139,43 @@ export default async function ProductPage({ params }: PageProps) {
         />
       </header>
 
-      {/* Scores */}
-      <div className="grid grid-cols-3 items-center gap-2 rounded-[var(--radius-lg)] bg-surface px-2 py-5 text-center">
-        <ScoreRing score={ins.rebuyScore} tone="auto" label="Wiederkauf" />
-        <ScoreRing score={ins.regretScore} tone="regret" label="Regret" />
-        <div className="flex flex-col items-center justify-center gap-1">
-          <div className="text-[1.625rem] font-semibold tnum leading-none text-label">
-            {ins.experienceCount}
+      {product.description && (
+        <p className="px-1 text-[0.9375rem] leading-snug text-muted-foreground">
+          {product.description}
+        </p>
+      )}
+
+      {/* Verdict hero — the score is the star */}
+      <div className="card overflow-hidden">
+        <div className="flex items-center gap-4 p-5">
+          <ScoreRing score={ins.rebuyScore} tone="auto" size={96} />
+          <div className="min-w-0 flex-1">
+            <div
+              className="text-[0.75rem] font-semibold uppercase tracking-[0.06em]"
+              style={{ color: verdict.ink }}
+            >
+              Wiederkauf-Score
+            </div>
+            <div className="mt-1 text-balance text-[1.3125rem] font-bold leading-[1.12] text-label">
+              {verdict.label}
+            </div>
+            {hasData && ins.rebuyScore !== null && (
+              <div className="mt-1 text-[0.9375rem] leading-snug text-muted-foreground">
+                {ins.rebuyScore}% von {ins.ownerCount} Besitzer{ins.ownerCount === 1 ? '' : 'n'}
+              </div>
+            )}
           </div>
-          <div className="text-[0.8125rem] text-muted-foreground">
-            Erfahrung{ins.experienceCount === 1 ? '' : 'en'}
-          </div>
-          <div className="text-[0.75rem] text-faint">{ins.ownerCount} Besitzer</div>
+        </div>
+        {/* Stat strip */}
+        <div className="grid grid-cols-3 border-t border-separator">
+          <Stat
+            value={ins.regretScore === null ? '–' : String(ins.regretScore)}
+            label="Regret"
+            tone={ins.regretScore !== null && ins.regretScore >= 40 ? 'regret' : 'muted'}
+            divider
+          />
+          <Stat value={String(ins.experienceCount)} label="Erfahrungen" divider />
+          <Stat value={String(ins.ownerCount)} label="Besitzer" />
         </div>
       </div>
 
@@ -141,14 +183,14 @@ export default async function ProductPage({ params }: PageProps) {
       {ins.aiHeadline && <AiInsightCard headline={ins.aiHeadline} />}
 
       {!hasData && (
-        <div className="rounded-[var(--radius-lg)] bg-surface">
+        <div className="card">
           <EmptyState
             title="Noch keine Erfahrungen"
             description="Sei der erste Besitzer und teile, ob du es wieder kaufen würdest."
             action={
               <Link
                 href={`/products/${id}/own`}
-                className="tap-dim inline-flex h-11 items-center rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white"
+                className="press inline-flex h-11 items-center rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white shadow-[var(--shadow-glow)]"
               >
                 Ich besitze es
               </Link>
@@ -163,7 +205,7 @@ export default async function ProductPage({ params }: PageProps) {
           {ins.topPositiveAspects.length > 0 && (
             <section>
               <GroupTitle>Stärken</GroupTitle>
-              <div className="rounded-[var(--radius-lg)] bg-surface p-4">
+              <div className="card p-4">
                 <AspectList title="" aspects={ins.topPositiveAspects} tone="positive" />
               </div>
             </section>
@@ -171,7 +213,7 @@ export default async function ProductPage({ params }: PageProps) {
           {ins.topNegativeAspects.length > 0 && (
             <section>
               <GroupTitle>Probleme</GroupTitle>
-              <div className="rounded-[var(--radius-lg)] bg-surface p-4">
+              <div className="card p-4">
                 <AspectList title="" aspects={ins.topNegativeAspects} tone="negative" />
               </div>
             </section>
@@ -183,7 +225,7 @@ export default async function ProductPage({ params }: PageProps) {
       {ins.wishKnownHighlights.length > 0 && (
         <section>
           <GroupTitle>Das hätten Besitzer vorher gern gewusst</GroupTitle>
-          <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+          <div className="card overflow-hidden">
             {ins.wishKnownHighlights.map((wish, i) => (
               <div
                 key={i}
@@ -206,7 +248,7 @@ export default async function ProductPage({ params }: PageProps) {
           {ins.suitedFor.length > 0 && (
             <section>
               <GroupTitle>Geeignet für</GroupTitle>
-              <ul className="space-y-2 rounded-[var(--radius-lg)] bg-surface p-4 text-[0.9375rem] text-label">
+              <ul className="space-y-2 card p-4 text-[0.9375rem] text-label">
                 {ins.suitedFor.map((s, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
@@ -219,7 +261,7 @@ export default async function ProductPage({ params }: PageProps) {
           {ins.notSuitedFor.length > 0 && (
             <section>
               <GroupTitle>Eher nicht für</GroupTitle>
-              <ul className="space-y-2 rounded-[var(--radius-lg)] bg-surface p-4 text-[0.9375rem] text-label">
+              <ul className="space-y-2 card p-4 text-[0.9375rem] text-label">
                 {ins.notSuitedFor.map((s, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-regret" />
@@ -236,7 +278,7 @@ export default async function ProductPage({ params }: PageProps) {
       {hasData && (
         <section>
           <GroupTitle>Wie lange im Einsatz</GroupTitle>
-          <div className="rounded-[var(--radius-lg)] bg-surface p-4">
+          <div className="card p-4">
             <UsageDurationChart stats={ins.usageDurationStats} />
           </div>
         </section>
@@ -257,7 +299,7 @@ export default async function ProductPage({ params }: PageProps) {
             ))}
           </div>
         ) : (
-          <div className="rounded-[var(--radius-lg)] bg-surface">
+          <div className="card">
             <EmptyState
               title="Noch keine Fragen"
               description="Stell den Besitzern, was dich wirklich interessiert."
@@ -283,13 +325,13 @@ export default async function ProductPage({ params }: PageProps) {
         <div className="mx-auto flex max-w-2xl gap-2.5">
           <Link
             href={`/products/${id}/own`}
-            className="tap-dim flex h-[2.875rem] flex-1 items-center justify-center rounded-[var(--radius-md)] bg-accent text-[1.0625rem] font-semibold text-white"
+            className="press flex h-[2.875rem] flex-1 items-center justify-center rounded-[var(--radius-md)] bg-accent text-[1.0625rem] font-semibold text-white shadow-[var(--shadow-glow)]"
           >
             Ich besitze es
           </Link>
           <Link
             href={`/products/${id}/ask`}
-            className="tap-dim flex h-[2.875rem] flex-1 items-center justify-center rounded-[var(--radius-md)] bg-fill-2 text-[1.0625rem] font-semibold text-label"
+            className="press flex h-[2.875rem] flex-1 items-center justify-center rounded-[var(--radius-md)] bg-fill-2 text-[1.0625rem] font-semibold text-label"
           >
             Besitzer fragen
           </Link>

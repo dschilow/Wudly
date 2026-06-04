@@ -13,7 +13,7 @@ interface ProductCardProps {
  */
 export function ProductCard({ product, rank, emphasis = 'rebuy' }: ProductCardProps) {
   return (
-    <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
+    <div className="card overflow-hidden">
       <ProductRow product={product} rank={rank} emphasis={emphasis} last />
     </div>
   );
