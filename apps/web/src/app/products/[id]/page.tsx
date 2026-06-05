@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { BadgeCheck, Clock3, ShieldCheck } from 'lucide-react';
 import type { ExperienceDto, QuestionDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
@@ -8,6 +9,7 @@ import { productShareImageUrl } from '@/lib/product-media';
 import { rebuyVerdict } from '@/lib/verdict';
 import { ShareButton } from '@/components/ShareButton';
 import { ScoreRing } from '@/components/ScoreRing';
+import { ScoreTrend } from '@/components/ScoreTrend';
 import { Thumb } from '@/components/Thumb';
 import { AspectList } from '@/components/AspectList';
 import { AiInsightCard } from '@/components/AiInsightCard';
@@ -145,31 +147,32 @@ export default async function ProductPage({ params }: PageProps) {
         </p>
       )}
 
-      {/* Verdict hero — the score is the star */}
-      <div className="card overflow-hidden">
-        <div className="flex items-center gap-4 p-5">
-          <ScoreRing score={ins.rebuyScore} tone="auto" size={96} />
-          <div className="min-w-0 flex-1">
-            <div
-              className="text-[0.75rem] font-semibold uppercase tracking-[0.06em]"
-              style={{ color: verdict.ink }}
-            >
-              Wiederkauf-Score
-            </div>
-            <div className="mt-1 text-balance text-[1.3125rem] font-bold leading-[1.12] text-label">
-              {verdict.label}
-            </div>
-            {hasData && ins.rebuyScore !== null && (
-              <div className="mt-1 text-[0.9375rem] leading-snug text-muted-foreground">
-                {ins.rebuyScore}% von {ins.ownerCount} Besitzer{ins.ownerCount === 1 ? '' : 'n'}
-              </div>
-            )}
+      <section className="card-elevated overflow-hidden">
+        <div className="px-5 pb-5 pt-6 text-center">
+          <ScoreRing score={ins.rebuyScore} tone="auto" size={184} className="mx-auto" />
+          <div
+            className="mt-4 text-[0.75rem] font-semibold uppercase tracking-[0.08em]"
+            style={{ color: verdict.ink }}
+          >
+            Wiederkauf-Score
           </div>
+          <h2 className="mx-auto mt-1 max-w-[20rem] text-balance text-[1.625rem] font-bold leading-[1.08] tracking-tight text-label">
+            {verdict.label}
+          </h2>
+          {hasData && ins.rebuyScore !== null ? (
+            <p className="mx-auto mt-2 max-w-[21rem] text-[0.9375rem] leading-snug text-muted-foreground">
+              {ins.rebuyScore}% von {ins.ownerCount} Besitzer
+              {ins.ownerCount === 1 ? '' : 'n'} würden es wieder kaufen.
+            </p>
+          ) : (
+            <p className="mx-auto mt-2 max-w-[21rem] text-[0.9375rem] leading-snug text-muted-foreground">
+              Noch nicht genug echte Nutzung für ein belastbares Signal.
+            </p>
+          )}
         </div>
-        {/* Stat strip */}
         <div className="grid grid-cols-3 border-t border-separator">
           <Stat
-            value={ins.regretScore === null ? '–' : String(ins.regretScore)}
+            value={ins.regretScore === null ? '–' : `${ins.regretScore}%`}
             label="Regret"
             tone={ins.regretScore !== null && ins.regretScore >= 40 ? 'regret' : 'muted'}
             divider
@@ -177,6 +180,25 @@ export default async function ProductPage({ params }: PageProps) {
           <Stat value={String(ins.experienceCount)} label="Erfahrungen" divider />
           <Stat value={String(ins.ownerCount)} label="Besitzer" />
         </div>
+      </section>
+
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { icon: BadgeCheck, label: 'Echte Käufer' },
+          { icon: Clock3, label: 'Nach Nutzung' },
+          { icon: ShieldCheck, label: 'Gewichtet' },
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <div
+              key={item.label}
+              className="rounded-[0.9rem] bg-fill-2 px-2 py-3 text-center text-muted-foreground"
+            >
+              <Icon className="mx-auto h-5 w-5 text-accent" strokeWidth={2.2} />
+              <div className="mt-1.5 text-[0.75rem] font-medium leading-tight">{item.label}</div>
+            </div>
+          );
+        })}
       </div>
 
       {/* AI summary */}
@@ -272,6 +294,16 @@ export default async function ProductPage({ params }: PageProps) {
             </section>
           )}
         </div>
+      )}
+
+      {/* Score over time */}
+      {hasData && experiences.filter((e) => e.isPublic).length >= 3 && (
+        <section>
+          <GroupTitle>Score-Verlauf</GroupTitle>
+          <div className="card p-4">
+            <ScoreTrend experiences={experiences} />
+          </div>
+        </section>
       )}
 
       {/* Usage duration */}

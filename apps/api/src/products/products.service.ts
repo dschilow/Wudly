@@ -11,6 +11,7 @@ import {
   type ProductDetailDto,
   type CreateProductResultDto,
   type PaginatedDto,
+  type IdentifiedProductDto,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
@@ -64,6 +65,33 @@ export class ProductsService {
     const product = await this.findOrThrow(id);
     const insights = await this.insights.getInsights(id);
     return toProductDetailDto(product, insights);
+  }
+
+  /**
+   * Camera KI fallback: recognize a product from a photo (used only when no
+   * barcode could be read). Returns the recognized fields plus a ready-to-use
+   * search query. The API key never reaches the client — the call runs here.
+   */
+  async identify(imageDataUrl: string): Promise<IdentifiedProductDto> {
+    let result;
+    try {
+      result = await this.ai.identifyProductFromImage(imageDataUrl);
+    } catch (err) {
+      this.logger.warn(`Image identify failed: ${err instanceof Error ? err.message : err}`);
+      result = { brand: null, product: null, category: null, confidence: 0 };
+    }
+    const query = [result.brand, result.product]
+      .map((part) => part?.trim())
+      .filter((part): part is string => Boolean(part && part.length > 0))
+      .join(' ')
+      .trim();
+    return {
+      brand: result.brand,
+      product: result.product,
+      category: result.category,
+      confidence: result.confidence,
+      query,
+    };
   }
 
   /** AI-suggested (or curated-fallback) questions a buyer might ask owners. */

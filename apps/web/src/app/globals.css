@@ -22,12 +22,12 @@
   --color-faint: #a0a0a8; /* systemGray3-ish */
 
   /* ---- Backgrounds — layered, with a faint cool depth ---- */
-  --color-canvas: #f4f5f7; /* app background (slightly cooler/cleaner) */
-  --color-surface-muted: #eceef2; /* sunken wells / fills */
+  --color-canvas: #fbfbfd; /* Apple-like off-white, never pure white */
+  --color-surface-muted: #f0f1f4; /* sunken wells / fills */
   --color-surface: #ffffff; /* cards / rows */
   --color-surface-soft: #ffffff;
   --color-surface-2: #fbfbfd; /* nested surface on a card */
-  --color-surface-sunken: #e8e9ee; /* pressed row / fills */
+  --color-surface-sunken: #eceef2; /* pressed row / fills */
   --color-fill: #78788014; /* systemFill-ish (8%) */
   --color-fill-2: #76768019; /* secondarySystemFill */
 
@@ -51,15 +51,15 @@
   --color-primary-foreground: #ffffff;
 
   /* ---- Semantic scores (iOS system colors, lightly enriched) ---- */
-  --color-positive: #2fb457; /* systemGreen, slightly deeper for contrast */
+  --color-positive: #2f9f56; /* saturated, muted green */
   --color-positive-soft: #34c75914;
   --color-positive-ink: #1f8a40;
 
-  --color-regret: #ff3b30; /* systemRed */
+  --color-regret: #d84a3a; /* calm red, not neon */
   --color-regret-soft: #ff3b3014;
   --color-regret-ink: #c4271f;
 
-  --color-unsure: #ff9f0a; /* systemOrange */
+  --color-unsure: #c9892b; /* warm amber */
   --color-unsure-soft: #ff950014;
   --color-unsure-ink: #b56a00;
 
@@ -89,6 +89,46 @@
   --ease-out-soft: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-label: #f5f5f7;
+    --color-label-2: #ebebf599;
+    --color-label-3: #ebebf54d;
+    --color-label-4: #ebebf52e;
+    --color-ink: #f5f5f7;
+    --color-ink-soft: #d8d8dc;
+    --color-muted-foreground: #a6a6ad;
+    --color-faint: #6f7078;
+
+    --color-canvas: #111114;
+    --color-surface-muted: #24252a;
+    --color-surface: #1b1c20;
+    --color-surface-soft: #202127;
+    --color-surface-2: #24252a;
+    --color-surface-sunken: #2b2c32;
+    --color-fill: #ffffff12;
+    --color-fill-2: #ffffff18;
+
+    --color-separator: #ffffff1f;
+    --color-border: #ffffff14;
+    --color-border-strong: #ffffff2b;
+
+    --color-accent-soft: #0a74ff24;
+    --color-accent-ink: #8dbbff;
+    --color-positive-soft: #2f9f5624;
+    --color-positive-ink: #8edaa6;
+    --color-regret-soft: #d84a3a24;
+    --color-regret-ink: #ffaea6;
+    --color-unsure-soft: #c9892b24;
+    --color-unsure-ink: #f0c17a;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.24), 0 10px 24px -16px rgba(0, 0, 0, 0.55);
+    --shadow-elevated:
+      0 1px 2px rgba(0, 0, 0, 0.32), 0 18px 34px -18px rgba(0, 0, 0, 0.72);
+    --shadow-pop: 0 10px 32px -14px rgba(0, 0, 0, 0.72);
+  }
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
@@ -101,17 +141,16 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
     overscroll-behavior-y: none;
   }
 
-  /* iOS large-title / title tracking */
   h1 {
-    letter-spacing: -0.028em;
+    letter-spacing: 0;
   }
   h2,
   h3 {
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
   }
 
   button,

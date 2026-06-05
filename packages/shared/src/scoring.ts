@@ -11,6 +11,7 @@ import type {
   UsageDuration as UsageDurationType,
   WouldBuyAgain as WouldBuyAgainType,
   ExperienceMood as ExperienceMoodType,
+  VerificationStatus as VerificationStatusType,
 } from './enums';
 
 /**
@@ -41,11 +42,25 @@ export const REGRET_MOODS: ReadonlySet<ExperienceMoodType> = new Set<ExperienceM
   ExperienceMood.DEFECTIVE,
 ]);
 
+/**
+ * Trust weight by how strongly the owner is verified — Wudly's "weighted, never
+ * blocked" model. Camera-/barcode-verified buyers count fully; declared-but-
+ * unscanned owners count less; unverified least. A uniform verification level
+ * across a product cancels out (so it only shifts scores when levels are mixed).
+ */
+export const VERIFICATION_WEIGHT: Record<VerificationStatusType, number> = {
+  VERIFIED: 1.0,
+  SELF_DECLARED: 0.6,
+  UNVERIFIED: 0.2,
+};
+
 /** Minimal shape needed from an experience report to score it. */
 export interface ScorableExperience {
   wouldBuyAgain: WouldBuyAgainType;
   usageDuration: UsageDurationType;
   experienceMood: ExperienceMoodType;
+  /** Optional trust driver. Omitted → counted at full weight (back-compatible). */
+  verificationStatus?: VerificationStatusType;
 }
 
 export interface ScoreResult {
@@ -82,7 +97,11 @@ export function computeScores(experiences: readonly ScorableExperience[]): Score
   let unsureWeighted = 0;
 
   for (const exp of experiences) {
-    const weight = USAGE_DURATION_WEIGHT[exp.usageDuration] ?? 1.0;
+    const durationWeight = USAGE_DURATION_WEIGHT[exp.usageDuration] ?? 1.0;
+    const trustWeight = exp.verificationStatus
+      ? (VERIFICATION_WEIGHT[exp.verificationStatus] ?? 1.0)
+      : 1.0;
+    const weight = durationWeight * trustWeight;
     totalWeight += weight;
 
     rebuyWeighted += REBUY_VALUE[exp.wouldBuyAgain] * weight;

@@ -17,6 +17,7 @@ import type {
   MergeCandidateStatus,
   UserRole,
   NotificationType,
+  VerificationStatus,
 } from './enums';
 import type { UsageDurationStats } from './scoring';
 
@@ -106,6 +107,8 @@ export interface ExperienceDto {
   wouldBuyAgain: WouldBuyAgain;
   usageDuration: UsageDuration;
   experienceMood: ExperienceMood;
+  /** Owner trust level — drives the "echter Käufer" badge + score weighting. */
+  verificationStatus: VerificationStatus;
   wishKnownText: string | null;
   freeText: string | null;
   isPublic: boolean;
@@ -222,4 +225,15 @@ export interface NotificationListDto {
 export interface OpenQuestionDto {
   question: QuestionDto;
   product: ProductSummaryDto;
+}
+
+/** Result of the camera KI fallback: a recognized product plus a ready search query. */
+export interface IdentifiedProductDto {
+  brand: string | null;
+  product: string | null;
+  category: string | null;
+  /** Model confidence, 0..1. 0 means nothing usable was recognized. */
+  confidence: number;
+  /** Best-effort search string ("Brand Product"); empty when nothing recognized. */
+  query: string;
 }

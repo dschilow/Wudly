@@ -4,6 +4,7 @@ import {
   USAGE_DURATION_LABEL,
   EXPERIENCE_MOOD_OPTIONS,
 } from '@wudly/shared';
+import { BadgeCheck } from 'lucide-react';
 import { Pill } from './ui/Pill';
 import { formatDate } from '@/lib/utils';
 
@@ -30,8 +31,19 @@ export function ExperienceCard({ experience }: { experience: ExperienceDto }) {
             {(experience.authorName ?? 'A').charAt(0).toUpperCase()}
           </span>
           <div className="leading-tight">
-            <div className="text-[0.9375rem] font-medium text-label">
-              {experience.authorName ?? 'Besitzer'}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[0.9375rem] font-medium text-label">
+                {experience.authorName ?? 'Besitzer'}
+              </span>
+              {experience.verificationStatus === 'VERIFIED' && (
+                <span
+                  className="inline-flex items-center gap-0.5 rounded-full bg-positive-soft px-1.5 py-0.5 text-[0.6875rem] font-semibold text-positive-ink"
+                  title="Per Kamera/Barcode als echter Käufer bestätigt"
+                >
+                  <BadgeCheck className="h-3 w-3" strokeWidth={2.6} />
+                  Echter Käufer
+                </span>
+              )}
             </div>
             <div className="text-[0.8125rem] text-muted-foreground">
               {USAGE_DURATION_LABEL[experience.usageDuration]}

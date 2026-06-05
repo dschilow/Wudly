@@ -9,9 +9,15 @@ export interface OpenRouterOptions {
   appTitle: string;
 }
 
+/** A multimodal content part (OpenAI/OpenRouter format). */
+export type ChatContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  /** A plain string, or multimodal parts (text + images) for vision calls. */
+  content: string | ChatContentPart[];
 }
 
 /**
@@ -34,9 +40,18 @@ export class OpenRouterClient {
     ]);
   }
 
+  /** Models this client will try, in order. */
+  get modelChain(): readonly string[] {
+    return this.models;
+  }
+
   /**
-   * Run a JSON-mode chat completion. Returns the assistant message content
-   * (expected to be a JSON object string), or null if every model failed.
+   * Run a JSON chat completion. Returns the assistant message content (expected
+   * to be a JSON object string), or null if every model failed.
+   *
+   * Robustness: tries each model with `response_format: json_object` first; if a
+   * model rejects that param (some Google models 4xx on it), it retries the same
+   * model in "plain" mode. Real error bodies are logged so failures aren't silent.
    */
   async completeJson(
     messages: ChatMessage[],
@@ -45,47 +60,94 @@ export class OpenRouterClient {
     let lastError: string | null = null;
 
     for (const model of this.models) {
-      try {
-        const response = await fetch(OPENROUTER_CHAT_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.options.apiKey}`,
-            'HTTP-Referer': this.options.siteUrl ?? 'https://wudly.app',
-            'X-Title': this.options.appTitle,
-          },
-          body: JSON.stringify({
-            model,
-            messages,
-            response_format: { type: 'json_object' },
-            temperature: opts.temperature ?? 0.4,
-            max_tokens: opts.maxTokens ?? 1200,
-            reasoning: { exclude: true },
-            include_reasoning: false,
-          }),
-          signal: AbortSignal.timeout(20_000),
-        });
-
-        if (!response.ok) {
-          lastError = `OpenRouter ${response.status} for ${model}`;
-          if ([400, 404, 408, 429, 500, 502, 503].includes(response.status)) continue;
-          break;
-        }
-
-        const data = (await response.json()) as {
-          choices?: Array<{ message?: { content?: string } }>;
-        };
-        const content = data?.choices?.[0]?.message?.content;
-        if (content && content.trim().length > 0) return content;
-        lastError = `Empty content from ${model}`;
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
+      let res = await this.callModel(model, messages, opts, 'json');
+      // A 4xx on the structured request often means the model/route rejected
+      // response_format — retry once in plain mode before giving up on it.
+      if (!res.ok && res.status && [400, 404, 415, 422, 501].includes(res.status)) {
+        res = await this.callModel(model, messages, opts, 'plain');
       }
+      if (res.ok && res.content) return res.content;
+      lastError = `${model} → ${res.error ?? 'unknown error'}`;
+      this.logger.warn(`OpenRouter model failed: ${lastError}`);
+      // 401/403 = bad key/permissions: same for every model, so stop early.
+      if (res.status === 401 || res.status === 403) break;
     }
 
-    this.logger.warn(`OpenRouter completion failed: ${lastError ?? 'unknown error'}`);
+    this.logger.error(`OpenRouter completion failed (all models). Last: ${lastError ?? 'unknown'}`);
     return null;
   }
+
+  /**
+   * Cheap connectivity/credential probe used by the AI health endpoint. Returns
+   * the first model that responds, or an error string describing the failure.
+   */
+  async ping(): Promise<{ ok: boolean; model?: string; error?: string }> {
+    let lastError: string | null = null;
+    for (const model of this.models) {
+      const res = await this.callModel(
+        model,
+        [{ role: 'user', content: 'ping' }],
+        { temperature: 0, maxTokens: 5 },
+        'plain',
+      );
+      if (res.ok) return { ok: true, model };
+      lastError = `${model} → ${res.error ?? 'unknown error'}`;
+      if (res.status === 401 || res.status === 403) break;
+    }
+    return { ok: false, error: lastError ?? 'unknown error' };
+  }
+
+  private async callModel(
+    model: string,
+    messages: ChatMessage[],
+    opts: { temperature?: number; maxTokens?: number },
+    mode: 'json' | 'plain',
+  ): Promise<{ ok: boolean; content?: string; status?: number; error?: string }> {
+    try {
+      const body: Record<string, unknown> = {
+        model,
+        messages,
+        temperature: opts.temperature ?? 0.4,
+        max_tokens: opts.maxTokens ?? 1200,
+      };
+      if (mode === 'json') {
+        body.response_format = { type: 'json_object' };
+        body.reasoning = { exclude: true };
+      }
+
+      const response = await fetch(OPENROUTER_CHAT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.options.apiKey}`,
+          'HTTP-Referer': this.options.siteUrl ?? 'https://wudly.app',
+          'X-Title': this.options.appTitle,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(25_000),
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        return { ok: false, status: response.status, error: `HTTP ${response.status} ${truncate(text)}` };
+      }
+
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = data?.choices?.[0]?.message?.content;
+      if (content && content.trim().length > 0) return { ok: true, content };
+      return { ok: false, error: 'empty content' };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: message };
+    }
+  }
+}
+
+function truncate(text: string, max = 200): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
 }
 
 /** Parse a JSON object from a possibly fenced / noisy model response. */

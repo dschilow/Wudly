@@ -45,3 +45,21 @@ export function parseCorsOrigins(value: string): string[] {
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 }
+
+/**
+ * Resolve the *effective* AI provider from the raw environment.
+ *
+ * Crucially, this auto-enables OpenRouter when an OPENROUTER_API_KEY is present
+ * but AI_PROVIDER was never set — the #1 "I set the key but AI doesn't work"
+ * gotcha (the zod default is "dummy"). An explicit AI_PROVIDER always wins.
+ */
+export function resolveAiProvider(env: {
+  AI_PROVIDER?: string;
+  OPENROUTER_API_KEY?: string;
+}): 'openrouter' | 'dummy' {
+  const explicit = env.AI_PROVIDER?.trim();
+  const hasKey = Boolean(env.OPENROUTER_API_KEY && env.OPENROUTER_API_KEY.trim().length > 0);
+  if (explicit === 'openrouter') return 'openrouter';
+  if (!explicit && hasKey) return 'openrouter';
+  return 'dummy';
+}

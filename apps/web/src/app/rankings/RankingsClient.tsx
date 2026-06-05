@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { GitCompareArrows } from 'lucide-react';
+import { Flame, GitCompareArrows, Radar } from 'lucide-react';
 import type { CategoryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ProductList } from '@/components/ProductList';
@@ -20,15 +20,33 @@ const SEGMENTS = [
   { value: 'discussed' as const, label: 'Diskutiert' },
 ];
 
-export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
+export interface RegretRadarEntry {
+  slug: string;
+  name: string;
+  regretScore: number;
+  productCount: number;
+  productName: string;
+}
+
+export function RankingsClient({
+  categories,
+  initialEntries,
+  initialRadar,
+}: {
+  categories: CategoryDto[];
+  initialEntries: RankingEntryDto[];
+  initialRadar: RegretRadarEntry[];
+}) {
   const searchParams = useSearchParams();
   const initialCat = searchParams.get('cat') ?? '';
   const [tab, setTab] = useState<Tab>('rebuy');
   const [category, setCategory] = useState<string>(
     categories.some((c) => c.slug === initialCat) ? initialCat : '',
   );
-  const [entries, setEntries] = useState<RankingEntryDto[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState<RankingEntryDto[] | null>(initialEntries);
+  const [loadedKey, setLoadedKey] = useState('rebuy');
+  const [loading, setLoading] = useState(false);
+  const currentKey = category ? `category:${category}` : tab;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,22 +62,27 @@ export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
         data = await api.rankings.mostDiscussed(30, { cache: 'no-store' });
       }
       setEntries(data);
+      setLoadedKey(currentKey);
     } catch {
       setEntries([]);
+      setLoadedKey(currentKey);
     } finally {
       setLoading(false);
     }
-  }, [tab, category]);
+  }, [tab, category, currentKey]);
 
   useEffect(() => {
+    if (currentKey === loadedKey) return;
     void load();
-  }, [load]);
+  }, [currentKey, loadedKey, load]);
 
   const emphasis = !category && tab === 'regret' ? 'regret' : 'rebuy';
 
   return (
     <div className="animate-fade space-y-4 pt-2">
-      <LargeTitle title="Charts" subtitle="Was sich lohnt — und was nicht." />
+      <LargeTitle title="Regret-Radar" subtitle="Wo Käufer am häufigsten danebenliegen." />
+
+      {initialRadar.length > 0 && <RegretRadar entries={initialRadar} />}
 
       <Link
         href="/compare"
@@ -119,6 +142,60 @@ export function RankingsClient({ categories }: { categories: CategoryDto[] }) {
         />
       )}
     </div>
+  );
+}
+
+function RegretRadar({ entries }: { entries: RegretRadarEntry[] }) {
+  const max = Math.max(...entries.map((entry) => entry.regretScore), 1);
+
+  return (
+    <section className="card-elevated overflow-hidden p-4">
+      <div className="mb-3 flex items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-regret-soft text-regret-ink">
+          <Radar className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[1.125rem] font-bold tracking-tight text-label">
+            Kategorie-Heatmap
+          </h2>
+          <p className="mt-0.5 text-[0.8125rem] leading-snug text-muted-foreground">
+            Aus Produkten mit den höchsten Regret-Scores berechnet.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2.5">
+        {entries.map((entry) => (
+          <Link
+            key={entry.slug}
+            href={`/rankings?cat=${entry.slug}`}
+            className="tap block rounded-[0.9rem] bg-surface-2 p-3 ring-1 ring-border"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 truncate text-[0.9375rem] font-semibold text-label">
+                {entry.name}
+              </span>
+              <span className="tnum text-[1.25rem] font-bold leading-none text-regret">
+                {entry.regretScore}
+              </span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-fill-2">
+              <div
+                className="h-full rounded-full bg-regret"
+                style={{ width: `${Math.max(10, (entry.regretScore / max) * 100)}%` }}
+              />
+            </div>
+            <div className="mt-2 flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
+              <Flame className="h-3.5 w-3.5 text-regret-ink" strokeWidth={2.3} />
+              <span className="truncate">
+                Auffällig: {entry.productName} · {entry.productCount} Produkt
+                {entry.productCount === 1 ? '' : 'e'}
+              </span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 

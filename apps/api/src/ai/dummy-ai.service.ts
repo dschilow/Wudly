@@ -5,6 +5,7 @@ import {
   type ProductCandidate,
   type NormalizedExperience,
   type ProductInsightSummary,
+  type IdentifiedProduct,
   normalizeProductName,
   guessBrand,
   AspectSentiment,
@@ -76,5 +77,11 @@ export class DummyAiService implements AiService {
   async suggestQuestions(_productId: string): Promise<string[]> {
     // No model → fall back to the curated common questions.
     return [...COMMON_QUESTIONS].slice(0, 4);
+  }
+
+  async identifyProductFromImage(_imageDataUrl: string): Promise<IdentifiedProduct> {
+    // No vision model in the deterministic provider — signal "not recognized" so the
+    // client falls back to manual search instead of inventing a product.
+    return { brand: null, product: null, category: null, confidence: 0 };
   }
 }

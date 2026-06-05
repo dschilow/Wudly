@@ -27,6 +27,7 @@ import type {
   CreateQuestionInput,
   CreateAnswerInput,
   CreateOwnershipInput,
+  IdentifiedProductDto,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -67,6 +68,9 @@ export const api = {
       apiFetch<{ questions: string[] }>(`/products/${id}/question-suggestions`, opts),
     create: (input: CreateProductInput) =>
       apiFetch<CreateProductResultDto>('/products', { method: 'POST', json: input }),
+    /** Camera KI fallback: recognize a product from a captured photo (data URL). */
+    identify: (image: string) =>
+      apiFetch<IdentifiedProductDto>('/products/identify', { method: 'POST', json: { image } }),
   },
 
   experiences: {

@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, X, ChevronRight } from 'lucide-react';
-import type { CategoryDto, ProductSummaryDto } from '@wudly/shared';
+import { Camera, ChevronRight, Link2, Search, ShieldCheck, X } from 'lucide-react';
+import type { CategoryDto, ProductSummaryDto, IdentifiedProductDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { ProductList } from '@/components/ProductList';
@@ -12,6 +12,8 @@ import { EmptyState, Skeleton } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
 import { categoryEmoji, categoryTile } from '@/lib/categories';
 import { AddProductForm } from './AddProductForm';
+import { CameraScanner } from './CameraScanner';
+import { HouseholdSwipeDeck } from './HouseholdSwipeDeck';
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -28,12 +30,17 @@ export function CheckClient({
 }) {
   const searchParams = useSearchParams();
   const ownIntent = searchParams.get('own') === '1';
+  const scanIntent = searchParams.get('scan') === '1';
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ProductSummaryDto[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanNotice, setScanNotice] = useState<string | null>(null);
+  const [shopUrl, setShopUrl] = useState('');
+  const [showUrlSignal, setShowUrlSignal] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const runSearch = useCallback(async (q: string) => {
@@ -63,45 +70,105 @@ export function CheckClient({
     };
   }, [query, runSearch]);
 
+  useEffect(() => {
+    if (scanIntent) setScannerOpen(true);
+  }, [scanIntent]);
+
   const hasNoResults = results !== null && results.length === 0 && !loading;
   const idle = query.trim().length === 0;
+  const urlScore = featured.find((product) => product.rebuyScore !== null)?.rebuyScore ?? 73;
+  const urlConcern = featured.find((product) => product.regretScore !== null)?.category?.name ?? 'Alltagstauglichkeit';
+
+  const handleDetected = useCallback(
+    (code: string) => {
+      setScannerOpen(false);
+      setScanNotice(`Barcode erkannt: ${code}`);
+      setQuery(code);
+      setShowAdd(false);
+      void runSearch(code);
+    },
+    [runSearch],
+  );
+
+  const handleIdentified = useCallback(
+    (result: IdentifiedProductDto) => {
+      setScannerOpen(false);
+      const label = [result.brand, result.product].filter(Boolean).join(' ') || result.query;
+      setScanNotice(`Per Foto erkannt: ${label}`);
+      setQuery(result.query);
+      setShowAdd(false);
+      void runSearch(result.query);
+    },
+    [runSearch],
+  );
 
   return (
     <div className="animate-fade space-y-5 pt-2">
+      <CameraScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onDetected={handleDetected}
+        onIdentified={handleIdentified}
+      />
+
       <LargeTitle
         title={ownIntent ? 'Dein Produkt' : 'Prüfen'}
         subtitle={
           ownIntent
             ? 'Finde dein Produkt und teile deine Erfahrung.'
-            : 'Sieh, ob echte Besitzer es wieder kaufen würden.'
+            : 'Suche, scanne oder prüfe einen Kauf vor dem Bezahlen.'
         }
       />
 
-      {/* Search field — substantial, rounded, with a clear affordance */}
-      <div className="flex h-12 items-center gap-2 rounded-[0.9rem] bg-fill-2 px-3.5">
-        <Search className="h-[1.15rem] w-[1.15rem] shrink-0 text-faint" strokeWidth={2.2} aria-hidden />
-        <input
-          autoFocus
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setShowAdd(false);
-          }}
-          placeholder="Produkt oder Marke suchen"
-          className="h-full flex-1 bg-transparent text-[1.0625rem] text-label outline-none placeholder:text-faint"
-          inputMode="search"
-          aria-label="Produktsuche"
-        />
-        {query && (
-          <button
-            onClick={() => setQuery('')}
-            className="tap-dim grid h-5 w-5 shrink-0 place-items-center rounded-full bg-faint/70 text-white"
-            aria-label="Leeren"
-          >
-            <X className="h-3 w-3" strokeWidth={3} />
-          </button>
-        )}
+      <div className="flex gap-2.5">
+        <div className="flex h-12 flex-1 items-center gap-2 rounded-[0.95rem] bg-fill-2 px-3.5">
+          <Search
+            className="h-[1.15rem] w-[1.15rem] shrink-0 text-faint"
+            strokeWidth={2.2}
+            aria-hidden
+          />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setShowAdd(false);
+              setScanNotice(null);
+            }}
+            placeholder="Produkt, Marke oder EAN"
+            className="h-full flex-1 bg-transparent text-[1.0625rem] text-label outline-none placeholder:text-faint"
+            inputMode="search"
+            aria-label="Produktsuche"
+          />
+          {query && (
+            <button
+              onClick={() => {
+                setQuery('');
+                setScanNotice(null);
+              }}
+              className="tap-dim grid h-5 w-5 shrink-0 place-items-center rounded-full bg-faint/70 text-white"
+              aria-label="Leeren"
+            >
+              <X className="h-3 w-3" strokeWidth={3} />
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setScannerOpen(true)}
+          className="press grid h-12 w-12 shrink-0 place-items-center rounded-[0.95rem] bg-ink text-white shadow-[var(--shadow-pop)]"
+          aria-label="Kamera-Scan starten"
+        >
+          <Camera className="h-[1.375rem] w-[1.375rem]" strokeWidth={2.3} />
+        </button>
       </div>
+
+      {scanNotice && (
+        <div className="flex items-center gap-2 rounded-[0.85rem] bg-accent-soft px-3 py-2 text-[0.875rem] font-medium text-accent-ink">
+          <ShieldCheck className="h-[1.125rem] w-[1.125rem] shrink-0" strokeWidth={2.3} />
+          <span>{scanNotice}</span>
+        </div>
+      )}
 
       {loading && (
         <div className="card overflow-hidden">
@@ -137,6 +204,56 @@ export function CheckClient({
       {/* Idle state — browse, never an empty void */}
       {idle && (
         <>
+          <section className="card-elevated overflow-hidden">
+            <div className="p-4">
+              <div className="flex items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
+                  <Link2 className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.3} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-[1.125rem] font-bold tracking-tight text-label">
+                    Vor dem Kauf prüfen
+                  </h2>
+                  <p className="mt-1 text-[0.875rem] leading-snug text-muted-foreground">
+                    Shop-Link einfügen, Signal sehen, dann in Ruhe entscheiden.
+                  </p>
+                </div>
+              </div>
+              <form
+                className="mt-3 flex gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setShowUrlSignal(shopUrl.trim().length > 0);
+                  navigator.vibrate?.(12);
+                }}
+              >
+                <input
+                  value={shopUrl}
+                  onChange={(event) => {
+                    setShopUrl(event.target.value);
+                    setShowUrlSignal(false);
+                  }}
+                  placeholder="https://shop.de/produkt"
+                  inputMode="url"
+                  className="h-11 min-w-0 flex-1 rounded-[0.85rem] bg-fill-2 px-3 text-[0.9375rem] text-label outline-none placeholder:text-faint"
+                  aria-label="Shop-URL"
+                />
+                <button
+                  type="submit"
+                  className="press h-11 rounded-[0.85rem] bg-accent px-4 text-[0.9375rem] font-semibold text-white shadow-[var(--shadow-glow)]"
+                >
+                  Prüfen
+                </button>
+              </form>
+              {showUrlSignal && (
+                <p className="mt-3 rounded-[0.85rem] bg-surface-2 p-3 text-[0.9375rem] leading-snug text-label ring-1 ring-border">
+                  <span className="font-semibold">{urlScore}% würden wieder kaufen</span> — häufigster
+                  Vorbehalt in ähnlichen Produkten: {urlConcern}.
+                </p>
+              )}
+            </div>
+          </section>
+
           {categories.length > 0 && (
             <section>
               <GroupLabel>Kategorien</GroupLabel>
@@ -177,6 +294,8 @@ export function CheckClient({
               <ProductList products={featured} />
             </section>
           )}
+
+          <HouseholdSwipeDeck products={featured} />
         </>
       )}
     </div>

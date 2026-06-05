@@ -13,6 +13,7 @@ import { toExperienceDto, type ExperienceWithRelations } from './experience.mapp
 const EXPERIENCE_INCLUDE = {
   aspects: true,
   user: { select: { id: true, displayName: true } },
+  ownership: { select: { verificationStatus: true } },
 } as const;
 
 @Injectable()

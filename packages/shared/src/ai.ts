@@ -36,6 +36,18 @@ export interface ProductInsightSummary {
   notSuitedFor: string[];
 }
 
+/**
+ * Result of recognizing a product from a photo (camera scan, KI fallback when no
+ * barcode is found). The model returns only these fields as strict JSON.
+ */
+export interface IdentifiedProduct {
+  brand: string | null;
+  product: string | null;
+  category: string | null;
+  /** Model self-reported confidence, 0..1. 0 means "not recognized". */
+  confidence: number;
+}
+
 export interface AiService {
   summarizeProductInsights(productId: string): Promise<ProductInsightSummary>;
   extractProductCandidate(input: ProductInput): Promise<ProductCandidate>;
@@ -45,6 +57,12 @@ export interface AiService {
    * might want answered by real owners. Returns short German question strings.
    */
   suggestQuestions(productId: string): Promise<string[]>;
+  /**
+   * Recognize a product from a photo when no barcode could be read. `imageDataUrl`
+   * is a `data:image/...;base64,…` URL captured client-side. Implementations must
+   * return strict JSON and fall back to confidence 0 on any failure.
+   */
+  identifyProductFromImage(imageDataUrl: string): Promise<IdentifiedProduct>;
 }
 
 /** DI token string for the AiService binding in the backend. */

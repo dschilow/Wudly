@@ -138,6 +138,21 @@ export const createAnswerSchema = z.object({
 export type CreateAnswerInput = z.infer<typeof createAnswerSchema>;
 
 /* ------------------------------------------------------------------ *
+ * Product scan — camera KI fallback (no API key in the client)
+ * ------------------------------------------------------------------ */
+
+export const identifyProductSchema = z.object({
+  /** `data:image/jpeg;base64,…` frame captured + downscaled client-side. */
+  image: z
+    .string()
+    .trim()
+    .min(32)
+    .max(6_000_000)
+    .refine((v) => v.startsWith('data:image/'), 'Erwartet eine Bild-Data-URL.'),
+});
+export type IdentifyProductInput = z.infer<typeof identifyProductSchema>;
+
+/* ------------------------------------------------------------------ *
  * Rankings
  * ------------------------------------------------------------------ */
 

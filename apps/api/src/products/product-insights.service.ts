@@ -38,7 +38,7 @@ export class ProductInsightsService {
     // Aggregate over PUBLIC experiences only — private ones never affect scores.
     const reports = await this.prisma.experienceReport.findMany({
       where: { productId, isPublic: true },
-      include: { aspects: true },
+      include: { aspects: true, ownership: { select: { verificationStatus: true } } },
     });
 
     const labelByKey = await this.aspectLabelMap(product.categoryId);
@@ -47,6 +47,8 @@ export class ProductInsightsService {
       wouldBuyAgain: report.wouldBuyAgain,
       usageDuration: report.usageDuration,
       experienceMood: report.experienceMood,
+      // Trust weight: camera/barcode-verified owners count more (brief trust model).
+      verificationStatus: report.ownership?.verificationStatus ?? 'SELF_DECLARED',
       wishKnownText: report.wishKnownText,
       aspects: report.aspects.map((a) => ({
         key: a.aspectKey,

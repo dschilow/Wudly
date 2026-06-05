@@ -14,12 +14,15 @@ import {
   paginationQuerySchema,
   createProductSchema,
   updateProductSchema,
+  identifyProductSchema,
   type CreateProductInput,
   type UpdateProductInput,
+  type IdentifyProductInput,
   type ProductSummaryDto,
   type ProductDetailDto,
   type ProductInsightsDto,
   type CreateProductResultDto,
+  type IdentifiedProductDto,
   type PaginatedDto,
   type ExperienceDto,
   type QuestionDto,
@@ -28,6 +31,7 @@ import { ProductsService } from './products.service';
 import { ProductInsightsService } from './product-insights.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RateLimit, RateLimitGuard } from '../common/rate-limit.guard';
 import { ExperiencesService } from '../experiences/experiences.service';
 import { QuestionsService } from '../questions/questions.service';
 
@@ -98,6 +102,15 @@ export class ProductsController {
   @Header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
   getShareImageById(@Param('id') id: string): Promise<string> {
     return this.products.getShareSvgById(id);
+  }
+
+  @Post('identify')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 12, windowMs: 60_000 })
+  identify(
+    @Body(new ZodValidationPipe(identifyProductSchema)) dto: IdentifyProductInput,
+  ): Promise<IdentifiedProductDto> {
+    return this.products.identify(dto.image);
   }
 
   @Post()

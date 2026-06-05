@@ -6,6 +6,7 @@ import {
   type ProductCandidate,
   type NormalizedExperience,
   type ProductInsightSummary,
+  type IdentifiedProduct,
   AspectSentiment,
   guessBrand,
   EXPERIENCE_MOOD_LABEL,
@@ -45,6 +46,13 @@ const summarySchema = z.object({
 
 const questionsSchema = z.object({
   questions: z.array(z.string().trim().min(5).max(120)).max(6).optional().default([]),
+});
+
+const identifySchema = z.object({
+  brand: z.string().trim().max(80).nullable().optional(),
+  product: z.string().trim().max(120).nullable().optional(),
+  category: z.string().trim().max(80).nullable().optional(),
+  confidence: z.coerce.number().min(0).max(1).catch(0).default(0),
 });
 
 /**
@@ -249,5 +257,42 @@ export class OpenRouterAiService implements AiService {
       }
     }
     return questions.slice(0, 4);
+  }
+
+  async identifyProductFromImage(imageDataUrl: string): Promise<IdentifiedProduct> {
+    if (!imageDataUrl.startsWith('data:image/')) {
+      return this.fallback.identifyProductFromImage(imageDataUrl);
+    }
+
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content:
+          'Du erkennst Konsumprodukte auf einem Foto für eine deutsche Produkt-Plattform. ' +
+          'Nenne Marke, Produktnamen (inkl. Modell, falls klar lesbar) und eine grobe Kategorie. ' +
+          'Rate nicht: Wenn du dir unsicher bist, setze die Felder auf null und confidence niedrig. ' +
+          'Antworte ausschließlich als valides JSON ohne Markdown, kein Fließtext: ' +
+          '{"brand": string|null, "product": string|null, "category": string|null, "confidence": number}.',
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Welches Produkt ist auf dem Bild? Antworte nur mit dem JSON.' },
+          { type: 'image_url', image_url: { url: imageDataUrl } },
+        ],
+      },
+    ];
+
+    const parsed = identifySchema.safeParse(
+      parseJsonObject(await this.client.completeJson(messages, { temperature: 0.1, maxTokens: 200 })),
+    );
+    if (!parsed.success) return this.fallback.identifyProductFromImage(imageDataUrl);
+
+    return {
+      brand: parsed.data.brand ?? null,
+      product: parsed.data.product ?? null,
+      category: parsed.data.category ?? null,
+      confidence: parsed.data.confidence ?? 0,
+    };
   }
 }

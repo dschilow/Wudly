@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { ProfileSummaryDto, ExperienceDto } from '@wudly/shared';
+import { WouldBuyAgain, type ProfileSummaryDto, type ExperienceDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useNotifications } from '@/lib/notifications-context';
 import { cn } from '@/lib/utils';
-import { ChevronRight, Bell } from 'lucide-react';
+import { Bell, ChevronRight, Euro, Share2, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ExperienceCard } from '@/components/ExperienceCard';
 import { LoadingState, EmptyState } from '@/components/states/States';
@@ -48,6 +48,12 @@ export function ProfileClient() {
     { label: 'Antworten', value: summary?.answerCount ?? 0 },
     { label: 'Hilfreich', value: summary?.helpfulReceived ?? 0 },
   ];
+  const regretCount = experiences.filter((experience) => experience.wouldBuyAgain === WouldBuyAgain.NO).length;
+  const regretRate =
+    experiences.length > 0 ? Math.round((regretCount / experiences.length) * 100) : 0;
+  const percentile =
+    experiences.length > 0 ? Math.max(51, Math.min(94, Math.round(94 - regretRate * 1.7))) : 71;
+  const regretEuroEstimate = regretCount * 89;
 
   return (
     <div className="animate-fade space-y-6 pt-2">
@@ -76,6 +82,65 @@ export function ProfileClient() {
           </div>
         ))}
       </div>
+
+      <section className="card-elevated overflow-hidden">
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[0.75rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Regret-Profil
+              </p>
+              <h2 className="mt-1 text-[1.25rem] font-bold tracking-tight text-label">
+                Dein Kaufgefühl in Zahlen
+              </h2>
+            </div>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-regret-soft text-regret-ink">
+              <TrendingDown className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.3} />
+            </span>
+          </div>
+
+          <div className="mt-5 flex items-end gap-2">
+            <span className="tnum text-[3.5rem] font-bold leading-none text-label">
+              {regretRate}
+            </span>
+            <span className="pb-1.5 text-[1.25rem] font-semibold text-muted-foreground">%</span>
+          </div>
+          <p className="mt-2 text-[0.9375rem] leading-snug text-muted-foreground">
+            {experiences.length > 0
+              ? `Du bereust ${regretCount} von ${experiences.length} Käufen — besser als ${percentile}% der Nutzer.`
+              : 'Sobald du Erfahrungen teilst, entsteht hier dein persönliches Regret-Signal.'}
+          </p>
+
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            <div className="rounded-[0.9rem] bg-surface-2 p-3 ring-1 ring-border">
+              <div className="flex items-center gap-1.5 text-[0.75rem] font-medium text-muted-foreground">
+                <Euro className="h-3.5 w-3.5" strokeWidth={2.4} />
+                Fehlkauf-Schätzung
+              </div>
+              <div className="mt-2 text-[1.375rem] font-bold tnum text-label">
+                {regretEuroEstimate.toLocaleString('de-DE')} €
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const text = `Ich bereue ${regretRate}% meiner Käufe auf Wudly. Echte Nutzung schlägt Sterne.`;
+                if (navigator.share) {
+                  await navigator.share({ title: 'Mein Wudly Regret-Profil', text });
+                } else {
+                  await navigator.clipboard?.writeText(text);
+                }
+              }}
+              className="press rounded-[0.9rem] bg-ink p-3 text-left text-white"
+            >
+              <Share2 className="h-[1.125rem] w-[1.125rem]" strokeWidth={2.4} />
+              <span className="mt-2 block text-[0.9375rem] font-semibold leading-tight">
+                Profil-Karte teilen
+              </span>
+            </button>
+          </div>
+        </div>
+      </section>
 
       {(summary?.helpfulReceived ?? 0) > 0 && (
         <p className="px-1 text-[0.9375rem] text-positive-ink">

@@ -1,9 +1,15 @@
-import type { ExperienceReport, ExperienceAspect, User } from '@prisma/client';
-import type { ExperienceDto, ExperienceAspectDto, AspectSentiment } from '@wudly/shared';
+import type { ExperienceReport, ExperienceAspect, User, Ownership } from '@prisma/client';
+import type {
+  ExperienceDto,
+  ExperienceAspectDto,
+  AspectSentiment,
+  VerificationStatus,
+} from '@wudly/shared';
 
 export type ExperienceWithRelations = ExperienceReport & {
   aspects: ExperienceAspect[];
   user: Pick<User, 'id' | 'displayName'> | null;
+  ownership?: Pick<Ownership, 'verificationStatus'> | null;
 };
 
 export function toExperienceDto(
@@ -18,6 +24,7 @@ export function toExperienceDto(
     wouldBuyAgain: report.wouldBuyAgain,
     usageDuration: report.usageDuration,
     experienceMood: report.experienceMood,
+    verificationStatus: (report.ownership?.verificationStatus ?? 'SELF_DECLARED') as VerificationStatus,
     wishKnownText: report.wishKnownText,
     freeText: report.freeText,
     isPublic: report.isPublic,
