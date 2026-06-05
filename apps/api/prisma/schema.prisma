@@ -133,6 +133,7 @@ model User {
   badges            UserBadge[]
   notifications     Notification[]
   quickVotes        QuickVote[]
+  createdProducts   Product[]          @relation("CreatedProducts")
 
   @@index([role])
 }
@@ -174,10 +175,12 @@ model Product {
   description    String?
   imageUrl       String?
   status         ProductStatus @default(ACTIVE)
+  createdByUserId String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category  Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy User?     @relation("CreatedProducts", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   variants          ProductVariant[]
   identifiers       ProductIdentifier[]
@@ -197,6 +200,7 @@ model Product {
   @@index([categoryId])
   @@index([status])
   @@index([brand])
+  @@index([createdByUserId])
 }
 
 model ProductVariant {

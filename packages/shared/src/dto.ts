@@ -241,10 +241,16 @@ export interface IdentifiedProductDto {
 /** Result of resolving a scanned barcode against the catalog / an EAN database. */
 export interface EanResolutionDto {
   ean: string;
-  /** Matched catalog product, when the EAN is already known. */
+  /** Matched OR auto-created catalog product. */
   product: ProductSummaryDto | null;
   /** External lookup hit (e.g. UPCitemdb) to prefill search/add when unknown. */
   suggestion: { title: string; brand: string | null } | null;
+}
+
+/** Find-or-create result for photo / research product entry points. */
+export interface EnsuredProductDto {
+  product: ProductSummaryDto | null;
+  created: boolean;
 }
 
 /** Result of the pre-purchase regret check. */

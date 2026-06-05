@@ -181,6 +181,24 @@ export const quickVoteSchema = z.object({
 });
 export type QuickVoteInput = z.infer<typeof quickVoteSchema>;
 
+/** Manual entry → live web research → auto-create a missing product. */
+export const researchProductSchema = z.object({
+  query: z.string().trim().min(2).max(160),
+});
+export type ResearchProductInput = z.infer<typeof researchProductSchema>;
+
+/** Camera photo identification → find-or-create the product (no manual data). */
+export const fromPhotoSchema = z
+  .object({
+    brand: z.string().trim().max(80).optional(),
+    product: z.string().trim().max(160).optional(),
+    category: z.string().trim().max(80).optional(),
+  })
+  .refine((d) => (d.brand?.trim().length ?? 0) + (d.product?.trim().length ?? 0) >= 2, {
+    message: 'brand oder product erforderlich.',
+  });
+export type FromPhotoInput = z.infer<typeof fromPhotoSchema>;
+
 /* ------------------------------------------------------------------ *
  * Rankings
  * ------------------------------------------------------------------ */

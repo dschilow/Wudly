@@ -56,6 +56,17 @@ export interface RegretAssessment {
   summary: string;
 }
 
+/** Live web research result used to auto-create a product the catalog lacks. */
+export interface ResearchedProduct {
+  canonicalName: string;
+  brand: string | null;
+  /** Chosen from the provided slug list, or null if none fits. */
+  categorySlug: string | null;
+  description: string | null;
+  /** True when the model is confident this is a real, identifiable product. */
+  found: boolean;
+}
+
 export interface AiService {
   summarizeProductInsights(productId: string): Promise<ProductInsightSummary>;
   extractProductCandidate(input: ProductInput): Promise<ProductCandidate>;
@@ -76,6 +87,12 @@ export interface AiService {
    * yet. Returns null probability when the model has nothing meaningful to say.
    */
   assessRegret(productName: string, category?: string | null): Promise<RegretAssessment>;
+  /**
+   * Research a product by name using live web access, to auto-create it when it's
+   * missing from the catalog. `categorySlugs` are the valid slugs to choose from.
+   * Returns `found: false` when nothing trustworthy could be established.
+   */
+  researchProduct(name: string, categorySlugs: string[]): Promise<ResearchedProduct>;
 }
 
 /** DI token string for the AiService binding in the backend. */

@@ -92,19 +92,25 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="mx-auto rounded-[1.5rem] bg-surface-2 px-5 py-4 text-center ring-1 ring-border sm:w-[13.5rem]">
-            <ScoreRing score={heroScore} tone="auto" size={156} />
-            <p className="mt-3 text-[0.875rem] leading-snug text-muted-foreground">
-              {heroProduct ? (
-                <>
-                  {heroOwners} Besitzer würden bei{' '}
-                  <span className="font-medium text-label">{heroProduct.canonicalName}</span>{' '}
-                  wieder ehrlich entscheiden.
-                </>
-              ) : (
-                <>Signature-Score: klarer als Sterne, ehrlicher als Kauflaune.</>
-              )}
-            </p>
+          <div className="relative mx-auto overflow-hidden rounded-[1.5rem] bg-surface-2 px-5 py-4 text-center ring-1 ring-border sm:w-[13.5rem]">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 -top-8 mx-auto h-32 w-32 rounded-full bg-[var(--brand-mid)] opacity-[0.10] blur-2xl"
+            />
+            <div className="relative">
+              <ScoreRing score={heroScore} tone="auto" size={156} />
+              <p className="mt-3 text-[0.875rem] leading-snug text-muted-foreground">
+                {heroProduct ? (
+                  <>
+                    {heroOwners} Besitzer würden bei{' '}
+                    <span className="font-medium text-label">{heroProduct.canonicalName}</span>{' '}
+                    wieder ehrlich entscheiden.
+                  </>
+                ) : (
+                  <>Signature-Score: klarer als Sterne, ehrlicher als Kauflaune.</>
+                )}
+              </p>
+            </div>
           </div>
         </div>
       </section>

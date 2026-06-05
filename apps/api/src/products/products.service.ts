@@ -13,6 +13,7 @@ import {
   type PaginatedDto,
   type IdentifiedProductDto,
   type EanResolutionDto,
+  type EnsuredProductDto,
   type RegretCheckDto,
   type RegretCheckInput,
   type QuickVoteInput,
@@ -99,26 +100,169 @@ export class ProductsService {
     };
   }
 
-  /** Resolve a scanned barcode to a catalog product, or an external suggestion. */
-  async resolveEan(ean: string): Promise<EanResolutionDto> {
+  /**
+   * Resolve a scanned barcode to a product. Order: known internal identifier →
+   * free EAN databases (Open Food Facts, then UPCitemdb) → **auto-create** the
+   * product (so a scan always lands somewhere useful) and remember the EAN.
+   */
+  async resolveEan(ean: string, userId: string | null = null): Promise<EanResolutionDto> {
     const normalized = ean.trim();
     const identifier = await this.prisma.productIdentifier.findFirst({
       where: { value: normalized, type: { in: ['EAN', 'GTIN'] } },
       include: { product: { include: PRODUCT_INCLUDE } },
     });
     if (identifier?.product && identifier.product.status !== 'HIDDEN') {
-      return {
-        ean: normalized,
-        product: toProductSummaryDto(identifier.product),
-        suggestion: null,
-      };
+      return { ean: normalized, product: toProductSummaryDto(identifier.product), suggestion: null };
     }
-    const suggestion = await this.lookupEanExternal(normalized);
-    return { ean: normalized, product: null, suggestion };
+
+    const external = await this.lookupEanExternal(normalized);
+    if (external) {
+      const { product } = await this.ensureProduct({
+        canonicalName: external.title,
+        brand: external.brand,
+        ean: normalized,
+        userId,
+      });
+      if (product) return { ean: normalized, product, suggestion: null };
+      return { ean: normalized, product: null, suggestion: external };
+    }
+    return { ean: normalized, product: null, suggestion: null };
   }
 
-  /** Free EAN database lookup (UPCitemdb trial — no key, rate-limited). */
+  /** Camera photo identification → find-or-create the product (no manual data). */
+  async createFromIdentification(
+    input: { brand?: string | null; product?: string | null; category?: string | null },
+    userId: string | null = null,
+  ): Promise<EnsuredProductDto> {
+    const name = [input.brand, input.product]
+      .map((s) => s?.trim())
+      .filter((s): s is string => Boolean(s && s.length > 0))
+      .join(' ')
+      .trim();
+    if (name.length < 2) return { product: null, created: false };
+
+    let categorySlug: string | null = null;
+    if (input.category) {
+      const norm = input.category.trim().toLowerCase();
+      const cats = await this.prisma.category.findMany({ select: { slug: true, name: true } });
+      categorySlug =
+        cats.find((c) => c.slug === norm || c.name.toLowerCase() === norm)?.slug ?? null;
+    }
+    return this.ensureProduct({ canonicalName: name, brand: input.brand ?? null, categorySlug, userId });
+  }
+
+  /** Manual entry that isn't in the catalog → live web research → auto-create. */
+  async researchAndCreate(query: string, userId: string | null = null): Promise<EnsuredProductDto> {
+    return this.ensureProduct({ canonicalName: query, userId, research: true });
+  }
+
+  /**
+   * Find-or-create a product from sparse external data (scan / photo / research).
+   * Returns an existing strong match when one exists; otherwise creates it,
+   * optionally enriched via live web research, and remembers the EAN.
+   */
+  private async ensureProduct(params: {
+    canonicalName: string;
+    brand?: string | null;
+    categorySlug?: string | null;
+    description?: string | null;
+    ean?: string | null;
+    userId?: string | null;
+    research?: boolean;
+  }): Promise<EnsuredProductDto> {
+    const rawName = params.canonicalName.trim();
+    if (rawName.length < 2) return { product: null, created: false };
+
+    let canonicalName = rawName;
+    let brand = params.brand ?? null;
+    let categorySlug = params.categorySlug ?? null;
+    let description = params.description ?? null;
+
+    if (params.research) {
+      try {
+        const slugs = await this.prisma.category.findMany({ select: { slug: true } });
+        const researched = await this.ai.researchProduct(
+          rawName,
+          slugs.map((s) => s.slug),
+        );
+        if (researched.canonicalName) canonicalName = researched.canonicalName;
+        brand = brand ?? researched.brand;
+        categorySlug = categorySlug ?? researched.categorySlug;
+        description = description ?? researched.description;
+      } catch (err) {
+        this.logger.warn(`Product research failed: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    // Strong duplicate? Return the existing product instead of creating a twin.
+    const candidates = await this.matching.findDuplicateCandidates(canonicalName, 3);
+    const strong = candidates.find((c) => c.similarity >= DEFAULT_SIMILARITY_THRESHOLDS.duplicate);
+    if (strong) {
+      if (params.ean) await this.attachIdentifier(strong.product.id, params.ean);
+      return { product: toProductSummaryDto(strong.product), created: false };
+    }
+
+    const result = await this.create(
+      {
+        canonicalName,
+        brand: brand ?? undefined,
+        categorySlug: categorySlug ?? undefined,
+        description: description ?? undefined,
+        forceCreate: true,
+      },
+      params.userId ?? null,
+    );
+    if (!result.created || !result.product) return { product: null, created: false };
+    if (params.ean) await this.attachIdentifier(result.product.id, params.ean);
+    const product = await this.getSummaryOrThrow(result.product.id);
+    return { product, created: true };
+  }
+
+  private async attachIdentifier(productId: string, ean: string): Promise<void> {
+    try {
+      await this.prisma.productIdentifier.upsert({
+        where: { type_value: { type: 'EAN', value: ean } },
+        create: { productId, type: 'EAN', value: ean, source: 'scan' },
+        update: {},
+      });
+    } catch (err) {
+      this.logger.warn(`Attach identifier failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  /** Free EAN database lookup: Open Food Facts first, then UPCitemdb trial. */
   private async lookupEanExternal(
+    ean: string,
+  ): Promise<{ title: string; brand: string | null } | null> {
+    return (await this.lookupOpenFoodFacts(ean)) ?? (await this.lookupUpcItemDb(ean));
+  }
+
+  private async lookupOpenFoodFacts(
+    ean: string,
+  ): Promise<{ title: string; brand: string | null } | null> {
+    try {
+      const res = await fetch(
+        `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(ean)}.json?fields=product_name,brands`,
+        {
+          headers: { Accept: 'application/json', 'User-Agent': 'Wudly/1.0 (wudly.app)' },
+          signal: AbortSignal.timeout(6_000),
+        },
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        status?: number;
+        product?: { product_name?: string; brands?: string };
+      };
+      if (data.status !== 1 || !data.product) return null;
+      const title = data.product.product_name?.trim();
+      if (!title) return null;
+      return { title, brand: data.product.brands?.split(',')[0]?.trim() || null };
+    } catch {
+      return null;
+    }
+  }
+
+  private async lookupUpcItemDb(
     ean: string,
   ): Promise<{ title: string; brand: string | null } | null> {
     try {
@@ -323,7 +467,10 @@ export class ProductsService {
    *  - Otherwise create it. If a borderline (not strong) match exists, also log
    *    an AdminMergeCandidate for later human review.
    */
-  async create(input: CreateProductInput): Promise<CreateProductResultDto> {
+  async create(
+    input: CreateProductInput,
+    createdByUserId: string | null = null,
+  ): Promise<CreateProductResultDto> {
     const canonicalName = input.canonicalName.trim();
     const normalizedName = normalizeProductName(canonicalName);
 
@@ -363,6 +510,7 @@ export class ProductsService {
         description: input.description ?? null,
         imageUrl: input.imageUrl ?? null,
         status: 'ACTIVE',
+        createdByUserId,
         sources: {
           create: {
             sourceType: 'USER_SUBMITTED',

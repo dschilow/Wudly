@@ -262,6 +262,30 @@
     color: transparent;
   }
 
+  /* Ambient brand light behind the whole app — depth without chrome. */
+  .app-ambient {
+    background-image:
+      radial-gradient(48rem 32rem at 50% -8%, rgba(43, 107, 255, 0.06), transparent 60%),
+      radial-gradient(34rem 26rem at 100% 2%, rgba(106, 92, 255, 0.05), transparent 55%);
+  }
+  @media (prefers-color-scheme: dark) {
+    .app-ambient {
+      background-image:
+        radial-gradient(48rem 32rem at 50% -8%, rgba(63, 123, 255, 0.13), transparent 60%),
+        radial-gradient(34rem 26rem at 100% 2%, rgba(106, 92, 255, 0.1), transparent 55%);
+    }
+  }
+
+  /* Subtle desktop hover lift for prominent pressables (no effect on touch). */
+  @media (hover: hover) and (pointer: fine) {
+    .press:hover {
+      transform: translateY(-1px);
+    }
+    .press:active {
+      transform: scale(0.975);
+    }
+  }
+
   .text-balance {
     text-wrap: balance;
   }

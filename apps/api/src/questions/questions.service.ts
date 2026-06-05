@@ -48,11 +48,13 @@ export class QuestionsService {
    * Powers the "answer the owner" inbox in the profile.
    */
   async listOpenForOwner(userId: string): Promise<OpenQuestionDto[]> {
-    const ownerships = await this.prisma.ownership.findMany({
-      where: { userId },
-      select: { productId: true },
-    });
-    const productIds = ownerships.map((o) => o.productId);
+    const [ownerships, created] = await Promise.all([
+      this.prisma.ownership.findMany({ where: { userId }, select: { productId: true } }),
+      this.prisma.product.findMany({ where: { createdByUserId: userId }, select: { id: true } }),
+    ]);
+    const productIds = Array.from(
+      new Set([...ownerships.map((o) => o.productId), ...created.map((c) => c.id)]),
+    );
     if (productIds.length === 0) return [];
 
     const questions = await this.prisma.productQuestion.findMany({
@@ -177,14 +179,28 @@ export class QuestionsService {
     productName: string,
     questionId: string,
   ): Promise<void> {
-    const owners = await this.prisma.ownership.findMany({
-      where: { productId, NOT: { userId: askerId } },
-      select: { userId: true },
-    });
-    const uniqueOwnerIds = Array.from(new Set(owners.map((o) => o.userId)));
+    // Recipients = everyone who owns the product PLUS whoever added it to Wudly
+    // (the creator), minus the person asking. The missing creator was the bug:
+    // adding a product no longer means you silently miss its questions.
+    const [owners, product] = await Promise.all([
+      this.prisma.ownership.findMany({
+        where: { productId, NOT: { userId: askerId } },
+        select: { userId: true },
+      }),
+      this.prisma.product.findUnique({
+        where: { id: productId },
+        select: { createdByUserId: true },
+      }),
+    ]);
+
+    const recipientIds = new Set<string>(owners.map((o) => o.userId));
+    if (product?.createdByUserId) recipientIds.add(product.createdByUserId);
+    recipientIds.delete(askerId);
+    if (recipientIds.size === 0) return;
+
     await this.notifications.createMany(
-      uniqueOwnerIds.map((ownerId) => ({
-        userId: ownerId,
+      [...recipientIds].map((userId) => ({
+        userId,
         type: NotificationType.QUESTION_ASKED,
         title: 'Neue Frage zu deinem Produkt',
         body: `Jemand fragt zu „${productName}".`,

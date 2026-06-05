@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Camera, ChevronRight, Link2, Loader2, Search, ShieldCheck, X } from 'lucide-react';
+import { Camera, ChevronRight, Link2, Loader2, Search, ShieldCheck, Sparkles, X } from 'lucide-react';
 import type {
   CategoryDto,
   ProductSummaryDto,
@@ -48,6 +48,7 @@ export function CheckClient({
   const [shopUrl, setShopUrl] = useState('');
   const [regretResult, setRegretResult] = useState<RegretCheckDto | null>(null);
   const [regretLoading, setRegretLoading] = useState(false);
+  const [researching, setResearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const runSearch = useCallback(async (q: string) => {
@@ -84,6 +85,25 @@ export function CheckClient({
   const hasNoResults = results !== null && results.length === 0 && !loading;
   const idle = query.trim().length === 0;
 
+  const handleResearch = useCallback(async () => {
+    const q = query.trim();
+    if (q.length < 2 || researching) return;
+    setResearching(true);
+    navigator.vibrate?.(12);
+    try {
+      const res = await api.products.research(q);
+      if (res.product) {
+        router.push(`/products/${res.product.id}`);
+        return;
+      }
+      setShowAdd(true);
+    } catch {
+      setShowAdd(true);
+    } finally {
+      setResearching(false);
+    }
+  }, [query, researching, router]);
+
   const handleDetected = useCallback(
     async (code: string) => {
       setScannerOpen(false);
@@ -112,15 +132,29 @@ export function CheckClient({
   );
 
   const handleIdentified = useCallback(
-    (result: IdentifiedProductDto) => {
+    async (result: IdentifiedProductDto) => {
       setScannerOpen(false);
-      const label = [result.brand, result.product].filter(Boolean).join(' ') || result.query;
-      setScanNotice(`Per Foto erkannt: ${label}`);
-      setQuery(result.query);
       setShowAdd(false);
+      const label = [result.brand, result.product].filter(Boolean).join(' ') || result.query;
+      setScanNotice(`Per Foto erkannt: ${label} — wird gespeichert …`);
+      try {
+        const res = await api.products.fromPhoto({
+          brand: result.brand ?? undefined,
+          product: result.product ?? undefined,
+          category: result.category ?? undefined,
+        });
+        if (res.product) {
+          router.push(`/products/${res.product.id}`);
+          return;
+        }
+      } catch {
+        // fall through to a normal search
+      }
+      setScanNotice(`Erkannt: ${label}`);
+      setQuery(result.query);
       void runSearch(result.query);
     },
-    [runSearch],
+    [router, runSearch],
   );
 
   return (
@@ -208,14 +242,33 @@ export function CheckClient({
       {hasNoResults && !showAdd && (
         <EmptyState
           title="Kein Produkt gefunden"
-          description={`Für „${query}" gibt es noch keinen Eintrag – schlag es als Erster vor.`}
+          description={`Für „${query}" gibt es noch keinen Eintrag. Lass Wudly im Web recherchieren und es automatisch anlegen.`}
           action={
-            <button
-              onClick={() => setShowAdd(true)}
-              className="press inline-flex h-11 items-center justify-center rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white shadow-[var(--shadow-glow)]"
-            >
-              Produkt vorschlagen
-            </button>
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={handleResearch}
+                disabled={researching}
+                className="press inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white shadow-[var(--shadow-glow)] disabled:opacity-70"
+              >
+                {researching ? (
+                  <>
+                    <Loader2 className="h-[1.15rem] w-[1.15rem] animate-spin" strokeWidth={2.4} />
+                    Recherchiere im Web …
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.4} />
+                    Finden &amp; anlegen
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setShowAdd(true)}
+                className="tap-dim text-[0.9375rem] font-medium text-muted-foreground"
+              >
+                Stattdessen manuell anlegen
+              </button>
+            </div>
           }
         />
       )}

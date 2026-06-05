@@ -18,17 +18,22 @@ import {
   eanLookupQuerySchema,
   regretCheckSchema,
   quickVoteSchema,
+  researchProductSchema,
+  fromPhotoSchema,
   type CreateProductInput,
   type UpdateProductInput,
   type IdentifyProductInput,
   type RegretCheckInput,
   type QuickVoteInput,
+  type ResearchProductInput,
+  type FromPhotoInput,
   type ProductSummaryDto,
   type ProductDetailDto,
   type ProductInsightsDto,
   type CreateProductResultDto,
   type IdentifiedProductDto,
   type EanResolutionDto,
+  type EnsuredProductDto,
   type RegretCheckDto,
   type QuickVoteResultDto,
   type PaginatedDto,
@@ -70,12 +75,13 @@ export class ProductsController {
   }
 
   @Get('resolve-ean')
-  @UseGuards(RateLimitGuard)
+  @UseGuards(OptionalAuthGuard, RateLimitGuard)
   @RateLimit({ limit: 30, windowMs: 60_000 })
   resolveEan(
     @Query(new ZodValidationPipe(eanLookupQuerySchema)) query: { ean: string },
+    @CurrentUser() user?: AuthUser,
   ): Promise<EanResolutionDto> {
-    return this.products.resolveEan(query.ean);
+    return this.products.resolveEan(query.ean, user?.id ?? null);
   }
 
   @Get('image/:normalizedName')
@@ -142,6 +148,26 @@ export class ProductsController {
     return this.products.regretCheck(dto);
   }
 
+  @Post('from-photo')
+  @UseGuards(OptionalAuthGuard, RateLimitGuard)
+  @RateLimit({ limit: 20, windowMs: 60_000 })
+  fromPhoto(
+    @Body(new ZodValidationPipe(fromPhotoSchema)) dto: FromPhotoInput,
+    @CurrentUser() user?: AuthUser,
+  ): Promise<EnsuredProductDto> {
+    return this.products.createFromIdentification(dto, user?.id ?? null);
+  }
+
+  @Post('research')
+  @UseGuards(OptionalAuthGuard, RateLimitGuard)
+  @RateLimit({ limit: 10, windowMs: 60_000 })
+  research(
+    @Body(new ZodValidationPipe(researchProductSchema)) dto: ResearchProductInput,
+    @CurrentUser() user?: AuthUser,
+  ): Promise<EnsuredProductDto> {
+    return this.products.researchAndCreate(dto.query, user?.id ?? null);
+  }
+
   @Post(':id/vote')
   @UseGuards(OptionalAuthGuard, RateLimitGuard)
   @RateLimit({ limit: 60, windowMs: 60_000 })
@@ -157,8 +183,9 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard)
   create(
     @Body(new ZodValidationPipe(createProductSchema)) dto: CreateProductInput,
+    @CurrentUser() user: AuthUser,
   ): Promise<CreateProductResultDto> {
-    return this.products.create(dto);
+    return this.products.create(dto, user.id);
   }
 
   @Patch(':id')

@@ -29,6 +29,8 @@ import type {
   CreateOwnershipInput,
   IdentifiedProductDto,
   EanResolutionDto,
+  EnsuredProductDto,
+  FromPhotoInput,
   RegretCheckDto,
   RegretCheckInput,
   QuickVoteInput,
@@ -76,9 +78,15 @@ export const api = {
     /** Camera KI fallback: recognize a product from a captured photo (data URL). */
     identify: (image: string) =>
       apiFetch<IdentifiedProductDto>('/products/identify', { method: 'POST', json: { image } }),
-    /** Resolve a scanned barcode (EAN/UPC) to a catalog product or a suggestion. */
+    /** Resolve a scanned barcode (EAN/UPC) to a catalog product (auto-creates if new). */
     resolveEan: (ean: string, opts?: RequestOptions) =>
       apiFetch<EanResolutionDto>(`/products/resolve-ean${qs({ ean })}`, opts),
+    /** Camera photo identification → find-or-create the product. */
+    fromPhoto: (input: FromPhotoInput) =>
+      apiFetch<EnsuredProductDto>('/products/from-photo', { method: 'POST', json: input }),
+    /** Manual entry not in catalog → live web research → auto-create. */
+    research: (query: string) =>
+      apiFetch<EnsuredProductDto>('/products/research', { method: 'POST', json: { query } }),
     /** Pre-purchase regret check from a product query or shop URL. */
     regretCheck: (input: RegretCheckInput) =>
       apiFetch<RegretCheckDto>('/products/regret-check', { method: 'POST', json: input }),

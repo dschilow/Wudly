@@ -55,7 +55,7 @@ export class OpenRouterClient {
    */
   async completeJson(
     messages: ChatMessage[],
-    opts: { temperature?: number; maxTokens?: number } = {},
+    opts: { temperature?: number; maxTokens?: number; online?: boolean } = {},
   ): Promise<string | null> {
     let lastError: string | null = null;
 
@@ -100,12 +100,13 @@ export class OpenRouterClient {
   private async callModel(
     model: string,
     messages: ChatMessage[],
-    opts: { temperature?: number; maxTokens?: number },
+    opts: { temperature?: number; maxTokens?: number; online?: boolean },
     mode: 'json' | 'plain',
   ): Promise<{ ok: boolean; content?: string; status?: number; error?: string }> {
     try {
+      // `:online` enables OpenRouter's web-search plugin for live research.
       const body: Record<string, unknown> = {
-        model,
+        model: opts.online ? `${model}:online` : model,
         messages,
         temperature: opts.temperature ?? 0.4,
         max_tokens: opts.maxTokens ?? 1200,

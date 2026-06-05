@@ -8,6 +8,7 @@ import {
   type ProductInsightSummary,
   type IdentifiedProduct,
   type RegretAssessment,
+  type ResearchedProduct,
   AspectSentiment,
   guessBrand,
   EXPERIENCE_MOOD_LABEL,
@@ -60,6 +61,14 @@ const regretSchema = z.object({
   rebuyProbability: z.coerce.number().min(0).max(100).nullable().optional(),
   topConcern: z.string().trim().max(80).nullable().optional(),
   summary: z.string().trim().min(1).max(240),
+});
+
+const researchSchema = z.object({
+  canonicalName: z.string().trim().min(1).max(160),
+  brand: z.string().trim().max(80).nullable().optional(),
+  categorySlug: z.string().trim().max(80).nullable().optional(),
+  description: z.string().trim().max(400).nullable().optional(),
+  found: z.coerce.boolean().optional().default(false),
 });
 
 /**
@@ -330,6 +339,41 @@ export class OpenRouterAiService implements AiService {
       rebuyProbability: parsed.data.rebuyProbability ?? null,
       topConcern: parsed.data.topConcern ?? null,
       summary: parsed.data.summary,
+    };
+  }
+
+  async researchProduct(name: string, categorySlugs: string[]): Promise<ResearchedProduct> {
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content:
+          'Du recherchierst ein Konsumprodukt im Web und lieferst strukturierte, faktische Daten. ' +
+          'Findest du das Produkt nicht zweifelsfrei, setze found=false und erfinde nichts. ' +
+          `categorySlug MUSS exakt einer aus dieser Liste sein oder null: ${categorySlugs.join(', ')}. ` +
+          '"canonicalName" ist der saubere offizielle Produktname (mit Marke), "description" ein ' +
+          'sachlicher deutscher Satz. Antworte ausschließlich als valides JSON ohne Markdown: ' +
+          '{"canonicalName": string, "brand": string|null, "categorySlug": string|null, "description": string|null, "found": boolean}.',
+      },
+      { role: 'user', content: `Produkt: ${name}` },
+    ];
+
+    const parsed = researchSchema.safeParse(
+      parseJsonObject(
+        await this.client.completeJson(messages, { temperature: 0.2, maxTokens: 400, online: true }),
+      ),
+    );
+    if (!parsed.success) return this.fallback.researchProduct(name, categorySlugs);
+
+    const slug =
+      parsed.data.categorySlug && categorySlugs.includes(parsed.data.categorySlug)
+        ? parsed.data.categorySlug
+        : null;
+    return {
+      canonicalName: parsed.data.canonicalName,
+      brand: parsed.data.brand ?? null,
+      categorySlug: slug,
+      description: parsed.data.description ?? null,
+      found: parsed.data.found ?? false,
     };
   }
 }

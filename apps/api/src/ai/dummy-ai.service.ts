@@ -7,6 +7,7 @@ import {
   type ProductInsightSummary,
   type IdentifiedProduct,
   type RegretAssessment,
+  type ResearchedProduct,
   normalizeProductName,
   guessBrand,
   AspectSentiment,
@@ -89,5 +90,17 @@ export class DummyAiService implements AiService {
   async assessRegret(_productName: string, _category?: string | null): Promise<RegretAssessment> {
     // No model → no estimate; caller falls back to an honest "no data" message.
     return { rebuyProbability: null, topConcern: null, summary: '' };
+  }
+
+  async researchProduct(name: string, _categorySlugs: string[]): Promise<ResearchedProduct> {
+    // No web access — just clean the name; caller still creates the product.
+    const canonicalName = name.trim();
+    return {
+      canonicalName,
+      brand: guessBrand(canonicalName) ?? null,
+      categorySlug: null,
+      description: null,
+      found: false,
+    };
   }
 }

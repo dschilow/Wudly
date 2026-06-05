@@ -10,6 +10,7 @@ import { BottomNavigation } from './BottomNavigation';
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh">
+      <div aria-hidden className="app-ambient pointer-events-none fixed inset-0 -z-10" />
       <MobileHeader />
       <main className="mx-auto w-full max-w-2xl px-5 pb-32 pt-1 md:pb-12">{children}</main>
       <BottomNavigation />
