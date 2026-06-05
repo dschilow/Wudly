@@ -110,7 +110,7 @@ export function RankingsClient({
 
       {/* Category filter — iOS-style scrolling chips */}
       {categories.length > 0 && (
-        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+        <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
           <Chip active={!category} onClick={() => setCategory('')}>
             Alle
           </Chip>

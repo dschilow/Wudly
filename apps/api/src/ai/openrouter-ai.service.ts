@@ -7,6 +7,7 @@ import {
   type NormalizedExperience,
   type ProductInsightSummary,
   type IdentifiedProduct,
+  type RegretAssessment,
   AspectSentiment,
   guessBrand,
   EXPERIENCE_MOOD_LABEL,
@@ -53,6 +54,12 @@ const identifySchema = z.object({
   product: z.string().trim().max(120).nullable().optional(),
   category: z.string().trim().max(80).nullable().optional(),
   confidence: z.coerce.number().min(0).max(1).catch(0).default(0),
+});
+
+const regretSchema = z.object({
+  rebuyProbability: z.coerce.number().min(0).max(100).nullable().optional(),
+  topConcern: z.string().trim().max(80).nullable().optional(),
+  summary: z.string().trim().min(1).max(240),
 });
 
 /**
@@ -293,6 +300,36 @@ export class OpenRouterAiService implements AiService {
       product: parsed.data.product ?? null,
       category: parsed.data.category ?? null,
       confidence: parsed.data.confidence ?? 0,
+    };
+  }
+
+  async assessRegret(productName: string, category?: string | null): Promise<RegretAssessment> {
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content:
+          'Du schätzt für ein Konsumprodukt grob ein, wie wahrscheinlich echte Käufer es wieder ' +
+          'kaufen würden — basierend auf allgemein bekannten Mustern dieser Produktart, ohne Fakten ' +
+          'zu erfinden. Sei vorsichtig: Wenn du nichts Belastbares weißt, setze rebuyProbability auf null. ' +
+          '"summary" ist EIN knapper, ehrlicher deutscher Satz. "topConcern" ist der häufigste Vorbehalt ' +
+          '(1–3 Wörter) oder null. Antworte ausschließlich als valides JSON ohne Markdown: ' +
+          '{"rebuyProbability": number|null, "topConcern": string|null, "summary": string}.',
+      },
+      {
+        role: 'user',
+        content: `Produkt: ${productName}${category ? ` (Kategorie: ${category})` : ''}`,
+      },
+    ];
+
+    const parsed = regretSchema.safeParse(
+      parseJsonObject(await this.client.completeJson(messages, { temperature: 0.3, maxTokens: 220 })),
+    );
+    if (!parsed.success) return this.fallback.assessRegret(productName, category);
+
+    return {
+      rebuyProbability: parsed.data.rebuyProbability ?? null,
+      topConcern: parsed.data.topConcern ?? null,
+      summary: parsed.data.summary,
     };
   }
 }

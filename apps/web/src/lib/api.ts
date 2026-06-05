@@ -28,6 +28,11 @@ import type {
   CreateAnswerInput,
   CreateOwnershipInput,
   IdentifiedProductDto,
+  EanResolutionDto,
+  RegretCheckDto,
+  RegretCheckInput,
+  QuickVoteInput,
+  QuickVoteResultDto,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -71,6 +76,15 @@ export const api = {
     /** Camera KI fallback: recognize a product from a captured photo (data URL). */
     identify: (image: string) =>
       apiFetch<IdentifiedProductDto>('/products/identify', { method: 'POST', json: { image } }),
+    /** Resolve a scanned barcode (EAN/UPC) to a catalog product or a suggestion. */
+    resolveEan: (ean: string, opts?: RequestOptions) =>
+      apiFetch<EanResolutionDto>(`/products/resolve-ean${qs({ ean })}`, opts),
+    /** Pre-purchase regret check from a product query or shop URL. */
+    regretCheck: (input: RegretCheckInput) =>
+      apiFetch<RegretCheckDto>('/products/regret-check', { method: 'POST', json: input }),
+    /** Record a swipe-deck quick vote; returns the live tally. */
+    vote: (id: string, input: QuickVoteInput) =>
+      apiFetch<QuickVoteResultDto>(`/products/${id}/vote`, { method: 'POST', json: input }),
   },
 
   experiences: {

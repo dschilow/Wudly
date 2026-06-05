@@ -48,6 +48,14 @@ export interface IdentifiedProduct {
   confidence: number;
 }
 
+/** AI estimate for the pre-purchase regret check when there's no catalog data. */
+export interface RegretAssessment {
+  /** Estimated % who would buy again (0..100), or null if the model won't guess. */
+  rebuyProbability: number | null;
+  topConcern: string | null;
+  summary: string;
+}
+
 export interface AiService {
   summarizeProductInsights(productId: string): Promise<ProductInsightSummary>;
   extractProductCandidate(input: ProductInput): Promise<ProductCandidate>;
@@ -63,6 +71,11 @@ export interface AiService {
    * return strict JSON and fall back to confidence 0 on any failure.
    */
   identifyProductFromImage(imageDataUrl: string): Promise<IdentifiedProduct>;
+  /**
+   * Estimate a pre-purchase regret signal for a product Wudly has no own data on
+   * yet. Returns null probability when the model has nothing meaningful to say.
+   */
+  assessRegret(productName: string, category?: string | null): Promise<RegretAssessment>;
 }
 
 /** DI token string for the AiService binding in the backend. */

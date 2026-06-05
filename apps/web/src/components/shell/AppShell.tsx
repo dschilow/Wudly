@@ -11,7 +11,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh">
       <MobileHeader />
-      <main className="mx-auto w-full max-w-2xl px-4 pb-32 pt-1 md:pb-12">{children}</main>
+      <main className="mx-auto w-full max-w-2xl px-5 pb-32 pt-1 md:pb-12">{children}</main>
       <BottomNavigation />
     </div>
   );

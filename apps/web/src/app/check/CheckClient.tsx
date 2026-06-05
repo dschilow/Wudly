@@ -2,9 +2,14 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { Camera, ChevronRight, Link2, Search, ShieldCheck, X } from 'lucide-react';
-import type { CategoryDto, ProductSummaryDto, IdentifiedProductDto } from '@wudly/shared';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Camera, ChevronRight, Link2, Loader2, Search, ShieldCheck, X } from 'lucide-react';
+import type {
+  CategoryDto,
+  ProductSummaryDto,
+  IdentifiedProductDto,
+  RegretCheckDto,
+} from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { ProductList } from '@/components/ProductList';
@@ -29,6 +34,7 @@ export function CheckClient({
   featured: ProductSummaryDto[];
 }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const ownIntent = searchParams.get('own') === '1';
   const scanIntent = searchParams.get('scan') === '1';
 
@@ -40,7 +46,8 @@ export function CheckClient({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanNotice, setScanNotice] = useState<string | null>(null);
   const [shopUrl, setShopUrl] = useState('');
-  const [showUrlSignal, setShowUrlSignal] = useState(false);
+  const [regretResult, setRegretResult] = useState<RegretCheckDto | null>(null);
+  const [regretLoading, setRegretLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const runSearch = useCallback(async (q: string) => {
@@ -76,18 +83,32 @@ export function CheckClient({
 
   const hasNoResults = results !== null && results.length === 0 && !loading;
   const idle = query.trim().length === 0;
-  const urlScore = featured.find((product) => product.rebuyScore !== null)?.rebuyScore ?? 73;
-  const urlConcern = featured.find((product) => product.regretScore !== null)?.category?.name ?? 'Alltagstauglichkeit';
 
   const handleDetected = useCallback(
-    (code: string) => {
+    async (code: string) => {
       setScannerOpen(false);
+      setShowAdd(false);
+      setScanNotice('Barcode erkannt …');
+      try {
+        const res = await api.products.resolveEan(code, { cache: 'no-store' });
+        if (res.product) {
+          router.push(`/products/${res.product.id}`);
+          return;
+        }
+        if (res.suggestion) {
+          setScanNotice(`Barcode erkannt: ${res.suggestion.title}`);
+          setQuery(res.suggestion.title);
+          void runSearch(res.suggestion.title);
+          return;
+        }
+      } catch {
+        // fall through to a raw search on the code
+      }
       setScanNotice(`Barcode erkannt: ${code}`);
       setQuery(code);
-      setShowAdd(false);
       void runSearch(code);
     },
-    [runSearch],
+    [router, runSearch],
   );
 
   const handleIdentified = useCallback(
@@ -221,35 +242,76 @@ export function CheckClient({
               </div>
               <form
                 className="mt-3 flex gap-2"
-                onSubmit={(event) => {
+                onSubmit={async (event) => {
                   event.preventDefault();
-                  setShowUrlSignal(shopUrl.trim().length > 0);
+                  const value = shopUrl.trim();
+                  if (!value || regretLoading) return;
                   navigator.vibrate?.(12);
+                  setRegretLoading(true);
+                  setRegretResult(null);
+                  const isUrl = /^(https?:\/\/|www\.)/i.test(value) || value.includes('/');
+                  try {
+                    const res = await api.products.regretCheck(
+                      isUrl ? { url: value } : { query: value },
+                    );
+                    setRegretResult(res);
+                  } catch {
+                    setRegretResult(null);
+                  } finally {
+                    setRegretLoading(false);
+                  }
                 }}
               >
                 <input
                   value={shopUrl}
                   onChange={(event) => {
                     setShopUrl(event.target.value);
-                    setShowUrlSignal(false);
+                    setRegretResult(null);
                   }}
-                  placeholder="https://shop.de/produkt"
+                  placeholder="Shop-Link oder Produktname"
                   inputMode="url"
                   className="h-11 min-w-0 flex-1 rounded-[0.85rem] bg-fill-2 px-3 text-[0.9375rem] text-label outline-none placeholder:text-faint"
-                  aria-label="Shop-URL"
+                  aria-label="Shop-URL oder Produktname"
                 />
                 <button
                   type="submit"
-                  className="press h-11 rounded-[0.85rem] bg-accent px-4 text-[0.9375rem] font-semibold text-white shadow-[var(--shadow-glow)]"
+                  disabled={regretLoading}
+                  className="press flex h-11 items-center gap-1.5 rounded-[0.85rem] bg-accent px-4 text-[0.9375rem] font-semibold text-white shadow-[var(--shadow-glow)] disabled:opacity-70"
                 >
+                  {regretLoading && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.5} />}
                   Prüfen
                 </button>
               </form>
-              {showUrlSignal && (
-                <p className="mt-3 rounded-[0.85rem] bg-surface-2 p-3 text-[0.9375rem] leading-snug text-label ring-1 ring-border">
-                  <span className="font-semibold">{urlScore}% würden wieder kaufen</span> — häufigster
-                  Vorbehalt in ähnlichen Produkten: {urlConcern}.
-                </p>
+              {regretResult && (
+                <div className="mt-3 rounded-[0.85rem] bg-surface-2 p-3 ring-1 ring-border">
+                  {regretResult.rebuyProbability !== null ? (
+                    <p className="text-[0.9375rem] leading-snug text-label">
+                      <span className="font-semibold">
+                        {regretResult.rebuyProbability}% würden wieder kaufen
+                      </span>
+                      {regretResult.topConcern
+                        ? ` — häufigster Vorbehalt: ${regretResult.topConcern}.`
+                        : '.'}
+                    </p>
+                  ) : (
+                    <p className="text-[0.9375rem] leading-snug text-muted-foreground">
+                      {regretResult.summary}
+                    </p>
+                  )}
+                  {regretResult.productId && (
+                    <Link
+                      href={`/products/${regretResult.productId}`}
+                      className="tap-dim mt-2 inline-block text-[0.875rem] font-medium text-accent"
+                    >
+                      Zum Produkt ansehen →
+                    </Link>
+                  )}
+                  {regretResult.source === 'ai' && (
+                    <p className="mt-1.5 text-[0.75rem] text-faint">
+                      KI-Schätzung — noch keine eigenen Wudly-Daten.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </section>

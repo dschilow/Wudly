@@ -237,3 +237,33 @@ export interface IdentifiedProductDto {
   /** Best-effort search string ("Brand Product"); empty when nothing recognized. */
   query: string;
 }
+
+/** Result of resolving a scanned barcode against the catalog / an EAN database. */
+export interface EanResolutionDto {
+  ean: string;
+  /** Matched catalog product, when the EAN is already known. */
+  product: ProductSummaryDto | null;
+  /** External lookup hit (e.g. UPCitemdb) to prefill search/add when unknown. */
+  suggestion: { title: string; brand: string | null } | null;
+}
+
+/** Result of the pre-purchase regret check. */
+export interface RegretCheckDto {
+  productId: string | null;
+  productName: string | null;
+  /** % of owners who would buy again (0..100), or null when unknown. */
+  rebuyProbability: number | null;
+  /** Most common reservation, e.g. "Lautstärke". */
+  topConcern: string | null;
+  summary: string;
+  source: 'catalog' | 'ai' | 'none';
+}
+
+/** Aggregated swipe-deck quick votes for a product. */
+export interface QuickVoteResultDto {
+  /** % YES among YES/NO quick votes, or null when there are none. */
+  rebuy: number | null;
+  count: number;
+  yes: number;
+  no: number;
+}

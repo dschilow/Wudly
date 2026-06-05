@@ -152,6 +152,35 @@ export const identifyProductSchema = z.object({
 });
 export type IdentifyProductInput = z.infer<typeof identifyProductSchema>;
 
+/** Resolve a scanned barcode (EAN/UPC) to a product. */
+export const eanLookupQuerySchema = z.object({
+  ean: z
+    .string()
+    .trim()
+    .min(6)
+    .max(20)
+    .regex(/^[0-9]+$/, 'EAN/UPC besteht nur aus Ziffern.'),
+});
+export type EanLookupQuery = z.infer<typeof eanLookupQuerySchema>;
+
+/** Pre-purchase regret check from a scanned/typed product or a shop URL. */
+export const regretCheckSchema = z
+  .object({
+    url: z.string().trim().max(2000).optional(),
+    query: z.string().trim().max(160).optional(),
+  })
+  .refine((d) => Boolean((d.url && d.url.length > 0) || (d.query && d.query.length > 0)), {
+    message: 'url oder query erforderlich.',
+  });
+export type RegretCheckInput = z.infer<typeof regretCheckSchema>;
+
+/** Lightweight swipe-deck vote ("würdest du es wieder kaufen?"). */
+export const quickVoteSchema = z.object({
+  value: wouldBuyAgainSchema,
+  tags: z.array(z.string().trim().min(1).max(40)).max(8).optional(),
+});
+export type QuickVoteInput = z.infer<typeof quickVoteSchema>;
+
 /* ------------------------------------------------------------------ *
  * Rankings
  * ------------------------------------------------------------------ */

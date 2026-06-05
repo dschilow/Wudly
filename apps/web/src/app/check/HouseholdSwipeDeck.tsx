@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion, useMotionValue, useTransform } from 'motion/react';
 import { Check, RotateCcw, ThumbsDown, ThumbsUp } from 'lucide-react';
-import type { ProductSummaryDto } from '@wudly/shared';
+import { WouldBuyAgain, type ProductSummaryDto } from '@wudly/shared';
+import { api } from '@/lib/api';
 import { Thumb } from '@/components/Thumb';
 import { ScoreRing } from '@/components/ScoreRing';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,7 @@ export function HouseholdSwipeDeck({ products }: { products: ProductSummaryDto[]
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1 | 0>(0);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [voted, setVoted] = useState(0);
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-180, 0, 180], [-8, 0, 8]);
   const opacity = useTransform(x, [-180, 0, 180], [0.82, 1, 0.82]);
@@ -25,6 +27,18 @@ export function HouseholdSwipeDeck({ products }: { products: ProductSummaryDto[]
 
   function vote(nextDirection: 1 | -1) {
     navigator.vibrate?.(18);
+    const product = deck[index];
+    const tags = selectedTags;
+    // Persist the signal (fire-and-forget — the swipe must feel instant).
+    if (product) {
+      void api.products
+        .vote(product.id, {
+          value: nextDirection === 1 ? WouldBuyAgain.YES : WouldBuyAgain.NO,
+          tags: tags.length > 0 ? tags : undefined,
+        })
+        .catch(() => undefined);
+      setVoted((v) => v + 1);
+    }
     setDirection(nextDirection);
     setSelectedTags([]);
     window.setTimeout(() => {
@@ -61,13 +75,16 @@ export function HouseholdSwipeDeck({ products }: { products: ProductSummaryDto[]
                 Fertig für heute.
               </h3>
               <p className="mt-2 text-[0.9375rem] leading-snug text-muted-foreground">
-                Deine Signale machen Wudly für andere Käufer deutlich nützlicher.
+                {voted > 0
+                  ? `${voted} ${voted === 1 ? 'Signal' : 'Signale'} gespeichert — danke! Das macht Wudly für andere Käufer genauer.`
+                  : 'Deine Signale machen Wudly für andere Käufer deutlich nützlicher.'}
               </p>
               <button
                 type="button"
                 onClick={() => {
                   setIndex(0);
                   setSelectedTags([]);
+                  setVoted(0);
                 }}
                 className="press mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-[0.85rem] bg-fill-2 px-4 text-[0.9375rem] font-semibold text-label"
               >

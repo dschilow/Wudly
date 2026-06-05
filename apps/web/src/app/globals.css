@@ -142,6 +142,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing: 0;
+    line-height: 1.5;
     overscroll-behavior-y: none;
   }
 

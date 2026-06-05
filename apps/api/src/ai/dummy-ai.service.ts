@@ -6,6 +6,7 @@ import {
   type NormalizedExperience,
   type ProductInsightSummary,
   type IdentifiedProduct,
+  type RegretAssessment,
   normalizeProductName,
   guessBrand,
   AspectSentiment,
@@ -83,5 +84,10 @@ export class DummyAiService implements AiService {
     // No vision model in the deterministic provider — signal "not recognized" so the
     // client falls back to manual search instead of inventing a product.
     return { brand: null, product: null, category: null, confidence: 0 };
+  }
+
+  async assessRegret(_productName: string, _category?: string | null): Promise<RegretAssessment> {
+    // No model → no estimate; caller falls back to an honest "no data" message.
+    return { rebuyProbability: null, topConcern: null, summary: '' };
   }
 }

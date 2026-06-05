@@ -353,7 +353,7 @@ export default async function ProductPage({ params }: PageProps) {
       )}
 
       {/* Sticky action bar (iOS bottom toolbar, material) */}
-      <div className="safe-bottom fixed inset-x-0 bottom-[3.75rem] z-30 border-t border-separator bg-canvas/80 px-4 py-2.5 backdrop-blur-2xl backdrop-saturate-150 md:bottom-0">
+      <div className="safe-bottom fixed inset-x-0 bottom-[3.75rem] z-30 border-t border-separator bg-canvas/80 px-5 py-2.5 backdrop-blur-2xl backdrop-saturate-150 md:bottom-0">
         <div className="mx-auto flex max-w-2xl gap-2.5">
           <Link
             href={`/products/${id}/own`}

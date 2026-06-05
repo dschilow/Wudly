@@ -12,6 +12,11 @@ import {
   type CreateProductResultDto,
   type PaginatedDto,
   type IdentifiedProductDto,
+  type EanResolutionDto,
+  type RegretCheckDto,
+  type RegretCheckInput,
+  type QuickVoteInput,
+  type QuickVoteResultDto,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
@@ -92,6 +97,161 @@ export class ProductsService {
       confidence: result.confidence,
       query,
     };
+  }
+
+  /** Resolve a scanned barcode to a catalog product, or an external suggestion. */
+  async resolveEan(ean: string): Promise<EanResolutionDto> {
+    const normalized = ean.trim();
+    const identifier = await this.prisma.productIdentifier.findFirst({
+      where: { value: normalized, type: { in: ['EAN', 'GTIN'] } },
+      include: { product: { include: PRODUCT_INCLUDE } },
+    });
+    if (identifier?.product && identifier.product.status !== 'HIDDEN') {
+      return {
+        ean: normalized,
+        product: toProductSummaryDto(identifier.product),
+        suggestion: null,
+      };
+    }
+    const suggestion = await this.lookupEanExternal(normalized);
+    return { ean: normalized, product: null, suggestion };
+  }
+
+  /** Free EAN database lookup (UPCitemdb trial — no key, rate-limited). */
+  private async lookupEanExternal(
+    ean: string,
+  ): Promise<{ title: string; brand: string | null } | null> {
+    try {
+      const res = await fetch(
+        `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(ean)}`,
+        { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(6_000) },
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as { items?: Array<{ title?: string; brand?: string }> };
+      const item = data.items?.[0];
+      const title = item?.title?.trim();
+      if (!title) return null;
+      return { title, brand: item?.brand?.trim() || null };
+    } catch (err) {
+      this.logger.warn(`EAN lookup failed: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Pre-purchase regret check. Uses Wudly's own catalog data when available
+   * (the honest signal); otherwise asks the AI for a careful estimate; otherwise
+   * returns a clear "no data yet" message. Never fabricates numbers.
+   */
+  async regretCheck(input: RegretCheckInput): Promise<RegretCheckDto> {
+    const query = (input.query?.trim() || this.deriveQueryFromUrl(input.url ?? '')).trim();
+
+    if (query.length >= 2) {
+      const candidates = await this.matching.search(query, 1);
+      const top = candidates[0]?.product;
+      if (top) {
+        const snap = await this.prisma.productInsightSnapshot.findUnique({
+          where: { productId: top.id },
+        });
+        const rebuy = snap?.rebuyScore ?? null;
+        if (rebuy !== null && (snap?.experienceCount ?? 0) > 0) {
+          const concern = this.firstAspectLabel(snap?.topNegativeAspects);
+          return {
+            productId: top.id,
+            productName: top.canonicalName,
+            rebuyProbability: rebuy,
+            topConcern: concern,
+            summary: concern
+              ? `${rebuy}% würden wieder kaufen — häufigster Vorbehalt: ${concern}.`
+              : `${rebuy}% der Besitzer würden es wieder kaufen.`,
+            source: 'catalog',
+          };
+        }
+      }
+
+      try {
+        const est = await this.ai.assessRegret(query);
+        if (est.summary && est.summary.trim().length > 0) {
+          return {
+            productId: null,
+            productName: query,
+            rebuyProbability: est.rebuyProbability,
+            topConcern: est.topConcern,
+            summary: est.summary,
+            source: 'ai',
+          };
+        }
+      } catch (err) {
+        this.logger.warn(`Regret estimate failed: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    return {
+      productId: null,
+      productName: query.length >= 2 ? query : null,
+      rebuyProbability: null,
+      topConcern: null,
+      summary:
+        'Zu diesem Produkt gibt es noch keine echten Daten. Scanne es nach dem Kauf und teile, ob du es wieder kaufen würdest.',
+      source: 'none',
+    };
+  }
+
+  /** Record a swipe-deck quick vote (deduped per user) and return the live tally. */
+  async vote(
+    productId: string,
+    userId: string | null,
+    input: QuickVoteInput,
+  ): Promise<QuickVoteResultDto> {
+    await this.findOrThrow(productId);
+    const tags = input.tags ?? [];
+    if (userId) {
+      await this.prisma.quickVote.upsert({
+        where: { productId_userId: { productId, userId } },
+        create: { productId, userId, value: input.value, tags },
+        update: { value: input.value, tags },
+      });
+    } else {
+      await this.prisma.quickVote.create({
+        data: { productId, userId: null, value: input.value, tags },
+      });
+    }
+    return this.quickVoteTally(productId);
+  }
+
+  /** Aggregate YES/NO quick votes for a product. */
+  async quickVoteTally(productId: string): Promise<QuickVoteResultDto> {
+    const [yes, no] = await Promise.all([
+      this.prisma.quickVote.count({ where: { productId, value: 'YES' } }),
+      this.prisma.quickVote.count({ where: { productId, value: 'NO' } }),
+    ]);
+    const total = yes + no;
+    return { rebuy: total > 0 ? Math.round((yes / total) * 100) : null, count: total, yes, no };
+  }
+
+  /** Best-effort product name from a shop URL's last path segment. */
+  private deriveQueryFromUrl(url: string): string {
+    if (!url) return '';
+    try {
+      const u = new URL(url.startsWith('http') ? url : `https://${url}`);
+      const seg = u.pathname.split('/').filter(Boolean).pop() ?? '';
+      return decodeURIComponent(seg)
+        .replace(/\.(html?|php|aspx?)$/i, '')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\b(p|dp|product|produkt|artikel|item)\b/gi, ' ')
+        .replace(/\b\d{4,}\b/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    } catch {
+      return '';
+    }
+  }
+
+  /** First label out of a persisted aspect JSON array (topNegativeAspects). */
+  private firstAspectLabel(value: unknown): string | null {
+    if (!Array.isArray(value)) return null;
+    const first = value[0] as { label?: string } | undefined;
+    return first?.label?.trim() || null;
   }
 
   /** AI-suggested (or curated-fallback) questions a buyer might ask owners. */

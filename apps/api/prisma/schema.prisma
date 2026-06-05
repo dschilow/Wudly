@@ -132,6 +132,7 @@ model User {
   answers           ProductAnswer[]
   badges            UserBadge[]
   notifications     Notification[]
+  quickVotes        QuickVote[]
 
   @@index([role])
 }
@@ -185,6 +186,7 @@ model Product {
   experienceReports ExperienceReport[]
   questions         ProductQuestion[]
   answers           ProductAnswer[]
+  quickVotes        QuickVote[]
   insightSnapshot   ProductInsightSnapshot?
   aliasesFrom       ProductAlias[]          @relation("CanonicalProduct")
   aliasAsOld        ProductAlias?           @relation("OldProduct")
@@ -307,6 +309,24 @@ model ExperienceAspect {
 
   @@index([experienceReportId])
   @@index([aspectKey])
+}
+
+/// Lightweight swipe-deck signal ("würdest du es wieder kaufen?") captured without
+/// the full experience form. Deduped per (product, user); anonymous votes allowed.
+model QuickVote {
+  id        String        @id @default(cuid())
+  productId String
+  userId    String?
+  value     WouldBuyAgain
+  tags      String[]      @default([])
+  createdAt DateTime      @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([productId, userId])
+  @@index([productId])
+  @@index([userId])
 }
 
 /* ----------------------------------------------------------------- *
