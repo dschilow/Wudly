@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Camera, Loader2, ScanLine, Sparkles, X } from 'lucide-react';
 import type { IdentifiedProductDto } from '@wudly/shared';
 import { api } from '@/lib/api';
@@ -57,6 +58,8 @@ export function CameraScanner({
     let cancelled = false;
     busyRef.current = false;
     setPhoto({ status: 'idle' });
+    // Dismiss the soft keyboard if a search field was focused before opening.
+    (document.activeElement as HTMLElement | null)?.blur?.();
     const Detector = barcodeDetector();
 
     async function start() {
@@ -175,12 +178,12 @@ export function CameraScanner({
     }
   }
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
   const working = photo.status === 'working';
 
-  return (
-    <div className="fixed inset-0 z-50 bg-ink text-white">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-ink text-white">
       <video
         ref={videoRef}
         muted
@@ -273,7 +276,8 @@ export function CameraScanner({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

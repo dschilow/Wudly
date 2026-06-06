@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { OwnershipDto } from '@wudly/shared';
+import type { MyProductsDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { ProductList } from '@/components/ProductList';
@@ -11,10 +11,19 @@ import { Button } from '@/components/ui/Button';
 import { LoadingState, EmptyState } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
 
+function GroupLabel({ children, count }: { children: React.ReactNode; count: number }) {
+  return (
+    <div className="mb-2 flex items-baseline justify-between px-1">
+      <h2 className="text-[1.0625rem] font-bold tracking-tight text-label">{children}</h2>
+      <span className="tnum text-[0.8125rem] font-medium text-faint">{count}</span>
+    </div>
+  );
+}
+
 export function MyProductsClient() {
   const router = useRouter();
   const { user, loading } = useAuth();
-  const [ownerships, setOwnerships] = useState<OwnershipDto[]>([]);
+  const [data, setData] = useState<MyProductsDto | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
@@ -23,9 +32,9 @@ export function MyProductsClient() {
       router.replace('/login?redirect=/me/products');
       return;
     }
-    api.ownership
+    api.products
       .mine({ cache: 'no-store' })
-      .then(setOwnerships)
+      .then(setData)
       .catch(() => undefined)
       .finally(() => setDataLoading(false));
   }, [user, loading, router]);
@@ -33,19 +42,19 @@ export function MyProductsClient() {
   if (loading || dataLoading) return <LoadingState />;
   if (!user) return null;
 
-  const products = ownerships.map((o) => o.product).filter((p): p is NonNullable<typeof p> => !!p);
+  const owned = data?.owned ?? [];
+  const created = data?.created ?? [];
+  const empty = owned.length === 0 && created.length === 0;
 
   return (
-    <div className="animate-fade space-y-4 pt-2">
-      <LargeTitle title="Meine Produkte" subtitle="Produkte, die du besitzt oder bewertet hast." />
+    <div className="animate-fade space-y-6 pt-2">
+      <LargeTitle title="Meine Produkte" subtitle="Was du besitzt und was du zu Wudly hinzugefügt hast." />
 
-      {products.length > 0 ? (
-        <ProductList products={products} />
-      ) : (
-        <div className="rounded-[var(--radius-lg)] bg-surface">
+      {empty ? (
+        <div className="card">
           <EmptyState
             title="Noch keine Produkte"
-            description="Sobald du ein Produkt bewertest, erscheint es hier."
+            description="Scanne, fotografiere oder bewerte ein Produkt — es erscheint dann hier."
             action={
               <Link href="/check?own=1">
                 <Button>Produkt hinzufügen</Button>
@@ -53,6 +62,25 @@ export function MyProductsClient() {
             }
           />
         </div>
+      ) : (
+        <>
+          {owned.length > 0 && (
+            <section>
+              <GroupLabel count={owned.length}>Besitzt &amp; bewertet</GroupLabel>
+              <ProductList products={owned} />
+            </section>
+          )}
+
+          {created.length > 0 && (
+            <section>
+              <GroupLabel count={created.length}>Von dir hinzugefügt</GroupLabel>
+              <ProductList products={created} />
+              <p className="mt-2 px-1 text-[0.8125rem] leading-snug text-muted-foreground">
+                Du bekommst eine Mitteilung, sobald jemand zu diesen Produkten eine Frage stellt.
+              </p>
+            </section>
+          )}
+        </>
       )}
     </div>
   );

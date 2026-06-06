@@ -183,7 +183,7 @@ export function CheckClient({
             aria-hidden
           />
           <input
-            autoFocus
+            autoFocus={!scanIntent && !ownIntent}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);

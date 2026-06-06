@@ -30,6 +30,7 @@ import type {
   IdentifiedProductDto,
   EanResolutionDto,
   EnsuredProductDto,
+  MyProductsDto,
   FromPhotoInput,
   RegretCheckDto,
   RegretCheckInput,
@@ -87,6 +88,8 @@ export const api = {
     /** Manual entry not in catalog → live web research → auto-create. */
     research: (query: string) =>
       apiFetch<EnsuredProductDto>('/products/research', { method: 'POST', json: { query } }),
+    /** The current user's products, split into owned vs. added. */
+    mine: (opts?: RequestOptions) => apiFetch<MyProductsDto>('/products/mine', opts),
     /** Pre-purchase regret check from a product query or shop URL. */
     regretCheck: (input: RegretCheckInput) =>
       apiFetch<RegretCheckDto>('/products/regret-check', { method: 'POST', json: input }),

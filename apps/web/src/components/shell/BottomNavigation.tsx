@@ -55,14 +55,17 @@ export function BottomNavigation() {
           <Tab key={item.href} item={item} active={item.match(pathname)} />
         ))}
 
-        <li className="flex flex-1 justify-center">
+        <li className="flex flex-1 flex-col items-center">
           <Link
             href="/check?scan=1"
             aria-label="Produkt scannen"
-            className="press -mt-7 grid h-[3.5rem] w-[3.5rem] place-items-center rounded-full brand-gradient text-white shadow-[var(--shadow-hero)] ring-4 ring-canvas"
+            className="press -mt-4 grid h-[3.25rem] w-[3.25rem] place-items-center rounded-full brand-gradient text-white shadow-[0_8px_20px_-6px_rgba(58,90,255,0.55)] ring-1 ring-black/5"
           >
-            <Camera className="h-6 w-6" strokeWidth={2.3} aria-hidden />
+            <Camera className="h-[1.55rem] w-[1.55rem]" strokeWidth={2.2} aria-hidden />
           </Link>
+          <span className="pb-1 pt-1 text-[0.625rem] font-medium tracking-tight text-accent">
+            Scan
+          </span>
         </li>
 
         {rightItems.map((item) => (

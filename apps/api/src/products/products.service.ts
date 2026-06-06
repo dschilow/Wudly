@@ -32,6 +32,13 @@ import {
 
 const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
 
+/** A hit from a free external EAN database (title + optional brand/photo). */
+interface EanLookupHit {
+  title: string;
+  brand: string | null;
+  image: string | null;
+}
+
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
@@ -120,11 +127,16 @@ export class ProductsService {
       const { product } = await this.ensureProduct({
         canonicalName: external.title,
         brand: external.brand,
+        imageUrl: external.image,
         ean: normalized,
         userId,
       });
       if (product) return { ean: normalized, product, suggestion: null };
-      return { ean: normalized, product: null, suggestion: external };
+      return {
+        ean: normalized,
+        product: null,
+        suggestion: { title: external.title, brand: external.brand },
+      };
     }
     return { ean: normalized, product: null, suggestion: null };
   }
@@ -166,6 +178,7 @@ export class ProductsService {
     brand?: string | null;
     categorySlug?: string | null;
     description?: string | null;
+    imageUrl?: string | null;
     ean?: string | null;
     userId?: string | null;
     research?: boolean;
@@ -208,6 +221,7 @@ export class ProductsService {
         brand: brand ?? undefined,
         categorySlug: categorySlug ?? undefined,
         description: description ?? undefined,
+        imageUrl: params.imageUrl ?? undefined,
         forceCreate: true,
       },
       params.userId ?? null,
@@ -231,18 +245,14 @@ export class ProductsService {
   }
 
   /** Free EAN database lookup: Open Food Facts first, then UPCitemdb trial. */
-  private async lookupEanExternal(
-    ean: string,
-  ): Promise<{ title: string; brand: string | null } | null> {
+  private async lookupEanExternal(ean: string): Promise<EanLookupHit | null> {
     return (await this.lookupOpenFoodFacts(ean)) ?? (await this.lookupUpcItemDb(ean));
   }
 
-  private async lookupOpenFoodFacts(
-    ean: string,
-  ): Promise<{ title: string; brand: string | null } | null> {
+  private async lookupOpenFoodFacts(ean: string): Promise<EanLookupHit | null> {
     try {
       const res = await fetch(
-        `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(ean)}.json?fields=product_name,brands`,
+        `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(ean)}.json?fields=product_name,brands,image_url,image_front_url`,
         {
           headers: { Accept: 'application/json', 'User-Agent': 'Wudly/1.0 (wudly.app)' },
           signal: AbortSignal.timeout(6_000),
@@ -251,31 +261,39 @@ export class ProductsService {
       if (!res.ok) return null;
       const data = (await res.json()) as {
         status?: number;
-        product?: { product_name?: string; brands?: string };
+        product?: { product_name?: string; brands?: string; image_url?: string; image_front_url?: string };
       };
       if (data.status !== 1 || !data.product) return null;
       const title = data.product.product_name?.trim();
       if (!title) return null;
-      return { title, brand: data.product.brands?.split(',')[0]?.trim() || null };
+      return {
+        title,
+        brand: data.product.brands?.split(',')[0]?.trim() || null,
+        image: data.product.image_front_url?.trim() || data.product.image_url?.trim() || null,
+      };
     } catch {
       return null;
     }
   }
 
-  private async lookupUpcItemDb(
-    ean: string,
-  ): Promise<{ title: string; brand: string | null } | null> {
+  private async lookupUpcItemDb(ean: string): Promise<EanLookupHit | null> {
     try {
       const res = await fetch(
         `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(ean)}`,
         { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(6_000) },
       );
       if (!res.ok) return null;
-      const data = (await res.json()) as { items?: Array<{ title?: string; brand?: string }> };
+      const data = (await res.json()) as {
+        items?: Array<{ title?: string; brand?: string; images?: string[] }>;
+      };
       const item = data.items?.[0];
       const title = item?.title?.trim();
       if (!title) return null;
-      return { title, brand: item?.brand?.trim() || null };
+      return {
+        title,
+        brand: item?.brand?.trim() || null,
+        image: item?.images?.find((u) => typeof u === 'string' && u.startsWith('http')) ?? null,
+      };
     } catch (err) {
       this.logger.warn(`EAN lookup failed: ${err instanceof Error ? err.message : err}`);
       return null;
@@ -361,6 +379,35 @@ export class ProductsService {
       });
     }
     return this.quickVoteTally(productId);
+  }
+
+  /** The current user's products, split into owned vs. added (created). */
+  async listMine(userId: string): Promise<{
+    owned: ProductSummaryDto[];
+    created: ProductSummaryDto[];
+  }> {
+    const [ownerships, created] = await Promise.all([
+      this.prisma.ownership.findMany({
+        where: { userId },
+        include: { product: { include: PRODUCT_INCLUDE } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.product.findMany({
+        where: { createdByUserId: userId, status: { not: 'HIDDEN' } },
+        include: PRODUCT_INCLUDE,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const ownedProducts = ownerships
+      .map((o) => o.product)
+      .filter((p): p is NonNullable<typeof p> => Boolean(p) && p!.status !== 'HIDDEN');
+    const ownedIds = new Set(ownedProducts.map((p) => p.id));
+
+    return {
+      owned: ownedProducts.map(toProductSummaryDto),
+      created: created.filter((p) => !ownedIds.has(p.id)).map(toProductSummaryDto),
+    };
   }
 
   /** Aggregate YES/NO quick votes for a product. */

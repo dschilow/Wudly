@@ -253,6 +253,14 @@ export interface EnsuredProductDto {
   created: boolean;
 }
 
+/** The current user's products, split by how they relate to them. */
+export interface MyProductsDto {
+  /** Products the user owns / has reviewed. */
+  owned: ProductSummaryDto[];
+  /** Products the user added to Wudly (and doesn't already own). */
+  created: ProductSummaryDto[];
+}
+
 /** Result of the pre-purchase regret check. */
 export interface RegretCheckDto {
   productId: string | null;

@@ -34,6 +34,7 @@ import {
   type IdentifiedProductDto,
   type EanResolutionDto,
   type EnsuredProductDto,
+  type MyProductsDto,
   type RegretCheckDto,
   type QuickVoteResultDto,
   type PaginatedDto,
@@ -82,6 +83,12 @@ export class ProductsController {
     @CurrentUser() user?: AuthUser,
   ): Promise<EanResolutionDto> {
     return this.products.resolveEan(query.ean, user?.id ?? null);
+  }
+
+  @Get('mine')
+  @UseGuards(JwtAuthGuard)
+  listMine(@CurrentUser() user: AuthUser): Promise<MyProductsDto> {
+    return this.products.listMine(user.id);
   }
 
   @Get('image/:normalizedName')

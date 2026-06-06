@@ -9,6 +9,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
+import { usePathname } from 'next/navigation';
 import { api } from './api';
 import { useAuth } from './auth-context';
 
@@ -22,7 +23,7 @@ interface NotificationsState {
 
 const NotificationsContext = createContext<NotificationsState | null>(null);
 
-const POLL_MS = 60_000;
+const POLL_MS = 30_000;
 
 /**
  * Lightweight unread-badge state for the notification bell. Polls the cheap
@@ -31,6 +32,7 @@ const POLL_MS = 60_000;
  */
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -82,6 +84,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [user, refresh]);
+
+  // Refresh the badge on every navigation so new questions surface quickly.
+  useEffect(() => {
+    if (user) void refresh();
+  }, [pathname, user, refresh]);
 
   return (
     <NotificationsContext.Provider value={{ unreadCount, refresh, clear }}>
