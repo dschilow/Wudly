@@ -135,6 +135,33 @@ export default async function HomePage() {
         })}
       </div>
 
+      <section className="card-elevated overflow-hidden">
+        <div className="p-4">
+          <p className="text-[0.75rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            So funktioniert Wudly
+          </p>
+          <div className="mt-3 grid gap-3.5">
+            {[
+              ['1', 'Scannen oder suchen', 'Barcode, Foto oder Name — Wudly findet das Produkt.'],
+              ['2', 'Ehrliches Signal sehen', 'Der Wiederkauf-Score echter Besitzer — nicht Sterne beim Kauf.'],
+              ['3', 'Besser entscheiden', 'Kaufen ohne Reue — oder bewusst verzichten.'],
+            ].map(([n, title, desc]) => (
+              <div key={n} className="flex items-start gap-3">
+                <span className="brand-gradient grid h-7 w-7 shrink-0 place-items-center rounded-full text-[0.8125rem] font-bold text-white">
+                  {n}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[0.9375rem] font-semibold leading-tight text-label">{title}</div>
+                  <div className="mt-0.5 text-[0.8125rem] leading-snug text-muted-foreground">
+                    {desc}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section>
         <SectionHeader title="Würden sie wieder kaufen" href="/rankings" />
         {topRebuy.length > 0 ? (

@@ -23,7 +23,7 @@ interface NotificationsState {
 
 const NotificationsContext = createContext<NotificationsState | null>(null);
 
-const POLL_MS = 30_000;
+const POLL_MS = 20_000;
 
 /**
  * Lightweight unread-badge state for the notification bell. Polls the cheap
@@ -76,12 +76,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         start();
       }
     };
+    const onFocus = () => void refresh();
 
     start();
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
     return () => {
       stop();
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
     };
   }, [user, refresh]);
 
