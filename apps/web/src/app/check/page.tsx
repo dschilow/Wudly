@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import type { CategoryDto, ProductSummaryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { CheckClient } from './CheckClient';
-import { LoadingState } from '@/components/states/States';
+import { PageSkeleton } from '@/components/states/States';
 
 export const metadata: Metadata = {
   title: 'Produkt prüfen',
@@ -29,7 +29,7 @@ export default async function CheckPage() {
   const featured: ProductSummaryDto[] = popular.map((e) => e.product);
 
   return (
-    <Suspense fallback={<LoadingState />}>
+    <Suspense fallback={<PageSkeleton />}>
       <CheckClient categories={categories} featured={featured} />
     </Suspense>
   );

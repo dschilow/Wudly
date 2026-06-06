@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { ProductList } from '@/components/ProductList';
 import { Button } from '@/components/ui/Button';
-import { LoadingState, EmptyState } from '@/components/states/States';
+import { PageSkeleton, EmptyState } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
 
 function GroupLabel({ children, count }: { children: React.ReactNode; count: number }) {
@@ -39,7 +39,7 @@ export function MyProductsClient() {
       .finally(() => setDataLoading(false));
   }, [user, loading, router]);
 
-  if (loading || dataLoading) return <LoadingState />;
+  if (loading || dataLoading) return <PageSkeleton />;
   if (!user) return null;
 
   const owned = data?.owned ?? [];

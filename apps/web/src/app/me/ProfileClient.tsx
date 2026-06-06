@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { Bell, ChevronRight, Euro, Share2, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ExperienceCard } from '@/components/ExperienceCard';
-import { LoadingState, EmptyState } from '@/components/states/States';
+import { PageSkeleton, ListSkeleton, EmptyState } from '@/components/states/States';
 
 export function ProfileClient() {
   const router = useRouter();
@@ -39,7 +39,7 @@ export function ProfileClient() {
       .finally(() => setDataLoading(false));
   }, [user, loading, router]);
 
-  if (loading || (!user && dataLoading)) return <LoadingState />;
+  if (loading || (!user && dataLoading)) return <PageSkeleton />;
   if (!user) return null;
 
   const stats = [
@@ -192,7 +192,7 @@ export function ProfileClient() {
           Meine Erfahrungen
         </h2>
         {dataLoading ? (
-          <LoadingState />
+          <ListSkeleton rows={3} />
         ) : experiences.length > 0 ? (
           <div className="space-y-2.5">
             {experiences.map((e) => (

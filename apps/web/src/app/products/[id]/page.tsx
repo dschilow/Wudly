@@ -14,7 +14,6 @@ import {
 import type { ExperienceDto, QuestionDto, ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
-import { productShareImageUrl } from '@/lib/product-media';
 import { rebuyVerdict } from '@/lib/verdict';
 import { JsonLd } from '@/components/JsonLd';
 import { productJsonLd, breadcrumbJsonLd, absoluteUrl } from '@/lib/seo';
@@ -53,7 +52,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const description =
       product.insights.aiHeadline ??
       `Wiederkauf-Score ${score ?? '–'} · ${product.insights.experienceCount} echte Erfahrungen.`;
-    const ogImage = productShareImageUrl(id);
+    // og:image / twitter:image come from the colocated opengraph-image.tsx (a crisp
+    // next/og PNG) — no manual image URL needed here.
     return {
       title: product.canonicalName,
       description,
@@ -63,13 +63,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         description,
         type: 'website',
         url: `/products/${id}`,
-        images: [{ url: ogImage, width: 1200, height: 630 }],
       },
       twitter: {
         card: 'summary_large_image',
         title: `${product.canonicalName} — Würdest du es wieder kaufen?`,
         description,
-        images: [ogImage],
       },
     };
   } catch {
@@ -181,16 +179,18 @@ export default async function ProductPage({ params }: PageProps) {
           style={{ background: verdict.color }}
         />
         <div className="relative px-5 pb-5 pt-7 text-center">
-          <ScoreRing score={ins.rebuyScore} tone="auto" size={188} className="mx-auto" />
-          <div
-            className="mt-4 text-[0.75rem] font-semibold uppercase tracking-[0.08em]"
-            style={{ color: verdict.ink }}
-          >
-            Wiederkauf-Score
+          <ScoreRing score={ins.rebuyScore} tone="auto" size={188} className="mx-auto" celebrate />
+          <div className="animate-rise" style={{ animationDelay: '0.45s' }}>
+            <div
+              className="mt-4 text-[0.75rem] font-semibold uppercase tracking-[0.08em]"
+              style={{ color: verdict.ink }}
+            >
+              Wiederkauf-Score
+            </div>
+            <h2 className="mx-auto mt-1 max-w-[20rem] text-balance text-[1.75rem] font-bold leading-[1.06] tracking-tight text-label">
+              {verdict.label}
+            </h2>
           </div>
-          <h2 className="mx-auto mt-1 max-w-[20rem] text-balance text-[1.75rem] font-bold leading-[1.06] tracking-tight text-label">
-            {verdict.label}
-          </h2>
           {hasData && ins.rebuyScore !== null ? (
             <p className="mx-auto mt-2 max-w-[21rem] text-[0.9375rem] leading-snug text-muted-foreground">
               {ins.rebuyScore}% von {ins.ownerCount} Besitzer

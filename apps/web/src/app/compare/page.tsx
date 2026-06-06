@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { CompareClient } from './CompareClient';
-import { LoadingState } from '@/components/states/States';
+import { PageSkeleton } from '@/components/states/States';
 
 export const metadata: Metadata = {
   title: 'Vergleichen',
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function ComparePage() {
   return (
-    <Suspense fallback={<LoadingState />}>
+    <Suspense fallback={<PageSkeleton />}>
       <CompareClient />
     </Suspense>
   );

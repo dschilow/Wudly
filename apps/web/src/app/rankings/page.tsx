@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import type { CategoryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { RankingsClient, type RegretRadarEntry } from './RankingsClient';
-import { LoadingState } from '@/components/states/States';
+import { PageSkeleton } from '@/components/states/States';
 
 export const metadata: Metadata = {
   title: 'Top & Flop',
@@ -76,7 +76,7 @@ export default async function RankingsPage() {
   ]);
 
   return (
-    <Suspense fallback={<LoadingState />}>
+    <Suspense fallback={<PageSkeleton />}>
       <RankingsClient
         categories={categories}
         initialEntries={initialEntries}

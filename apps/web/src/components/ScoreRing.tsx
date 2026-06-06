@@ -15,6 +15,8 @@ interface ScoreRingProps {
   className?: string;
   /** Animate the arc + number counting up when scrolled into view. */
   animate?: boolean;
+  /** Signature "verdict" reveal: a number pop + color bloom + haptic on finish. */
+  celebrate?: boolean;
 }
 
 function resolveColor(score: number | null, tone: Tone): string {
@@ -41,11 +43,13 @@ export function ScoreRing({
   label,
   className,
   animate = true,
+  celebrate = false,
 }: ScoreRingProps) {
   const color = resolveColor(score, tone);
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, amount: 0.6 });
   const [display, setDisplay] = useState(animate ? 0 : (score ?? 0));
+  const [revealed, setRevealed] = useState(false);
   const uid = useId().replace(/[:]/g, '');
   const gradientId = `ring-grad-${uid}`;
   const glowId = `ring-glow-${uid}`;
@@ -64,11 +68,16 @@ export function ScoreRing({
       const t = Math.min(1, (now - start) / duration);
       const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
       setDisplay(Math.round(eased * score));
-      if (t < 1) raf = requestAnimationFrame(tick);
+      if (t < 1) {
+        raf = requestAnimationFrame(tick);
+      } else if (celebrate) {
+        setRevealed(true);
+        navigator.vibrate?.(12);
+      }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [inView, score, animate]);
+  }, [inView, score, animate, celebrate]);
 
   const shown = score === null ? null : display;
 
@@ -85,6 +94,13 @@ export function ScoreRing({
   return (
     <div ref={ref} className={cn('inline-flex flex-col items-center gap-2', className)}>
       <div className="relative" style={{ width: size, height: size }}>
+        {celebrate && revealed && (
+          <span
+            aria-hidden
+            className="animate-score-bloom pointer-events-none absolute inset-[12%] rounded-full blur-xl"
+            style={{ background: color }}
+          />
+        )}
         <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full -rotate-90">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
@@ -127,7 +143,10 @@ export function ScoreRing({
         </svg>
         <div className="absolute inset-0 grid place-items-center">
           <span
-            className="font-semibold tnum leading-none"
+            className={cn(
+              'font-semibold tnum leading-none',
+              celebrate && revealed && 'animate-score-pop',
+            )}
             style={{ color, fontSize: numberSize }}
           >
             {formatScore(shown)}

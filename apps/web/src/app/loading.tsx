@@ -1,5 +1,5 @@
-import { LoadingState } from '@/components/states/States';
+import { PageSkeleton } from '@/components/states/States';
 
 export default function Loading() {
-  return <LoadingState />;
+  return <PageSkeleton />;
 }
