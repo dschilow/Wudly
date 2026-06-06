@@ -68,6 +68,8 @@ export const api = {
       apiFetch<ProductDetailDto>(`/products/${id}`, opts),
     insights: (id: string, opts?: RequestOptions) =>
       apiFetch<ProductInsightsDto>(`/products/${id}/insights`, opts),
+    similar: (id: string, opts?: RequestOptions) =>
+      apiFetch<ProductSummaryDto[]>(`/products/${id}/similar`, opts),
     experiences: (id: string, opts?: RequestOptions) =>
       apiFetch<ExperienceDto[]>(`/products/${id}/experiences`, opts),
     questions: (id: string, opts?: RequestOptions) =>

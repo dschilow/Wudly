@@ -381,6 +381,22 @@ export class ProductsService {
     return this.quickVoteTally(productId);
   }
 
+  /** Products related to this one (same category), most-reviewed first. */
+  async listSimilar(id: string, take = 6): Promise<ProductSummaryDto[]> {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      select: { id: true, categoryId: true },
+    });
+    if (!product?.categoryId) return [];
+    const rows = await this.prisma.product.findMany({
+      where: { categoryId: product.categoryId, status: 'ACTIVE', NOT: { id } },
+      include: PRODUCT_INCLUDE,
+      orderBy: [{ insightSnapshot: { experienceCount: 'desc' } }, { createdAt: 'desc' }],
+      take,
+    });
+    return rows.map(toProductSummaryDto);
+  }
+
   /** The current user's products, split into owned vs. added (created). */
   async listMine(userId: string): Promise<{
     owned: ProductSummaryDto[];

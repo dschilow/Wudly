@@ -103,6 +103,11 @@ export class ProductsController {
     return this.products.getDetail(id);
   }
 
+  @Get(':id/similar')
+  getSimilar(@Param('id') id: string): Promise<ProductSummaryDto[]> {
+    return this.products.listSimilar(id);
+  }
+
   @Get(':id/insights')
   getInsights(@Param('id') id: string): Promise<ProductInsightsDto> {
     return this.insights.getInsights(id);

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { BadgeCheck, Clock3, ShieldCheck } from 'lucide-react';
-import type { ExperienceDto, QuestionDto } from '@wudly/shared';
+import type { ExperienceDto, QuestionDto, ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { productShareImageUrl } from '@/lib/product-media';
@@ -16,6 +16,7 @@ import { AiInsightCard } from '@/components/AiInsightCard';
 import { UsageDurationChart } from '@/components/UsageDurationChart';
 import { ExperienceCard } from '@/components/ExperienceCard';
 import { QuestionCard } from '@/components/QuestionCard';
+import { ProductList } from '@/components/ProductList';
 import { Pill } from '@/components/ui/Pill';
 import { EmptyState } from '@/components/states/States';
 
@@ -108,9 +109,10 @@ export default async function ProductPage({ params }: PageProps) {
     throw err;
   }
 
-  const [experiences, questions] = await Promise.all([
+  const [experiences, questions, similar] = await Promise.all([
     safe(api.products.experiences(id, { next: { revalidate: 20 } }), [] as ExperienceDto[]),
     safe(api.products.questions(id, { next: { revalidate: 20 } }), [] as QuestionDto[]),
+    safe(api.products.similar(id, { next: { revalidate: 120 } }), [] as ProductSummaryDto[]),
   ]);
 
   const ins = product.insights;
@@ -355,6 +357,19 @@ export default async function ProductPage({ params }: PageProps) {
               <ExperienceCard key={exp.id} experience={exp} />
             ))}
           </div>
+        </section>
+      )}
+
+      {/* Similar products — compare & discover alternatives */}
+      {similar.length > 0 && (
+        <section>
+          <div className="flex items-end justify-between px-1 pb-1.5">
+            <GroupTitle>Ähnliche Produkte</GroupTitle>
+            <Link href="/compare" className="tap-dim pb-1 text-[0.9375rem] text-accent">
+              Vergleichen
+            </Link>
+          </div>
+          <ProductList products={similar} />
         </section>
       )}
 
