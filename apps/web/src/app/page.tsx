@@ -14,6 +14,8 @@ import { api } from '@/lib/api';
 import { ProductList } from '@/components/ProductList';
 import { ScoreRing } from '@/components/ScoreRing';
 import { EmptyState } from '@/components/states/States';
+import { JsonLd } from '@/components/JsonLd';
+import { websiteJsonLd, organizationJsonLd } from '@/lib/seo';
 
 export const revalidate = 30;
 
@@ -59,8 +61,32 @@ export default async function HomePage() {
   const heroScore = heroProduct?.rebuyScore ?? 86;
   const heroOwners = heroProduct?.ownerCount ?? 142;
 
+  const heroCardInner = (
+    <>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-8 mx-auto h-32 w-32 rounded-full bg-[var(--brand-mid)] opacity-[0.10] blur-2xl"
+      />
+      <div className="relative">
+        <ScoreRing score={heroScore} tone="auto" size={156} />
+        <p className="mt-3 text-[0.875rem] leading-snug text-muted-foreground">
+          {heroProduct ? (
+            <>
+              {heroOwners} Besitzer würden bei{' '}
+              <span className="font-medium text-label">{heroProduct.canonicalName}</span> wieder
+              ehrlich entscheiden.
+            </>
+          ) : (
+            <>Signature-Score: klarer als Sterne, ehrlicher als Kauflaune.</>
+          )}
+        </p>
+      </div>
+    </>
+  );
+
   return (
     <div className="animate-fade space-y-7 pt-2">
+      <JsonLd data={[websiteJsonLd(), organizationJsonLd()]} />
       <section className="card-elevated overflow-hidden ring-1 ring-border">
         <div className="grid gap-5 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
           <div>
@@ -92,26 +118,18 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="relative mx-auto overflow-hidden rounded-[1.5rem] bg-surface-2 px-5 py-4 text-center ring-1 ring-border sm:w-[13.5rem]">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 -top-8 mx-auto h-32 w-32 rounded-full bg-[var(--brand-mid)] opacity-[0.10] blur-2xl"
-            />
-            <div className="relative">
-              <ScoreRing score={heroScore} tone="auto" size={156} />
-              <p className="mt-3 text-[0.875rem] leading-snug text-muted-foreground">
-                {heroProduct ? (
-                  <>
-                    {heroOwners} Besitzer würden bei{' '}
-                    <span className="font-medium text-label">{heroProduct.canonicalName}</span>{' '}
-                    wieder ehrlich entscheiden.
-                  </>
-                ) : (
-                  <>Signature-Score: klarer als Sterne, ehrlicher als Kauflaune.</>
-                )}
-              </p>
+          {heroProduct ? (
+            <Link
+              href={`/products/${heroProduct.id}`}
+              className="press relative mx-auto block overflow-hidden rounded-[1.5rem] bg-surface-2 px-5 py-4 text-center ring-1 ring-border sm:w-[13.5rem]"
+            >
+              {heroCardInner}
+            </Link>
+          ) : (
+            <div className="relative mx-auto overflow-hidden rounded-[1.5rem] bg-surface-2 px-5 py-4 text-center ring-1 ring-border sm:w-[13.5rem]">
+              {heroCardInner}
             </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -169,6 +187,7 @@ export default async function HomePage() {
         ) : (
           <div className="card">
             <EmptyState
+              icon={<Package className="h-7 w-7" strokeWidth={1.8} />}
               title="Noch keine Daten"
               description="Sei der Erste und teile eine Produkterfahrung."
             />

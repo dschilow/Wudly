@@ -1,23 +1,21 @@
-import type { ComponentType, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface LucideIcon {
-  className?: string;
-  strokeWidth?: number;
-}
-
 /**
- * iOS-quiet empty state: centered title + gray description, no big decorative
- * icon by default (icon prop kept for back-compat but unused visually).
+ * Empty state: a centered title + gray description. When an `icon` node is
+ * supplied it renders inside a soft, gently popped-in medallion — a small moment
+ * of delight so empty screens feel intentional rather than broken. Pass a
+ * rendered element (e.g. `<Package className="h-7 w-7" />`), not a component.
  */
 export function EmptyState({
+  icon,
   title,
   description,
   action,
   className,
 }: {
-  icon?: ComponentType<LucideIcon> | ReactNode;
+  icon?: ReactNode;
   title: string;
   description?: string;
   action?: ReactNode;
@@ -30,6 +28,11 @@ export function EmptyState({
         className,
       )}
     >
+      {icon && (
+        <span className="animate-pop mb-4 grid h-14 w-14 place-items-center rounded-full bg-fill-2 text-faint">
+          {icon}
+        </span>
+      )}
       <h3 className="text-[1.0625rem] font-semibold text-label">{title}</h3>
       {description && (
         <p className="mt-1.5 max-w-xs text-pretty text-[0.9375rem] leading-snug text-muted-foreground">

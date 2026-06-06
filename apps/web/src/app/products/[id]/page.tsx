@@ -1,12 +1,23 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { BadgeCheck, Clock3, ShieldCheck } from 'lucide-react';
+import {
+  BadgeCheck,
+  ChevronDown,
+  Clock3,
+  Lightbulb,
+  MessagesSquare,
+  PackageOpen,
+  Quote,
+  ShieldCheck,
+} from 'lucide-react';
 import type { ExperienceDto, QuestionDto, ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { productShareImageUrl } from '@/lib/product-media';
 import { rebuyVerdict } from '@/lib/verdict';
+import { JsonLd } from '@/components/JsonLd';
+import { productJsonLd, breadcrumbJsonLd, absoluteUrl } from '@/lib/seo';
 import { ShareButton } from '@/components/ShareButton';
 import { ScoreRing } from '@/components/ScoreRing';
 import { ScoreTrend } from '@/components/ScoreTrend';
@@ -46,9 +57,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return {
       title: product.canonicalName,
       description,
+      alternates: { canonical: `/products/${id}` },
       openGraph: {
         title: `${product.canonicalName} — Würdest du es wieder kaufen?`,
         description,
+        type: 'website',
+        url: `/products/${id}`,
         images: [{ url: ogImage, width: 1200, height: 630 }],
       },
       twitter: {
@@ -120,8 +134,18 @@ export default async function ProductPage({ params }: PageProps) {
 
   const verdict = rebuyVerdict(ins.rebuyScore);
 
+  const structuredData = [
+    productJsonLd(product),
+    breadcrumbJsonLd([
+      { name: 'Start', url: absoluteUrl('/') },
+      { name: 'Charts', url: absoluteUrl('/rankings') },
+      { name: product.canonicalName, url: absoluteUrl(`/products/${id}`) },
+    ]),
+  ];
+
   return (
     <div className="animate-fade space-y-5 pb-4 pt-1">
+      <JsonLd data={structuredData} />
       {/* Header */}
       <header className="flex items-start gap-3.5 px-1 pt-1">
         <Thumb product={product} className="h-16 w-16" rounded="rounded-[0.95rem]" />
@@ -209,12 +233,77 @@ export default async function ProductPage({ params }: PageProps) {
         })}
       </div>
 
+      {/* Trust transparency — the honesty model is Wudly's edge, so explain it. */}
+      <details className="group -mt-2 px-1">
+        <summary className="tap-dim flex cursor-pointer list-none items-center gap-1 text-[0.8125rem] font-medium text-accent [&::-webkit-details-marker]:hidden">
+          Wie Wudly wertet
+          <ChevronDown
+            className="h-3.5 w-3.5 transition-transform duration-200 group-open:rotate-180"
+            strokeWidth={2.6}
+            aria-hidden
+          />
+        </summary>
+        <div className="mt-2 rounded-[0.9rem] bg-fill-2 p-3.5 text-[0.8125rem] leading-snug text-muted-foreground">
+          <p className="text-label">Nicht jede Stimme zählt gleich — ehrliche Signale wiegen mehr:</p>
+          <ul className="mt-2 space-y-1.5">
+            {[
+              'Per Kamera oder Barcode verifizierte Käufer zählen voll.',
+              'Längere Nutzung wiegt mehr als der erste Eindruck.',
+              'Generische oder anonyme Beiträge zählen bewusst weniger.',
+            ].map((line) => (
+              <li key={line} className="flex gap-2">
+                <span className="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-accent" />
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </details>
+
       {/* AI summary */}
       {ins.aiHeadline && <AiInsightCard headline={ins.aiHeadline} />}
+
+      {/* The unique data treasure — surfaced high, given a signature treatment. */}
+      {ins.wishKnownHighlights.length > 0 && (
+        <section className="card-elevated relative overflow-hidden">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-accent-soft blur-2xl"
+          />
+          <div className="relative p-4">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
+                <Lightbulb className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.2} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-accent-ink">
+                  Wudly-Datenschatz
+                </p>
+                <h2 className="text-[1.0625rem] font-bold leading-tight tracking-tight text-label">
+                  Das hätten Besitzer vorher gern gewusst
+                </h2>
+              </div>
+            </div>
+            <ul className="mt-3.5 space-y-3">
+              {ins.wishKnownHighlights.map((wish, i) => (
+                <li key={i} className="flex gap-2.5">
+                  <Quote
+                    className="mt-0.5 h-[0.95rem] w-[0.95rem] shrink-0 -scale-x-100 text-accent/55"
+                    strokeWidth={2.4}
+                    aria-hidden
+                  />
+                  <p className="text-[0.9375rem] leading-snug text-label">{wish}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       {!hasData && (
         <div className="card">
           <EmptyState
+            icon={<PackageOpen className="h-7 w-7" strokeWidth={1.8} />}
             title="Noch keine Erfahrungen"
             description="Sei der erste Besitzer und teile, ob du es wieder kaufen würdest."
             action={
@@ -249,27 +338,6 @@ export default async function ProductPage({ params }: PageProps) {
             </section>
           )}
         </div>
-      )}
-
-      {/* Wish known */}
-      {ins.wishKnownHighlights.length > 0 && (
-        <section>
-          <GroupTitle>Das hätten Besitzer vorher gern gewusst</GroupTitle>
-          <div className="card overflow-hidden">
-            {ins.wishKnownHighlights.map((wish, i) => (
-              <div
-                key={i}
-                className={
-                  'px-4 py-3 text-[0.9375rem] leading-snug text-label ' +
-                  (i < ins.wishKnownHighlights.length - 1 ? 'hairline' : '')
-                }
-                style={{ ['--hairline-inset' as string]: '1rem' }}
-              >
-                {wish}
-              </div>
-            ))}
-          </div>
-        </section>
       )}
 
       {/* Audience */}
@@ -341,6 +409,7 @@ export default async function ProductPage({ params }: PageProps) {
         ) : (
           <div className="card">
             <EmptyState
+              icon={<MessagesSquare className="h-7 w-7" strokeWidth={1.8} />}
               title="Noch keine Fragen"
               description="Stell den Besitzern, was dich wirklich interessiert."
             />

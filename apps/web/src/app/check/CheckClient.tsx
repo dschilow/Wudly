@@ -38,7 +38,8 @@ export function CheckClient({
   const ownIntent = searchParams.get('own') === '1';
   const scanIntent = searchParams.get('scan') === '1';
 
-  const [query, setQuery] = useState('');
+  // Deep-link / sitelinks search box (Schema.org SearchAction) lands here as ?q=.
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
   const [results, setResults] = useState<ProductSummaryDto[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
