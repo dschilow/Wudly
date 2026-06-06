@@ -13,7 +13,6 @@ export const metadata: Metadata = {
   description:
     'Wudly zeigt dir, was echte Besitzer nach echter Nutzung über Produkte sagen. Wiederkauf-Score, Regret-Score und Fragen an echte Besitzer.',
   applicationName: 'Wudly',
-  manifest: '/manifest.webmanifest',
   keywords: ['Wudly', 'Produkterfahrung', 'Wiederkauf', 'Besitzermeinung', 'Kaufberatung'],
   alternates: { canonical: '/' },
   formatDetection: { telephone: false, email: false, address: false },
