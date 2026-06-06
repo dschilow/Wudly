@@ -34,6 +34,23 @@ function pushSupported(): boolean {
   );
 }
 
+function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return (
+    /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    // iPadOS 13+ reports as Mac; detect via touch.
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
+function isStandalone(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia?.('(display-mode: standalone)').matches === true ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true
+  );
+}
+
 /** Opt-in card for Web Push (real device notifications for new questions). */
 export function PushOptIn() {
   const [state, setState] = useState<State>('idle');
@@ -103,7 +120,31 @@ export function PushOptIn() {
     }
   }
 
-  if (state === 'unsupported') return null;
+  // On iOS, Web Push only exists once the PWA is installed to the home screen —
+  // guide the user there instead of silently showing nothing.
+  if (state === 'unsupported') {
+    if (isIOS() && !isStandalone()) {
+      return (
+        <div className="card flex items-start gap-3 p-4">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
+            <Bell className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[0.9375rem] font-semibold leading-tight text-label">
+              Push auf dem iPhone aktivieren
+            </div>
+            <div className="mt-0.5 text-[0.8125rem] leading-snug text-muted-foreground">
+              Tippe in Safari auf <span className="font-medium text-label">Teilen</span> →{' '}
+              <span className="font-medium text-label">„Zum Home-Bildschirm"</span>, öffne Wudly über
+              das neue Icon und aktiviere die Benachrichtigungen dann hier. (Apple erlaubt Push nur
+              für installierte Web-Apps.)
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   if (state === 'enabled') {
     return (
