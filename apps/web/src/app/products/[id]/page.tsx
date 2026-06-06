@@ -147,16 +147,22 @@ export default async function ProductPage({ params }: PageProps) {
         </p>
       )}
 
-      <section className="card-elevated overflow-hidden">
-        <div className="px-5 pb-5 pt-6 text-center">
-          <ScoreRing score={ins.rebuyScore} tone="auto" size={184} className="mx-auto" />
+      <section className="card-elevated relative overflow-hidden">
+        {/* Verdict-tinted light behind the score — the page's signature moment. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 -top-12 mx-auto h-48 w-48 rounded-full opacity-[0.16] blur-3xl"
+          style={{ background: verdict.color }}
+        />
+        <div className="relative px-5 pb-5 pt-7 text-center">
+          <ScoreRing score={ins.rebuyScore} tone="auto" size={188} className="mx-auto" />
           <div
             className="mt-4 text-[0.75rem] font-semibold uppercase tracking-[0.08em]"
             style={{ color: verdict.ink }}
           >
             Wiederkauf-Score
           </div>
-          <h2 className="mx-auto mt-1 max-w-[20rem] text-balance text-[1.625rem] font-bold leading-[1.08] tracking-tight text-label">
+          <h2 className="mx-auto mt-1 max-w-[20rem] text-balance text-[1.75rem] font-bold leading-[1.06] tracking-tight text-label">
             {verdict.label}
           </h2>
           {hasData && ins.rebuyScore !== null ? (
@@ -170,7 +176,7 @@ export default async function ProductPage({ params }: PageProps) {
             </p>
           )}
         </div>
-        <div className="grid grid-cols-3 border-t border-separator">
+        <div className="relative grid grid-cols-3 border-t border-separator">
           <Stat
             value={ins.regretScore === null ? '–' : `${ins.regretScore}%`}
             label="Regret"
