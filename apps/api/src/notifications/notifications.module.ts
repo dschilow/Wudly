@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
+import { PushService } from './push.service';
 import { NotificationsController } from './notifications.controller';
 import { QuestionsModule } from '../questions/questions.module';
 import { AuthModule } from '../auth/auth.module';
@@ -14,7 +15,7 @@ import { AuthModule } from '../auth/auth.module';
 @Module({
   imports: [AuthModule, QuestionsModule],
   controllers: [NotificationsController],
-  providers: [NotificationsService],
-  exports: [NotificationsService],
+  providers: [NotificationsService, PushService],
+  exports: [NotificationsService, PushService],
 })
 export class NotificationsModule {}

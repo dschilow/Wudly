@@ -1,18 +1,62 @@
-import { Controller, Get, Patch, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
-import type { NotificationListDto, OpenQuestionDto } from '@wudly/shared';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import {
+  pushSubscriptionSchema,
+  pushUnsubscribeSchema,
+  type NotificationListDto,
+  type OpenQuestionDto,
+  type PushSubscriptionInput,
+  type PushUnsubscribeInput,
+} from '@wudly/shared';
 import { NotificationsService } from './notifications.service';
+import { PushService } from './push.service';
 import { QuestionsService } from '../questions/questions.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthUser } from '../auth/auth.types';
+import { ZodValidationPipe } from '../common/zod-validation.pipe';
 
 @Controller('me/notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
   constructor(
     private readonly notifications: NotificationsService,
+    private readonly push: PushService,
     private readonly questions: QuestionsService,
   ) {}
+
+  /** Public VAPID key for the client (null when push isn't configured). */
+  @Get('push/key')
+  pushKey(): { publicKey: string | null } {
+    return { publicKey: this.push.getPublicKey() };
+  }
+
+  @Post('push/subscribe')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async pushSubscribe(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(pushSubscriptionSchema)) dto: PushSubscriptionInput,
+  ): Promise<void> {
+    await this.push.subscribe(user.id, dto);
+  }
+
+  @Post('push/unsubscribe')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async pushUnsubscribe(
+    @Body(new ZodValidationPipe(pushUnsubscribeSchema)) dto: PushUnsubscribeInput,
+  ): Promise<void> {
+    await this.push.unsubscribe(dto.endpoint);
+  }
 
   @Get()
   list(

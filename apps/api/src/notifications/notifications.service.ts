@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { NotificationType, type NotificationDto, type NotificationListDto } from '@wudly/shared';
 import type { Notification } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from './push.service';
 
 interface CreateNotificationInput {
   userId: string;
@@ -21,7 +22,10 @@ interface CreateNotificationInput {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushService,
+  ) {}
 
   /** Best-effort create; swallows errors so callers can fire-and-forget. */
   async create(input: CreateNotificationInput): Promise<void> {
@@ -36,6 +40,12 @@ export class NotificationsService {
           productId: input.productId ?? null,
           questionId: input.questionId ?? null,
         },
+      });
+      // Also push to the user's devices (no-op if push isn't configured/subscribed).
+      void this.push.sendToUser(input.userId, {
+        title: input.title,
+        body: input.body,
+        url: input.link,
       });
     } catch (err) {
       this.logger.warn(`Notification create failed: ${err instanceof Error ? err.message : err}`);
@@ -57,6 +67,12 @@ export class NotificationsService {
           questionId: i.questionId ?? null,
         })),
       });
+      // Push to every recipient's devices (best-effort, non-blocking).
+      void Promise.all(
+        inputs.map((i) =>
+          this.push.sendToUser(i.userId, { title: i.title, body: i.body, url: i.link }),
+        ),
+      );
     } catch (err) {
       this.logger.warn(`Notification createMany failed: ${err instanceof Error ? err.message : err}`);
     }

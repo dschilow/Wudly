@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useNotifications } from '@/lib/notifications-context';
 import { AuthGate } from '@/components/AuthGate';
+import { PushOptIn } from '@/components/PushOptIn';
 import { QuestionCard } from '@/components/QuestionCard';
 import { EmptyState, Skeleton } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
@@ -76,6 +77,8 @@ export function InboxClient() {
   return (
     <div className="animate-fade space-y-7 pt-2">
       <LargeTitle title="Mitteilungen" subtitle="Fragen an dich & Antworten für dich." />
+
+      <PushOptIn />
 
       {loading && !data ? (
         <div className="space-y-2.5">

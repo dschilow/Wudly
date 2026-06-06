@@ -134,6 +134,7 @@ model User {
   notifications     Notification[]
   quickVotes        QuickVote[]
   createdProducts   Product[]          @relation("CreatedProducts")
+  pushSubscriptions PushSubscription[]
 
   @@index([role])
 }
@@ -402,6 +403,23 @@ model ProductInsightSnapshot {
   @@index([rebuyScore])
   @@index([regretScore])
   @@index([experienceCount])
+}
+
+/* ----------------------------------------------------------------- *
+ * Web Push — device subscriptions so notifications reach users off-app
+ * ----------------------------------------------------------------- */
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 /* ----------------------------------------------------------------- *

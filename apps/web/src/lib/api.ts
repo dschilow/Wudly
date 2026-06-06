@@ -27,6 +27,7 @@ import type {
   CreateQuestionInput,
   CreateAnswerInput,
   CreateOwnershipInput,
+  PushSubscriptionInput,
   IdentifiedProductDto,
   EanResolutionDto,
   EnsuredProductDto,
@@ -150,6 +151,12 @@ export const api = {
       apiFetch<void>(`/me/notifications/${id}/read`, { method: 'PATCH' }),
     markAllRead: () =>
       apiFetch<void>('/me/notifications/read-all', { method: 'PATCH' }),
+    pushKey: (opts?: RequestOptions) =>
+      apiFetch<{ publicKey: string | null }>('/me/notifications/push/key', opts),
+    pushSubscribe: (input: PushSubscriptionInput) =>
+      apiFetch<void>('/me/notifications/push/subscribe', { method: 'POST', json: input }),
+    pushUnsubscribe: (endpoint: string) =>
+      apiFetch<void>('/me/notifications/push/unsubscribe', { method: 'POST', json: { endpoint } }),
   },
 
   admin: {

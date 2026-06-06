@@ -23,6 +23,11 @@ const envSchema = z.object({
   OPENROUTER_MODEL: z.string().default('google/gemini-3.1-flash-lite'),
   OPENROUTER_SITE_URL: z.string().optional(),
   OPENROUTER_APP_TITLE: z.string().default('Wudly'),
+  // Web Push (VAPID). Optional so the app boots without them; push is simply
+  // disabled until all three are set. Generate with `npx web-push generate-vapid-keys`.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:hallo@wudly.app'),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
