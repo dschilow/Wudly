@@ -49,3 +49,8 @@ Thumbs.db
 *.pem
 .cache/
 tmp/
+
+# Playwright MCP test artifacts
+.playwright-mcp/
+/scan-overlay.jpeg
+/tabbar.jpeg
