@@ -351,6 +351,12 @@
   .scanner-sweep {
     animation: scanner-sweep 1.55s var(--ease-ios) infinite alternate;
   }
+
+  /* Heatmap/score bars grow from 0 to their target width on load. Set the target
+     as the inline width and the start via --bar-from (defaults to 0). */
+  .animate-bar {
+    animation: bar-grow 0.85s var(--ease-ios) both;
+  }
 }
 
 @keyframes ios-rise {
@@ -420,6 +426,14 @@
   to {
     transform: translateY(5.8rem);
     opacity: 1;
+  }
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
 

@@ -168,7 +168,7 @@ function RegretRadar({ entries }: { entries: RegretRadarEntry[] }) {
       </div>
 
       <div className="space-y-2.5">
-        {entries.map((entry) => (
+        {entries.map((entry, i) => (
           <Link
             key={entry.slug}
             href={`/kategorie/${entry.slug}`}
@@ -184,8 +184,11 @@ function RegretRadar({ entries }: { entries: RegretRadarEntry[] }) {
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-fill-2">
               <div
-                className="h-full rounded-full bg-regret"
-                style={{ width: `${Math.max(10, (entry.regretScore / max) * 100)}%` }}
+                className="animate-bar h-full origin-left rounded-full bg-regret"
+                style={{
+                  width: `${Math.max(10, (entry.regretScore / max) * 100)}%`,
+                  animationDelay: `${i * 70}ms`,
+                }}
               />
             </div>
             <div className="mt-2 flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
