@@ -24,6 +24,22 @@ function urlBase64ToUint8Array(base64: string) {
   return arr;
 }
 
+/** True if a subscription's applicationServerKey equals the given VAPID key. */
+function subscriptionMatchesKey(sub: PushSubscription, publicKey: string): boolean {
+  try {
+    const opts = sub.options as PushSubscriptionOptions | undefined;
+    const current = opts?.applicationServerKey;
+    if (!current) return true; // can't tell — assume ok rather than churn needlessly
+    const a = new Uint8Array(current as ArrayBuffer);
+    const b = urlBase64ToUint8Array(publicKey);
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 function pushSupported(): boolean {
   return (
     typeof navigator !== 'undefined' &&
@@ -51,9 +67,47 @@ function isStandalone(): boolean {
   );
 }
 
+type TestState =
+  | { phase: 'idle' }
+  | { phase: 'sending' }
+  | { phase: 'sent'; count: number }
+  | { phase: 'empty' }
+  | { phase: 'failed'; reason: string };
+
 /** Opt-in card for Web Push (real device notifications for new questions). */
 export function PushOptIn() {
   const [state, setState] = useState<State>('idle');
+  const [test, setTest] = useState<TestState>({ phase: 'idle' });
+
+  async function sendTest() {
+    setTest({ phase: 'sending' });
+    try {
+      const res = await api.notifications.pushTest();
+      if (!res.enabled) {
+        setTest({ phase: 'failed', reason: 'Push ist serverseitig nicht aktiviert.' });
+        return;
+      }
+      if (res.subscriptions === 0) {
+        setTest({ phase: 'empty' });
+        return;
+      }
+      if (res.sent > 0) {
+        setTest({ phase: 'sent', count: res.sent });
+        return;
+      }
+      // Subscriptions exist but none accepted — surface the real reason.
+      const first = res.results.find((r) => !r.ok);
+      const reason =
+        first?.statusCode === 403
+          ? 'Schlüssel-Konflikt (VAPID). Schalte Push unten aus und wieder ein.'
+          : first?.pruned
+            ? 'Dein altes Geräte-Abo war abgelaufen. Aktiviere Push erneut.'
+            : `Zustellung fehlgeschlagen${first?.statusCode ? ` (${first.statusCode})` : ''}. Push aus- und wieder einschalten.`;
+      setTest({ phase: 'failed', reason });
+    } catch {
+      setTest({ phase: 'failed', reason: 'Test fehlgeschlagen. Versuch es nochmal.' });
+    }
+  }
 
   useEffect(() => {
     void (async () => {
@@ -94,7 +148,16 @@ export function PushOptIn() {
       }
       const reg = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
-      const existing = await reg.pushManager.getSubscription();
+
+      // Reuse an existing subscription only if it was made with the *current*
+      // server key. A rotated VAPID key leaves a stale sub that fails every send
+      // with 403 — drop it and subscribe fresh so push actually heals itself.
+      let existing = await reg.pushManager.getSubscription();
+      if (existing && !subscriptionMatchesKey(existing, publicKey)) {
+        await existing.unsubscribe().catch(() => undefined);
+        await api.notifications.pushUnsubscribe(existing.endpoint).catch(() => undefined);
+        existing = null;
+      }
       const sub =
         existing ??
         (await reg.pushManager.subscribe({
@@ -147,10 +210,36 @@ export function PushOptIn() {
   }
 
   if (state === 'enabled') {
+    const testing = test.phase === 'sending';
     return (
-      <div className="flex items-center gap-2.5 rounded-[var(--radius-lg)] bg-positive-soft px-4 py-3 text-[0.875rem] font-medium text-positive-ink">
-        <BellRing className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2.2} />
-        Push aktiv — du wirst bei neuen Fragen benachrichtigt, auch wenn die App zu ist.
+      <div className="rounded-[var(--radius-lg)] bg-positive-soft px-4 py-3">
+        <div className="flex items-center gap-2.5 text-[0.875rem] font-medium text-positive-ink">
+          <BellRing className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2.2} />
+          <span className="flex-1">Push aktiv — du wirst bei neuen Fragen benachrichtigt.</span>
+          <button
+            type="button"
+            onClick={sendTest}
+            disabled={testing}
+            className="press inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[0.7rem] bg-positive px-3 text-[0.8125rem] font-semibold text-white disabled:opacity-70"
+          >
+            {testing && <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.4} />}
+            Test senden
+          </button>
+        </div>
+        {test.phase === 'sent' && (
+          <p className="mt-2 text-[0.8125rem] leading-snug text-positive-ink/85">
+            Gesendet an {test.count} {test.count === 1 ? 'Gerät' : 'Geräte'}. Kommt gleich an — bei
+            geschlossener App als System-Mitteilung.
+          </p>
+        )}
+        {test.phase === 'empty' && (
+          <p className="mt-2 text-[0.8125rem] leading-snug text-regret-ink">
+            Kein Geräte-Abo gefunden. Schalte Push unten aus und gleich wieder ein.
+          </p>
+        )}
+        {test.phase === 'failed' && (
+          <p className="mt-2 text-[0.8125rem] leading-snug text-regret-ink">{test.reason}</p>
+        )}
       </div>
     );
   }

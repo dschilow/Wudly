@@ -17,6 +17,7 @@ import {
   type OpenQuestionDto,
   type PushSubscriptionInput,
   type PushUnsubscribeInput,
+  type PushTestResultDto,
 } from '@wudly/shared';
 import { NotificationsService } from './notifications.service';
 import { PushService } from './push.service';
@@ -56,6 +57,19 @@ export class NotificationsController {
     @Body(new ZodValidationPipe(pushUnsubscribeSchema)) dto: PushUnsubscribeInput,
   ): Promise<void> {
     await this.push.unsubscribe(dto.endpoint);
+  }
+
+  /**
+   * Self-test: push a notification to the caller's own devices and report what
+   * actually happened (subscription count + per-device send result). This is the
+   * fastest way to tell whether "I get no notifications" is a delivery problem
+   * (VAPID/subscription) or just the deliberate self-exclusion on one's own
+   * questions.
+   */
+  @Post('push/test')
+  @HttpCode(HttpStatus.OK)
+  pushTest(@CurrentUser() user: AuthUser): Promise<PushTestResultDto> {
+    return this.push.sendTestToUser(user.id);
   }
 
   @Get()

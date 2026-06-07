@@ -265,6 +265,26 @@ export interface NotificationListDto {
   unreadCount: number;
 }
 
+/** Per-device outcome of a push self-test (endpoint redacted to a short tail). */
+export interface PushTestSubResultDto {
+  ok: boolean;
+  statusCode: number | null;
+  endpoint: string;
+  error?: string;
+  pruned?: boolean;
+}
+
+/** Result of POST /me/notifications/push/test — what actually happened on send. */
+export interface PushTestResultDto {
+  /** Whether the server has VAPID configured at all. */
+  enabled: boolean;
+  /** How many push subscriptions the user currently has stored. */
+  subscriptions: number;
+  /** How many of those accepted the test push. */
+  sent: number;
+  results: PushTestSubResultDto[];
+}
+
 /** An unanswered question on a product the current user owns — drives the "answer the owner" loop. */
 export interface OpenQuestionDto {
   question: QuestionDto;

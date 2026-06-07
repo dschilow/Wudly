@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import webpush from 'web-push';
+import type { PushTestResultDto, PushTestSubResultDto } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AppConfig } from '../config/configuration';
 
@@ -107,4 +108,64 @@ export class PushService {
     if (!this.enabled || userIds.length === 0) return;
     await Promise.all(userIds.map((id) => this.sendToUser(id, payload)));
   }
+
+  /**
+   * Diagnostic + self-test: send a push to the user's devices and report exactly
+   * what happened per subscription (status code / error). Unlike sendToUser this
+   * surfaces failures (e.g. 403 VAPID mismatch, 410 expired) instead of swallowing
+   * them, so the client can tell the user why push isn't arriving. Dead
+   * subscriptions (404/410) are still pruned.
+   */
+  async sendTestToUser(userId: string, payload?: Partial<PushPayload>): Promise<PushTestResultDto> {
+    if (!this.enabled) {
+      return { enabled: false, subscriptions: 0, sent: 0, results: [] };
+    }
+    const subs = await this.prisma.pushSubscription.findMany({ where: { userId } });
+    const body = JSON.stringify({
+      title: payload?.title ?? 'Wudly — Testbenachrichtigung',
+      body: payload?.body ?? 'Wenn du das siehst, funktioniert Push. 🎉',
+      url: payload?.url ?? '/me',
+    });
+
+    const results = await Promise.all(
+      subs.map(async (sub): Promise<PushTestSubResultDto> => {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            body,
+          );
+          return { ok: true, statusCode: 201, endpoint: redactEndpoint(sub.endpoint) };
+        } catch (err: unknown) {
+          const statusCode = (err as { statusCode?: number })?.statusCode ?? null;
+          const message =
+            (err as { body?: string })?.body || (err instanceof Error ? err.message : 'unknown');
+          if (statusCode === 404 || statusCode === 410) {
+            await this.prisma.pushSubscription
+              .delete({ where: { id: sub.id } })
+              .catch(() => undefined);
+          }
+          this.logger.warn(`Push test send failed (${statusCode ?? '—'}): ${message}`);
+          return {
+            ok: false,
+            statusCode,
+            error: String(message).slice(0, 240),
+            endpoint: redactEndpoint(sub.endpoint),
+            pruned: statusCode === 404 || statusCode === 410,
+          };
+        }
+      }),
+    );
+
+    return {
+      enabled: true,
+      subscriptions: subs.length,
+      sent: results.filter((r) => r.ok).length,
+      results,
+    };
+  }
+}
+
+/** Keep endpoints out of API responses except for a short, non-identifying tail. */
+function redactEndpoint(endpoint: string): string {
+  return endpoint.length > 24 ? `…${endpoint.slice(-12)}` : endpoint;
 }

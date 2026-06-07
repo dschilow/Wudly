@@ -19,6 +19,7 @@ import type {
   CategoryDto,
   PaginatedDto,
   NotificationListDto,
+  PushTestResultDto,
   OpenQuestionDto,
   RegisterInput,
   LoginInput,
@@ -165,6 +166,9 @@ export const api = {
       apiFetch<void>('/me/notifications/push/subscribe', { method: 'POST', json: input }),
     pushUnsubscribe: (endpoint: string) =>
       apiFetch<void>('/me/notifications/push/unsubscribe', { method: 'POST', json: { endpoint } }),
+    /** Self-test: send a push to the caller's own devices, report the real result. */
+    pushTest: () =>
+      apiFetch<PushTestResultDto>('/me/notifications/push/test', { method: 'POST' }),
   },
 
   admin: {
