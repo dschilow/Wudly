@@ -70,6 +70,7 @@ export class ProductInsightsService {
       topNegativeAspects: snapshot.topNegativeAspects as unknown as Prisma.InputJsonValue,
       wishKnownHighlights: snapshot.wishKnownHighlights as unknown as Prisma.InputJsonValue,
       usageDurationStats: snapshot.usageDurationStats as unknown as Prisma.InputJsonValue,
+      wudlySeal: snapshot.wudlySeal,
     };
 
     const persisted = await this.prisma.productInsightSnapshot.upsert({

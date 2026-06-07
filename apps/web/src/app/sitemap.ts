@@ -25,17 +25,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/compare`, lastModified: now, changeFrequency: 'weekly', priority: 0.4 },
   ];
 
-  // Category ranking pages — each is a meaningful, crawlable landing page.
+  // Category landing pages — the primary SEO channel ("[Produkt] Erfahrungen").
   const categories = await safe(
     api.categories.list({ next: { revalidate } }),
     [] as CategoryDto[],
   );
   for (const category of categories) {
     routes.push({
-      url: `${base}/rankings?cat=${category.slug}`,
+      url: `${base}/kategorie/${category.slug}`,
       lastModified: now,
       changeFrequency: 'weekly',
-      priority: 0.6,
+      priority: 0.8,
     });
   }
 

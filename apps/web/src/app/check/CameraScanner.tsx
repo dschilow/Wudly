@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Camera, Loader2, ScanLine, Sparkles, X } from 'lucide-react';
 import type { IdentifiedProductDto } from '@wudly/shared';
+import type { IScannerControls } from '@zxing/browser';
 import { api } from '@/lib/api';
 
 type DetectedBarcode = {
@@ -16,6 +17,7 @@ type BarcodeDetectorInstance = {
 };
 
 type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDetectorInstance;
+type ScannerStatus = 'starting' | 'ready' | 'fallback' | 'unsupported' | 'denied';
 
 function barcodeDetector(): BarcodeDetectorCtor | null {
   if (typeof window === 'undefined' || !('BarcodeDetector' in window)) return null;
@@ -48,8 +50,9 @@ export function CameraScanner({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
+  const zxingControlsRef = useRef<IScannerControls | null>(null);
   const busyRef = useRef(false);
-  const [status, setStatus] = useState<'starting' | 'ready' | 'unsupported' | 'denied'>('starting');
+  const [status, setStatus] = useState<ScannerStatus>('starting');
   const [photo, setPhoto] = useState<PhotoState>({ status: 'idle' });
 
   useEffect(() => {
@@ -57,10 +60,52 @@ export function CameraScanner({
 
     let cancelled = false;
     busyRef.current = false;
+    zxingControlsRef.current?.stop();
+    zxingControlsRef.current = null;
     setPhoto({ status: 'idle' });
     // Dismiss the soft keyboard if a search field was focused before opening.
     (document.activeElement as HTMLElement | null)?.blur?.();
     const Detector = barcodeDetector();
+
+    async function startZxing(video: HTMLVideoElement) {
+      if (cancelled || busyRef.current || zxingControlsRef.current) return;
+
+      try {
+        const { BrowserMultiFormatReader, BarcodeFormat } = await import('@zxing/browser');
+        if (cancelled || busyRef.current) return;
+
+        const reader = new BrowserMultiFormatReader();
+        reader.possibleFormats = [
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.QR_CODE,
+        ];
+
+        setStatus('fallback');
+        const controls = await reader.decodeFromVideoElement(video, (result, _error, scan) => {
+          if (cancelled || busyRef.current) return;
+          const value = result?.getText().trim();
+          if (!value) return;
+
+          busyRef.current = true;
+          scan.stop();
+          zxingControlsRef.current = null;
+          navigator.vibrate?.(18);
+          onDetected(value);
+        });
+
+        if (cancelled || busyRef.current) {
+          controls.stop();
+          return;
+        }
+        zxingControlsRef.current = controls;
+      } catch {
+        if (!cancelled) setStatus('unsupported');
+      }
+    }
 
     async function start() {
       setStatus('starting');
@@ -86,8 +131,8 @@ export function CameraScanner({
         await video.play();
 
         if (!Detector) {
-          // No native barcode reader → photo KI becomes the primary path.
-          setStatus('unsupported');
+          // No native barcode reader: lazy-load ZXing before falling back to photo KI.
+          await startZxing(video);
           return;
         }
 
@@ -112,7 +157,7 @@ export function CameraScanner({
               return;
             }
           } catch {
-            setStatus('unsupported');
+            await startZxing(current);
             return;
           }
 
@@ -130,6 +175,8 @@ export function CameraScanner({
     return () => {
       cancelled = true;
       if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
+      zxingControlsRef.current?.stop();
+      zxingControlsRef.current = null;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     };
@@ -199,7 +246,11 @@ export function CameraScanner({
             Kamera-Scan
           </p>
           <p className="mt-1 text-[1.0625rem] font-semibold">
-            {status === 'unsupported' ? 'Foto-Erkennung.' : 'Barcode zuerst.'}
+            {status === 'unsupported'
+              ? 'Foto-Erkennung.'
+              : status === 'fallback'
+                ? 'Barcode per ZXing.'
+                : 'Barcode zuerst.'}
           </p>
         </div>
         <button
@@ -236,6 +287,7 @@ export function CameraScanner({
               <div className="min-w-0 flex-1">
                 <p className="text-[0.9375rem] font-semibold">
                   {status === 'ready' && 'Ruhig auf den Barcode halten.'}
+                  {status === 'fallback' && 'ZXing sucht nach dem Barcode.'}
                   {status === 'starting' && 'Kamera wird vorbereitet.'}
                   {status === 'unsupported' && 'Richte die Kamera aufs Produkt.'}
                   {status === 'denied' && 'Kamera konnte nicht geöffnet werden.'}

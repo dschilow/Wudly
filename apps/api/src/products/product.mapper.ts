@@ -40,6 +40,7 @@ export function toProductSummaryDto(product: ProductWithRelations): ProductSumma
     regretScore: snap?.regretScore ?? null,
     ownerCount: snap?.ownerCount ?? 0,
     experienceCount: snap?.experienceCount ?? 0,
+    wudlySeal: snap?.wudlySeal ?? false,
   };
 }
 
@@ -62,6 +63,7 @@ export function toProductInsightsDto(
       suitedFor: [],
       notSuitedFor: [],
       aiHeadline: null,
+      wudlySeal: false,
       generatedAt: new Date().toISOString(),
     };
   }
@@ -85,6 +87,7 @@ export function toProductInsightsDto(
     suitedFor: aiSuited,
     notSuitedFor: aiNotSuited,
     aiHeadline: snap.aiHeadline ?? null,
+    wudlySeal: snap.wudlySeal ?? false,
     generatedAt: snap.generatedAt.toISOString(),
   };
 }

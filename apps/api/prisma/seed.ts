@@ -231,6 +231,7 @@ async function main() {
       topNegativeAspects: snapshot.topNegativeAspects as unknown as Prisma.InputJsonValue,
       wishKnownHighlights: snapshot.wishKnownHighlights as unknown as Prisma.InputJsonValue,
       usageDurationStats: snapshot.usageDurationStats as unknown as Prisma.InputJsonValue,
+      wudlySeal: snapshot.wudlySeal,
     });
   });
 
@@ -498,6 +499,7 @@ async function appendProductsOnly() {
       topNegativeAspects: snapshot.topNegativeAspects as unknown as Prisma.InputJsonValue,
       wishKnownHighlights: snapshot.wishKnownHighlights as unknown as Prisma.InputJsonValue,
       usageDurationStats: snapshot.usageDurationStats as unknown as Prisma.InputJsonValue,
+      wudlySeal: snapshot.wudlySeal,
     });
   }
 

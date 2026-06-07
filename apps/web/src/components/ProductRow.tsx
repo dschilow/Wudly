@@ -4,6 +4,7 @@ import type { ProductSummaryDto } from '@wudly/shared';
 import { cn } from '@/lib/utils';
 import { Thumb } from './Thumb';
 import { ScoreBadge } from './ScoreBadge';
+import { SealBadge } from './SealBadge';
 
 interface ProductRowProps {
   product: ProductSummaryDto;
@@ -60,9 +61,12 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
           <div className="mt-0.5 truncate text-[0.8125rem] text-muted-foreground">
             {[product.brand, product.category?.name].filter(Boolean).join(' · ') || '—'}
           </div>
-          <div className="mt-1 flex items-center gap-1 text-[0.75rem] text-faint">
-            <span className="tnum">{product.experienceCount}</span>
-            Erfahrung{product.experienceCount === 1 ? '' : 'en'}
+          <div className="mt-1 flex items-center gap-2 text-[0.75rem] text-faint">
+            <span className="flex items-center gap-1">
+              <span className="tnum">{product.experienceCount}</span>
+              Erfahrung{product.experienceCount === 1 ? '' : 'en'}
+            </span>
+            {product.wudlySeal && <SealBadge />}
           </div>
         </div>
 

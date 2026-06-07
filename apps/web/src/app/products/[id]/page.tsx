@@ -19,6 +19,7 @@ import { JsonLd } from '@/components/JsonLd';
 import { productJsonLd, breadcrumbJsonLd, absoluteUrl } from '@/lib/seo';
 import { ShareButton } from '@/components/ShareButton';
 import { ScoreRing } from '@/components/ScoreRing';
+import { SealBadge } from '@/components/SealBadge';
 import { ScoreTrend } from '@/components/ScoreTrend';
 import { Thumb } from '@/components/Thumb';
 import { AspectList } from '@/components/AspectList';
@@ -29,6 +30,7 @@ import { QuestionCard } from '@/components/QuestionCard';
 import { ProductList } from '@/components/ProductList';
 import { Pill } from '@/components/ui/Pill';
 import { EmptyState } from '@/components/states/States';
+import { HouseholdSwipeDeck } from '@/app/check/HouseholdSwipeDeck';
 
 export const revalidate = 20;
 
@@ -153,7 +155,12 @@ export default async function ProductPage({ params }: PageProps) {
           </h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[0.9375rem] text-muted-foreground">
             {product.brand && <span className="font-medium">{product.brand}</span>}
-            {product.category && <Pill tone="neutral">{product.category.name}</Pill>}
+            {product.category && (
+              <Link href={`/kategorie/${product.category.slug}`} className="tap-dim">
+                <Pill tone="neutral">{product.category.name}</Pill>
+              </Link>
+            )}
+            {ins.wudlySeal && <SealBadge />}
           </div>
         </div>
         <ShareButton
@@ -430,6 +437,8 @@ export default async function ProductPage({ params }: PageProps) {
       )}
 
       {/* Similar products — compare & discover alternatives */}
+      {similar.length > 0 && <HouseholdSwipeDeck products={similar} />}
+
       {similar.length > 0 && (
         <section>
           <div className="flex items-end justify-between px-1 pb-1.5">

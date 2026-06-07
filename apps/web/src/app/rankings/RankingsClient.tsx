@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Flame, GitCompareArrows, Radar } from 'lucide-react';
+import { Flame, GitCompareArrows, Quote, Radar, Share2 } from 'lucide-react';
 import type { CategoryDto, RankingEntryDto } from '@wudly/shared';
-import { api } from '@/lib/api';
+import { api, type RegretCardDto } from '@/lib/api';
 import { ProductList } from '@/components/ProductList';
 import { EmptyState, Skeleton } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
@@ -32,10 +32,12 @@ export function RankingsClient({
   categories,
   initialEntries,
   initialRadar,
+  initialRegretCards,
 }: {
   categories: CategoryDto[];
   initialEntries: RankingEntryDto[];
   initialRadar: RegretRadarEntry[];
+  initialRegretCards: RegretCardDto[];
 }) {
   const searchParams = useSearchParams();
   const initialCat = searchParams.get('cat') ?? '';
@@ -83,6 +85,7 @@ export function RankingsClient({
       <LargeTitle title="Regret-Radar" subtitle="Wo Käufer am häufigsten danebenliegen." />
 
       {initialRadar.length > 0 && <RegretRadar entries={initialRadar} />}
+      {initialRegretCards.length > 0 && <RegretCards cards={initialRegretCards} />}
 
       <Link
         href="/compare"
@@ -168,7 +171,7 @@ function RegretRadar({ entries }: { entries: RegretRadarEntry[] }) {
         {entries.map((entry) => (
           <Link
             key={entry.slug}
-            href={`/rankings?cat=${entry.slug}`}
+            href={`/kategorie/${entry.slug}`}
             className="tap block rounded-[0.9rem] bg-surface-2 p-3 ring-1 ring-border"
           >
             <div className="flex items-baseline justify-between gap-3">
@@ -193,6 +196,65 @@ function RegretRadar({ entries }: { entries: RegretRadarEntry[] }) {
               </span>
             </div>
           </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RegretCards({ cards }: { cards: RegretCardDto[] }) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-end justify-between px-1">
+        <div>
+          <h2 className="text-[1.125rem] font-bold text-label">Vorher gewusst</h2>
+          <p className="mt-0.5 text-[0.8125rem] text-muted-foreground">
+            Sätze, die Käufe ehrlicher machen.
+          </p>
+        </div>
+      </div>
+      <div className="no-scrollbar -mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-1">
+        {cards.map((card) => (
+          <article
+            key={card.id}
+            className="card-elevated flex min-h-[12rem] w-[18rem] shrink-0 snap-start flex-col p-4 ring-1 ring-border"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-regret-soft text-regret-ink">
+                <Quote className="h-[1.1rem] w-[1.1rem] -scale-x-100" strokeWidth={2.4} />
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.vibrate?.(8);
+                  const text = `„${card.quote}“ — ${card.product.canonicalName} auf Wudly`;
+                  if (navigator.share) {
+                    void navigator.share({ title: 'Wudly Regret-Card', text });
+                  } else {
+                    void navigator.clipboard?.writeText(text);
+                  }
+                }}
+                className="tap-dim grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill-2 text-muted-foreground"
+                aria-label="Regret-Card teilen"
+              >
+                <Share2 className="h-[1rem] w-[1rem]" strokeWidth={2.3} />
+              </button>
+            </div>
+            <p className="mt-4 line-clamp-4 text-[1.0625rem] font-semibold leading-snug text-label">
+              „{card.quote}“
+            </p>
+            <Link
+              href={`/products/${card.product.id}`}
+              className="tap-dim mt-auto block pt-4 text-[0.8125rem] text-muted-foreground"
+            >
+              <span className="block truncate font-semibold text-label">
+                {card.product.canonicalName}
+              </span>
+              <span className="mt-0.5 block">
+                {card.regretScore ?? 0}% Regret · {card.ownerCount} Besitzer
+              </span>
+            </Link>
+          </article>
         ))}
       </div>
     </section>

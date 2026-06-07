@@ -66,6 +66,8 @@ export interface ProductSummaryDto {
   regretScore: number | null;
   ownerCount: number;
   experienceCount: number;
+  /** "Wudly-empfohlen" quality seal (auto-awarded). */
+  wudlySeal: boolean;
 }
 
 export interface ProductInsightsDto {
@@ -84,6 +86,8 @@ export interface ProductInsightsDto {
   notSuitedFor: string[];
   /** AI-written one-line summary of owner experiences (null when unavailable). */
   aiHeadline: string | null;
+  /** "Wudly-empfohlen" quality seal (auto-awarded). */
+  wudlySeal: boolean;
   generatedAt: string;
 }
 
@@ -153,6 +157,30 @@ export interface RankingEntryDto {
   product: ProductSummaryDto;
   /** The metric this ranking is sorted by (rebuy/regret/discussion count). */
   metricValue: number;
+}
+
+export interface RegretCardDto {
+  id: string;
+  product: ProductSummaryDto;
+  quote: string;
+  regretScore: number | null;
+  ownerCount: number;
+}
+
+/** SEO category landing page payload: top picks, flops, averages, blind spot. */
+export interface CategoryOverviewDto {
+  category: CategoryDto;
+  productCount: number;
+  /** Average rebuy score across rated products in the category (null when none). */
+  averageRebuyScore: number | null;
+  /** Highest rebuy first. */
+  top: ProductSummaryDto[];
+  /** Highest regret first. */
+  flops: ProductSummaryDto[];
+  /** Number of products carrying the Wudly seal in this category. */
+  sealCount: number;
+  /** The category's "blind spot" — what owners most often wish they'd known. */
+  blindSpot: string | null;
 }
 
 export interface MergeCandidateDto {

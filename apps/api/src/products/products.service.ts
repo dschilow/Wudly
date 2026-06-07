@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
 import {
   normalizeProductName,
   guessBrand,
+  isExcludedFromRankings,
   AI_SERVICE,
   DEFAULT_SIMILARITY_THRESHOLDS,
   type AiService,
@@ -392,9 +393,18 @@ export class ProductsService {
       where: { categoryId: product.categoryId, status: 'ACTIVE', NOT: { id } },
       include: PRODUCT_INCLUDE,
       orderBy: [{ insightSnapshot: { experienceCount: 'desc' } }, { createdAt: 'desc' }],
-      take,
+      take: take * 2,
     });
-    return rows.map(toProductSummaryDto);
+    return rows
+      .filter(
+        (p) =>
+          !isExcludedFromRankings({
+            canonicalName: p.canonicalName,
+            categorySlug: p.category?.slug ?? null,
+          }),
+      )
+      .slice(0, take)
+      .map(toProductSummaryDto);
   }
 
   /** The current user's products, split into owned vs. added (created). */

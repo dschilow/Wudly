@@ -37,8 +37,13 @@ import type {
   RegretCheckInput,
   QuickVoteInput,
   QuickVoteResultDto,
+  RegretCardDto,
+  CategoryOverviewDto,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
+
+// Re-export so existing call sites importing from '@/lib/api' keep working.
+export type { RegretCardDto } from '@wudly/shared';
 
 const qs = (params: Record<string, string | number | undefined>): string => {
   const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== '');
@@ -65,8 +70,7 @@ export const api = {
       apiFetch<PaginatedDto<ProductSummaryDto>>(`/products${qs(params)}`, opts),
     search: (q: string, take = 10, opts?: RequestOptions) =>
       apiFetch<ProductSummaryDto[]>(`/products/search${qs({ q, take })}`, opts),
-    get: (id: string, opts?: RequestOptions) =>
-      apiFetch<ProductDetailDto>(`/products/${id}`, opts),
+    get: (id: string, opts?: RequestOptions) => apiFetch<ProductDetailDto>(`/products/${id}`, opts),
     insights: (id: string, opts?: RequestOptions) =>
       apiFetch<ProductInsightsDto>(`/products/${id}/insights`, opts),
     similar: (id: string, opts?: RequestOptions) =>
@@ -132,8 +136,12 @@ export const api = {
       apiFetch<RankingEntryDto[]>(`/rankings/top-regret${qs({ take })}`, opts),
     mostDiscussed: (take = 20, opts?: RequestOptions) =>
       apiFetch<RankingEntryDto[]>(`/rankings/most-discussed${qs({ take })}`, opts),
+    regretCards: (take = 6, opts?: RequestOptions) =>
+      apiFetch<RegretCardDto[]>(`/rankings/regret-cards${qs({ take })}`, opts),
     byCategory: (slug: string, take = 20, opts?: RequestOptions) =>
       apiFetch<RankingEntryDto[]>(`/rankings/category/${slug}${qs({ take })}`, opts),
+    categoryOverview: (slug: string, opts?: RequestOptions) =>
+      apiFetch<CategoryOverviewDto>(`/rankings/category/${slug}/overview`, opts),
   },
 
   profile: {
@@ -147,10 +155,8 @@ export const api = {
       apiFetch<{ count: number }>('/me/notifications/unread-count', opts),
     openQuestions: (opts?: RequestOptions) =>
       apiFetch<OpenQuestionDto[]>('/me/notifications/open-questions', opts),
-    markRead: (id: string) =>
-      apiFetch<void>(`/me/notifications/${id}/read`, { method: 'PATCH' }),
-    markAllRead: () =>
-      apiFetch<void>('/me/notifications/read-all', { method: 'PATCH' }),
+    markRead: (id: string) => apiFetch<void>(`/me/notifications/${id}/read`, { method: 'PATCH' }),
+    markAllRead: () => apiFetch<void>('/me/notifications/read-all', { method: 'PATCH' }),
     pushKey: (opts?: RequestOptions) =>
       apiFetch<{ publicKey: string | null }>('/me/notifications/push/key', opts),
     pushSubscribe: (input: PushSubscriptionInput) =>

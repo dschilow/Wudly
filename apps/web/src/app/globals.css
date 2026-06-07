@@ -146,14 +146,6 @@
     overscroll-behavior-y: none;
   }
 
-  h1 {
-    letter-spacing: 0;
-  }
-  h2,
-  h3 {
-    letter-spacing: 0;
-  }
-
   button,
   a,
   [role='button'] {

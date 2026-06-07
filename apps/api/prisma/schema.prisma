@@ -391,6 +391,8 @@ model ProductInsightSnapshot {
   topNegativeAspects  Json     @default("[]")
   wishKnownHighlights Json     @default("[]")
   usageDurationStats  Json     @default("{}")
+  // "Wudly-empfohlen" seal — auto-awarded, recomputed with every snapshot.
+  wudlySeal           Boolean  @default(false)
   // AI-generated summary (OpenRouter). Null until generated / when AI is disabled.
   aiHeadline          String?
   aiSuitedFor         Json     @default("[]")

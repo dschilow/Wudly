@@ -56,6 +56,24 @@ export function productJsonLd(product: ProductDetailDto): JsonLd {
   return data;
 }
 
+/** Ordered list of products for a category page (helps rich results / discovery). */
+export function itemListJsonLd(
+  name: string,
+  products: Array<{ id: string; canonicalName: string }>,
+): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name,
+    itemListElement: products.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: p.canonicalName,
+      url: absoluteUrl(`/products/${p.id}`),
+    })),
+  };
+}
+
 /** Breadcrumb trail for a product (Start → Charts → Produkt). */
 export function breadcrumbJsonLd(items: Array<{ name: string; url: string }>): JsonLd {
   return {

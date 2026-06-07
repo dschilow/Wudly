@@ -13,8 +13,11 @@ import {
   type ScorableExperience,
   type UsageDurationStats,
 } from './scoring';
-import { AspectSentiment, ExperienceMood } from './enums';
-import type { AspectSentiment as AspectSentimentType } from './enums';
+import { AspectSentiment, ExperienceMood, UsageDuration } from './enums';
+import type {
+  AspectSentiment as AspectSentimentType,
+  UsageDuration as UsageDurationType,
+} from './enums';
 
 export interface AspectInput {
   key: string;
@@ -46,10 +49,59 @@ export interface InsightSnapshotData {
   usageDurationStats: UsageDurationStats;
   suitedFor: string[];
   notSuitedFor: string[];
+  /** "Wudly-empfohlen" — a high-trust quality mark (see qualifiesForWudlySeal). */
+  wudlySeal: boolean;
 }
 
 const MAX_TOP_ASPECTS = 6;
 const MAX_WISH_HIGHLIGHTS = 5;
+
+/* ----------------------------- Wudly-Siegel ------------------------------ *
+ * A conservative, automatically-awarded quality mark. We only badge products
+ * we're confident about: lots of real owners, a strong rebuy score, and long
+ * average real-world usage (so it survived the honeymoon phase). It is recomputed
+ * with every snapshot, so it self-revokes if the data turns. */
+
+export const WUDLY_SEAL_MIN_EXPERIENCES = 50;
+export const WUDLY_SEAL_MIN_REBUY = 85;
+/** Average real usage must be at least this many months. */
+export const WUDLY_SEAL_MIN_AVG_MONTHS = 6;
+
+/** Representative month count per usage bucket, for an average-usage estimate. */
+const USAGE_DURATION_MONTHS: Record<UsageDurationType, number> = {
+  [UsageDuration.LESS_THAN_WEEK]: 0.25,
+  [UsageDuration.ONE_TO_FOUR_WEEKS]: 0.75,
+  [UsageDuration.ONE_TO_SIX_MONTHS]: 3,
+  [UsageDuration.SIX_TO_TWELVE_MONTHS]: 9,
+  [UsageDuration.MORE_THAN_YEAR]: 18,
+};
+
+/** Weighted-average usage in months from a duration distribution. */
+export function averageUsageMonths(stats: UsageDurationStats): number {
+  let total = 0;
+  let months = 0;
+  for (const key of Object.keys(USAGE_DURATION_MONTHS) as UsageDurationType[]) {
+    const n = stats[key] ?? 0;
+    total += n;
+    months += n * USAGE_DURATION_MONTHS[key];
+  }
+  return total === 0 ? 0 : months / total;
+}
+
+/**
+ * Whether a product earns the "Wudly-empfohlen" seal. Pure & deterministic so the
+ * API and UI agree. Trust is built before the seal is ever monetized.
+ */
+export function qualifiesForWudlySeal(input: {
+  experienceCount: number;
+  rebuyScore: number | null;
+  usageDurationStats: UsageDurationStats;
+}): boolean {
+  if (input.rebuyScore === null) return false;
+  if (input.experienceCount < WUDLY_SEAL_MIN_EXPERIENCES) return false;
+  if (input.rebuyScore < WUDLY_SEAL_MIN_REBUY) return false;
+  return averageUsageMonths(input.usageDurationStats) >= WUDLY_SEAL_MIN_AVG_MONTHS;
+}
 
 /**
  * Build the full insight payload for a product from its experiences.
@@ -98,6 +150,12 @@ export function buildInsightSnapshot(
 
   const { suitedFor, notSuitedFor } = deriveAudience(experiences);
 
+  const wudlySeal = qualifiesForWudlySeal({
+    experienceCount: scores.experienceCount,
+    rebuyScore: scores.rebuyScore,
+    usageDurationStats,
+  });
+
   return {
     ownerCount,
     experienceCount: scores.experienceCount,
@@ -110,6 +168,7 @@ export function buildInsightSnapshot(
     usageDurationStats,
     suitedFor,
     notSuitedFor,
+    wudlySeal,
   };
 }
 

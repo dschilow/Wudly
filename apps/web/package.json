@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@wudly/shared": "workspace:*",
+    "@zxing/browser": "^0.2.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
     "motion": "^11.15.0",

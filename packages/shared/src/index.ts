@@ -8,6 +8,7 @@ export * from './scoring';
 export * from './insights';
 export * from './normalize';
 export * from './labels';
+export * from './moderation';
 export * from './schemas';
 export * from './dto';
 export * from './ai';

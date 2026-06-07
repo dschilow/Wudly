@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { rankingQuerySchema, type RankingEntryDto } from '@wudly/shared';
-import { RankingsService } from './rankings.service';
+import { rankingQuerySchema, type CategoryOverviewDto, type RankingEntryDto } from '@wudly/shared';
+import { RankingsService, type RegretCardDto } from './rankings.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 
 type RankingQuery = { take: number; minExperiences: number };
@@ -30,11 +30,23 @@ export class RankingsController {
     return this.rankings.mostDiscussed(q.take, q.minExperiences);
   }
 
+  @Get('regret-cards')
+  regretCards(
+    @Query(new ZodValidationPipe(rankingQuerySchema)) q: RankingQuery,
+  ): Promise<RegretCardDto[]> {
+    return this.rankings.regretCards(q.take, q.minExperiences);
+  }
+
   @Get('category/:categorySlug')
   byCategory(
     @Param('categorySlug') categorySlug: string,
     @Query(new ZodValidationPipe(rankingQuerySchema)) q: RankingQuery,
   ): Promise<RankingEntryDto[]> {
     return this.rankings.topByCategory(categorySlug, q.take, q.minExperiences);
+  }
+
+  @Get('category/:categorySlug/overview')
+  categoryOverview(@Param('categorySlug') categorySlug: string): Promise<CategoryOverviewDto> {
+    return this.rankings.categoryOverview(categorySlug);
   }
 }
