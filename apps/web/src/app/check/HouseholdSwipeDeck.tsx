@@ -21,6 +21,9 @@ export function HouseholdSwipeDeck({ products }: { products: ProductSummaryDto[]
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-180, 0, 180], [-8, 0, 8]);
   const opacity = useTransform(x, [-180, 0, 180], [0.82, 1, 0.82]);
+  // Directional intent stamps — fade in as the card is pulled toward yes/no.
+  const yesOpacity = useTransform(x, [20, 110], [0, 1]);
+  const noOpacity = useTransform(x, [-110, -20], [1, 0]);
 
   const current = deck[index];
   const done = index >= deck.length;
@@ -125,6 +128,20 @@ export function HouseholdSwipeDeck({ products }: { products: ProductSummaryDto[]
                   style={{ x, rotate, opacity }}
                   className="card-elevated absolute inset-0 cursor-grab overflow-hidden active:cursor-grabbing"
                 >
+                  <motion.span
+                    aria-hidden
+                    style={{ opacity: yesOpacity }}
+                    className="pointer-events-none absolute left-4 top-4 z-10 -rotate-12 rounded-[0.6rem] border-2 border-positive px-2.5 py-1 text-[1.05rem] font-extrabold uppercase tracking-wide text-positive"
+                  >
+                    Ja
+                  </motion.span>
+                  <motion.span
+                    aria-hidden
+                    style={{ opacity: noOpacity }}
+                    className="pointer-events-none absolute right-4 top-4 z-10 rotate-12 rounded-[0.6rem] border-2 border-regret px-2.5 py-1 text-[1.05rem] font-extrabold uppercase tracking-wide text-regret"
+                  >
+                    Nie
+                  </motion.span>
                   <div className="flex h-full flex-col p-4">
                     <div className="flex items-start gap-3">
                       <Thumb product={current} className="h-16 w-16" rounded="rounded-[1rem]" />
