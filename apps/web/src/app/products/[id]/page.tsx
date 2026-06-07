@@ -132,6 +132,7 @@ export default async function ProductPage({ params }: PageProps) {
 
   const ins = product.insights;
   const hasData = ins.experienceCount > 0;
+  const hasRealImage = Boolean(product.imageUrl);
 
   const verdict = rebuyVerdict(ins.rebuyScore);
 
@@ -147,9 +148,12 @@ export default async function ProductPage({ params }: PageProps) {
   return (
     <div className="animate-fade space-y-5 pb-4 pt-1">
       <JsonLd data={structuredData} />
-      {/* Header */}
+      {/* Header — show the identity avatar only when there's no large real photo
+          below, so a real product image never appears twice on the page. */}
       <header className="flex items-start gap-3.5 px-1 pt-1">
-        <Thumb product={product} className="h-16 w-16" rounded="rounded-[0.95rem]" />
+        {!hasRealImage && (
+          <Thumb product={product} className="h-16 w-16" rounded="rounded-[0.95rem]" />
+        )}
         <div className="min-w-0 flex-1">
           <h1 className="text-balance text-[1.625rem] font-bold leading-[1.12] tracking-tight text-label">
             {product.canonicalName}
@@ -178,9 +182,13 @@ export default async function ProductPage({ params }: PageProps) {
         </p>
       )}
 
-      {product.imageUrl && (
-        <section className="overflow-hidden rounded-[1.35rem] bg-surface shadow-[var(--shadow-card)] ring-1 ring-border">
+      {hasRealImage && (
+        <section className="animate-rise relative overflow-hidden rounded-[1.35rem] bg-surface shadow-[var(--shadow-card)] ring-1 ring-border">
           <Thumb product={product} className="aspect-[16/10] w-full" rounded="rounded-[1.35rem]" />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent"
+          />
         </section>
       )}
 
