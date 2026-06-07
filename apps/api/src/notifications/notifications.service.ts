@@ -74,7 +74,9 @@ export class NotificationsService {
         ),
       );
     } catch (err) {
-      this.logger.warn(`Notification createMany failed: ${err instanceof Error ? err.message : err}`);
+      this.logger.warn(
+        `Notification createMany failed: ${err instanceof Error ? err.message : err}`,
+      );
     }
   }
 

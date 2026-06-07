@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { PushService } from './push.service';
+import { RebuyReminderService } from './rebuy-reminder.service';
 import { NotificationsController } from './notifications.controller';
 import { QuestionsModule } from '../questions/questions.module';
 import { AuthModule } from '../auth/auth.module';
@@ -15,7 +16,7 @@ import { AuthModule } from '../auth/auth.module';
 @Module({
   imports: [AuthModule, QuestionsModule],
   controllers: [NotificationsController],
-  providers: [NotificationsService, PushService],
+  providers: [NotificationsService, PushService, RebuyReminderService],
   exports: [NotificationsService, PushService],
 })
 export class NotificationsModule {}

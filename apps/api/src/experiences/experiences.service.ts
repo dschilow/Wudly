@@ -14,6 +14,7 @@ const EXPERIENCE_INCLUDE = {
   aspects: true,
   user: { select: { id: true, displayName: true } },
   ownership: { select: { verificationStatus: true } },
+  product: { select: { id: true, canonicalName: true } },
 } as const;
 
 @Injectable()
@@ -71,7 +72,9 @@ export class ExperiencesService {
           if (!positiveKeys.has(a.key)) negativeKeys.set(a.key, a.key);
         }
       } catch (err) {
-        this.logger.warn(`AI aspect extraction failed: ${err instanceof Error ? err.message : err}`);
+        this.logger.warn(
+          `AI aspect extraction failed: ${err instanceof Error ? err.message : err}`,
+        );
       }
     }
 
@@ -97,6 +100,7 @@ export class ExperiencesService {
         experienceMood: input.experienceMood,
         wishKnownText: input.wishKnownText ?? null,
         freeText: input.freeText ?? null,
+        insteadOfText: input.insteadOfText ?? null,
         isPublic: input.isPublic,
         aspects: { create: aspectData },
       },

@@ -60,7 +60,16 @@ const CATEGORY_PROFILES: Record<string, CategoryProfile> = {
     families: ['Store', 'Power', 'Grid', 'Home', 'Cell', 'Charge'],
   },
   waermepumpe: {
-    brands: ['Viessmann', 'Bosch', 'Vaillant', 'Stiebel', 'Nibe', 'Panasonic', 'Mitsubishi', 'Wolf'],
+    brands: [
+      'Viessmann',
+      'Bosch',
+      'Vaillant',
+      'Stiebel',
+      'Nibe',
+      'Panasonic',
+      'Mitsubishi',
+      'Wolf',
+    ],
     families: ['Eco', 'Thermo', 'Flow', 'Air', 'Climate', 'Heat'],
   },
   smartphone: {

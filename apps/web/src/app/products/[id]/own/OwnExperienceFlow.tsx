@@ -44,6 +44,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   const [duration, setDuration] = useState<UsageDuration | null>(null);
   const [mood, setMood] = useState<ExperienceMood | null>(null);
   const [wish, setWish] = useState('');
+  const [insteadOf, setInsteadOf] = useState('');
   const [positives, setPositives] = useState<string[]>([]);
   const [negatives, setNegatives] = useState<string[]>([]);
   const [isPublic, setIsPublic] = useState(true);
@@ -55,7 +56,8 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
     setList(list.includes(key) ? list.filter((k) => k !== key) : [...list, key]);
   };
 
-  const canNext = (step === 1 && buyAgain) || (step === 2 && duration) || (step === 3 && mood) || step === 4;
+  const canNext =
+    (step === 1 && buyAgain) || (step === 2 && duration) || (step === 3 && mood) || step === 4;
 
   const submit = async () => {
     if (!buyAgain || !duration || !mood) return;
@@ -67,6 +69,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
         usageDuration: duration,
         experienceMood: mood,
         wishKnownText: wish.trim() || undefined,
+        insteadOfText: insteadOf.trim() || undefined,
         positiveAspects: positives.length ? positives : undefined,
         negativeAspects: negatives.length ? negatives : undefined,
         isPublic,
@@ -132,11 +135,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
       {/* Progress — thin iOS segments */}
       <div className="mb-6 flex items-center gap-1.5 px-1">
         {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-          <div
-            key={i}
-            className="h-1 flex-1 overflow-hidden rounded-full bg-fill-2"
-            aria-hidden
-          >
+          <div key={i} className="h-1 flex-1 overflow-hidden rounded-full bg-fill-2" aria-hidden>
             <div
               className="h-full rounded-full bg-accent transition-all duration-300 ease-[var(--ease-ios)]"
               style={{ width: i < step ? '100%' : '0%' }}
@@ -177,6 +176,20 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
                 onChange={(e) => setWish(e.target.value)}
                 rows={3}
                 placeholder="z. B. Dass die Station ziemlich groß ist…"
+                className="w-full rounded-[var(--radius-lg)] bg-surface p-3.5 text-[1.0625rem] text-label outline-none placeholder:text-faint"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block px-1 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
+                Hättest du lieber etwas anderes gekauft?
+              </label>
+              <input
+                type="text"
+                value={insteadOf}
+                onChange={(e) => setInsteadOf(e.target.value)}
+                maxLength={160}
+                placeholder="z. B. Roborock S8 — sonst leer lassen"
                 className="w-full rounded-[var(--radius-lg)] bg-surface p-3.5 text-[1.0625rem] text-label outline-none placeholder:text-faint"
               />
             </div>
@@ -245,7 +258,12 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
             </Button>
           )}
           {step < TOTAL_STEPS ? (
-            <Button onClick={() => setStep((s) => s + 1)} disabled={!canNext} size="lg" className="flex-1">
+            <Button
+              onClick={() => setStep((s) => s + 1)}
+              disabled={!canNext}
+              size="lg"
+              className="flex-1"
+            >
               Weiter
             </Button>
           ) : (

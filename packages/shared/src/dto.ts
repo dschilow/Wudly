@@ -84,6 +84,10 @@ export interface ProductInsightsDto {
   /** Lightweight derived audience hints for "for whom (not) suited". */
   suitedFor: string[];
   notSuitedFor: string[];
+  /** Share of owners (0–100) who named an alternative they'd rather have bought. */
+  insteadOfShare: number;
+  /** Most-named alternatives, "would rather have bought" (most frequent first). */
+  insteadOfHighlights: string[];
   /** AI-written one-line summary of owner experiences (null when unavailable). */
   aiHeadline: string | null;
   /** "Wudly-empfohlen" quality seal (auto-awarded). */
@@ -106,6 +110,8 @@ export interface ExperienceAspectDto {
 export interface ExperienceDto {
   id: string;
   productId: string;
+  /** Product display name (null on endpoints that don't join the product). */
+  productName: string | null;
   userId: string;
   authorName: string | null;
   wouldBuyAgain: WouldBuyAgain;
@@ -115,6 +121,8 @@ export interface ExperienceDto {
   verificationStatus: VerificationStatus;
   wishKnownText: string | null;
   freeText: string | null;
+  /** Comparative regret: what they'd have bought instead. */
+  insteadOfText: string | null;
   isPublic: boolean;
   aspects: ExperienceAspectDto[];
   createdAt: string;
@@ -165,6 +173,14 @@ export interface RegretCardDto {
   quote: string;
   regretScore: number | null;
   ownerCount: number;
+}
+
+/** One category's systematic "blind spot" for the Regret-Radar section. */
+export interface BlindSpotDto {
+  category: CategoryDto;
+  blindSpot: string;
+  productCount: number;
+  averageRegretScore: number | null;
 }
 
 /** SEO category landing page payload: top picks, flops, averages, blind spot. */

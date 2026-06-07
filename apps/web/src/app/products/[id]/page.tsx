@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import {
+  ArrowLeftRight,
   BadgeCheck,
   ChevronDown,
   Clock3,
@@ -166,8 +167,7 @@ export default async function ProductPage({ params }: PageProps) {
         <ShareButton
           title={`${product.canonicalName} — Würdest du es wieder kaufen?`}
           text={
-            product.insights.aiHeadline ??
-            `Wiederkauf-Score ${ins.rebuyScore ?? '–'} auf Wudly`
+            product.insights.aiHeadline ?? `Wiederkauf-Score ${ins.rebuyScore ?? '–'} auf Wudly`
           }
         />
       </header>
@@ -251,7 +251,9 @@ export default async function ProductPage({ params }: PageProps) {
           />
         </summary>
         <div className="mt-2 rounded-[0.9rem] bg-fill-2 p-3.5 text-[0.8125rem] leading-snug text-muted-foreground">
-          <p className="text-label">Nicht jede Stimme zählt gleich — ehrliche Signale wiegen mehr:</p>
+          <p className="text-label">
+            Nicht jede Stimme zählt gleich — ehrliche Signale wiegen mehr:
+          </p>
           <ul className="mt-2 space-y-1.5">
             {[
               'Per Kamera oder Barcode verifizierte Käufer zählen voll.',
@@ -300,6 +302,43 @@ export default async function ProductPage({ params }: PageProps) {
                     aria-hidden
                   />
                   <p className="text-[0.9375rem] leading-snug text-label">{wish}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* Comparative regret — "would rather have bought X" */}
+      {hasData && ins.insteadOfShare > 0 && ins.insteadOfHighlights.length > 0 && (
+        <section className="card-elevated overflow-hidden">
+          <div className="p-4">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-unsure-soft text-unsure-ink">
+                <ArrowLeftRight className="h-[1.1rem] w-[1.1rem]" strokeWidth={2.2} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-unsure-ink">
+                  Komparative Reue
+                </p>
+                <h2 className="text-[1.0625rem] font-bold leading-tight tracking-tight text-label">
+                  {ins.insteadOfShare}% hätten lieber etwas anderes gekauft
+                </h2>
+              </div>
+            </div>
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {ins.insteadOfHighlights.map((alt, i) => (
+                <li key={i}>
+                  <Link
+                    href={`/check?q=${encodeURIComponent(alt)}`}
+                    className="tap-dim inline-flex items-center gap-1 rounded-full bg-fill-2 px-3 py-1.5 text-[0.875rem] font-medium text-label"
+                  >
+                    {alt}
+                    <ChevronDown
+                      className="-mr-0.5 h-3.5 w-3.5 -rotate-90 text-label-3"
+                      strokeWidth={2.6}
+                    />
+                  </Link>
                 </li>
               ))}
             </ul>

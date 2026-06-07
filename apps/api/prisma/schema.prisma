@@ -111,6 +111,7 @@ enum NotificationType {
   QUESTION_ASKED // a question was asked about a product you own
   QUESTION_ANSWERED // your question got an answer
   ANSWER_HELPFUL // your answer was marked helpful
+  REBUY_REMINDER // 6-month "would you buy it again?" nudge
 }
 
 /* ----------------------------------------------------------------- *
@@ -263,6 +264,8 @@ model Ownership {
   verificationStatus VerificationStatus @default(SELF_DECLARED)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
+  // When the 6-month rebuy reminder was sent (null = not yet). Avoids re-sending.
+  reminderSentAt     DateTime?
 
   user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -286,6 +289,8 @@ model ExperienceReport {
   experienceMood ExperienceMood
   wishKnownText  String?
   freeText       String?
+  // Comparative regret: what the owner wishes they'd bought instead (free text).
+  insteadOfText  String?
   isPublic       Boolean        @default(true)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -391,6 +396,9 @@ model ProductInsightSnapshot {
   topNegativeAspects  Json     @default("[]")
   wishKnownHighlights Json     @default("[]")
   usageDurationStats  Json     @default("{}")
+  // Comparative regret: share (0–100) who named an alternative + the top names.
+  insteadOfShare      Int      @default(0)
+  insteadOfHighlights Json     @default("[]")
   // "Wudly-empfohlen" seal — auto-awarded, recomputed with every snapshot.
   wudlySeal           Boolean  @default(false)
   // AI-generated summary (OpenRouter). Null until generated / when AI is disabled.

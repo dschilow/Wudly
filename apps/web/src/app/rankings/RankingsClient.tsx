@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Flame, GitCompareArrows, Quote, Radar, Share2 } from 'lucide-react';
-import type { CategoryDto, RankingEntryDto } from '@wudly/shared';
+import { Eye, Flame, GitCompareArrows, Quote, Radar, Share2 } from 'lucide-react';
+import type { BlindSpotDto, CategoryDto, RankingEntryDto } from '@wudly/shared';
 import { api, type RegretCardDto } from '@/lib/api';
 import { ProductList } from '@/components/ProductList';
 import { EmptyState, Skeleton } from '@/components/states/States';
@@ -33,11 +33,13 @@ export function RankingsClient({
   initialEntries,
   initialRadar,
   initialRegretCards,
+  initialBlindSpots,
 }: {
   categories: CategoryDto[];
   initialEntries: RankingEntryDto[];
   initialRadar: RegretRadarEntry[];
   initialRegretCards: RegretCardDto[];
+  initialBlindSpots: BlindSpotDto[];
 }) {
   const searchParams = useSearchParams();
   const initialCat = searchParams.get('cat') ?? '';
@@ -85,17 +87,17 @@ export function RankingsClient({
       <LargeTitle title="Regret-Radar" subtitle="Wo Käufer am häufigsten danebenliegen." />
 
       {initialRadar.length > 0 && <RegretRadar entries={initialRadar} />}
+      {initialBlindSpots.length > 0 && <BlindSpots entries={initialBlindSpots} />}
       {initialRegretCards.length > 0 && <RegretCards cards={initialRegretCards} />}
 
-      <Link
-        href="/compare"
-        className="card press tap flex items-center gap-3 px-4 py-3.5"
-      >
+      <Link href="/compare" className="card press tap flex items-center gap-3 px-4 py-3.5">
         <span className="brand-gradient grid h-10 w-10 shrink-0 place-items-center rounded-full text-white shadow-[var(--shadow-glow)]">
           <GitCompareArrows className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.1} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[1.0625rem] leading-tight text-label">Produkte vergleichen</span>
+          <span className="block text-[1.0625rem] leading-tight text-label">
+            Produkte vergleichen
+          </span>
           <span className="mt-0.5 block text-[0.8125rem] text-muted-foreground">
             Wiederkauf, Regret & Schwächen direkt nebeneinander.
           </span>
@@ -158,9 +160,7 @@ function RegretRadar({ entries }: { entries: RegretRadarEntry[] }) {
           <Radar className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.2} />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[1.125rem] font-bold tracking-tight text-label">
-            Kategorie-Heatmap
-          </h2>
+          <h2 className="text-[1.125rem] font-bold tracking-tight text-label">Kategorie-Heatmap</h2>
           <p className="mt-0.5 text-[0.8125rem] leading-snug text-muted-foreground">
             Aus Produkten mit den höchsten Regret-Scores berechnet.
           </p>
@@ -197,6 +197,50 @@ function RegretRadar({ entries }: { entries: RegretRadarEntry[] }) {
             </div>
           </Link>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function BlindSpots({ entries }: { entries: BlindSpotDto[] }) {
+  return (
+    <section className="card-elevated overflow-hidden">
+      <div className="p-4">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-unsure-soft text-unsure-ink">
+            <Eye className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[1.125rem] font-bold tracking-tight text-label">Blinde Flecken</h2>
+            <p className="mt-0.5 text-[0.8125rem] leading-snug text-muted-foreground">
+              Was Besitzer pro Kategorie vorher am häufigsten nicht wissen.
+            </p>
+          </div>
+        </div>
+        <ul className="mt-3.5 space-y-2.5">
+          {entries.slice(0, 8).map((e) => (
+            <li key={e.category.slug}>
+              <Link
+                href={`/kategorie/${e.category.slug}`}
+                className="tap block rounded-[0.9rem] bg-surface-2 p-3 ring-1 ring-border"
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[0.875rem] font-semibold text-label">
+                    {e.category.name}
+                  </span>
+                  {e.averageRegretScore !== null && (
+                    <span className="tnum shrink-0 text-[0.8125rem] font-semibold text-regret-ink">
+                      Ø {e.averageRegretScore}% Regret
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 line-clamp-2 text-[0.9375rem] leading-snug text-muted-foreground">
+                  „{e.blindSpot}“
+                </p>
+              </Link>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

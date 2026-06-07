@@ -39,6 +39,7 @@ import type {
   QuickVoteResultDto,
   RegretCardDto,
   CategoryOverviewDto,
+  BlindSpotDto,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -142,6 +143,7 @@ export const api = {
       apiFetch<RankingEntryDto[]>(`/rankings/category/${slug}${qs({ take })}`, opts),
     categoryOverview: (slug: string, opts?: RequestOptions) =>
       apiFetch<CategoryOverviewDto>(`/rankings/category/${slug}/overview`, opts),
+    blindSpots: (opts?: RequestOptions) => apiFetch<BlindSpotDto[]>('/rankings/blind-spots', opts),
   },
 
   profile: {

@@ -27,6 +27,8 @@ export interface AspectInput {
 
 export interface InsightExperienceInput extends ScorableExperience {
   wishKnownText?: string | null;
+  /** Comparative regret: what they'd have bought instead. */
+  insteadOfText?: string | null;
   aspects: AspectInput[];
 }
 
@@ -49,12 +51,15 @@ export interface InsightSnapshotData {
   usageDurationStats: UsageDurationStats;
   suitedFor: string[];
   notSuitedFor: string[];
+  insteadOfShare: number;
+  insteadOfHighlights: string[];
   /** "Wudly-empfohlen" — a high-trust quality mark (see qualifiesForWudlySeal). */
   wudlySeal: boolean;
 }
 
 const MAX_TOP_ASPECTS = 6;
 const MAX_WISH_HIGHLIGHTS = 5;
+const MAX_INSTEAD_OF = 3;
 
 /* ----------------------------- Wudly-Siegel ------------------------------ *
  * A conservative, automatically-awarded quality mark. We only badge products
@@ -150,6 +155,15 @@ export function buildInsightSnapshot(
 
   const { suitedFor, notSuitedFor } = deriveAudience(experiences);
 
+  const insteadOfTexts = experiences
+    .map((e) => e.insteadOfText?.trim())
+    .filter((t): t is string => Boolean(t && t.length > 0));
+  const insteadOfShare =
+    scores.experienceCount > 0
+      ? Math.round((insteadOfTexts.length / scores.experienceCount) * 100)
+      : 0;
+  const insteadOfHighlights = topByFrequency(insteadOfTexts, MAX_INSTEAD_OF);
+
   const wudlySeal = qualifiesForWudlySeal({
     experienceCount: scores.experienceCount,
     rebuyScore: scores.rebuyScore,
@@ -168,8 +182,25 @@ export function buildInsightSnapshot(
     usageDurationStats,
     suitedFor,
     notSuitedFor,
+    insteadOfShare,
+    insteadOfHighlights,
     wudlySeal,
   };
+}
+
+/** Most-frequent normalized strings (case-insensitive grouping), original casing kept. */
+function topByFrequency(values: string[], limit: number): string[] {
+  const groups = new Map<string, { count: number; text: string }>();
+  for (const value of values) {
+    const key = value.toLowerCase().replace(/\s+/g, ' ').trim();
+    const existing = groups.get(key);
+    if (existing) existing.count += 1;
+    else groups.set(key, { count: 1, text: value });
+  }
+  return [...groups.values()]
+    .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text))
+    .slice(0, limit)
+    .map((g) => g.text);
 }
 
 function sortAspects(tally: Map<string, AspectStat>): AspectStat[] {

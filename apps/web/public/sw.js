@@ -10,9 +10,12 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Wudly';
   const options = {
     body: data.body || '',
-    icon: '/icon.svg',
-    badge: '/icon.svg',
-    tag: 'wudly-notification',
+    // PNG, not SVG: Chrome/Android won't render an SVG notification icon.
+    icon: '/manifest-icon-192.png',
+    badge: '/manifest-icon-192.png',
+    // Unique tag per target so distinct questions don't silently collapse.
+    tag: 'wudly-' + (data.url || '/'),
+    renotify: true,
     data: { url: data.url || '/' },
   };
   event.waitUntil(self.registration.showNotification(title, options));

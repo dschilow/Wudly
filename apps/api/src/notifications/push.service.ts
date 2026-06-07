@@ -56,7 +56,12 @@ export class PushService {
   ): Promise<void> {
     await this.prisma.pushSubscription.upsert({
       where: { endpoint: input.endpoint },
-      create: { userId, endpoint: input.endpoint, p256dh: input.keys.p256dh, auth: input.keys.auth },
+      create: {
+        userId,
+        endpoint: input.endpoint,
+        p256dh: input.keys.p256dh,
+        auth: input.keys.auth,
+      },
       update: { userId, p256dh: input.keys.p256dh, auth: input.keys.auth },
     });
   }

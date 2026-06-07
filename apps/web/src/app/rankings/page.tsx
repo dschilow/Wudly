@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import type { CategoryDto, RankingEntryDto } from '@wudly/shared';
+import type { BlindSpotDto, CategoryDto, RankingEntryDto } from '@wudly/shared';
 import { api, type RegretCardDto } from '@/lib/api';
 import { RankingsClient, type RegretRadarEntry } from './RankingsClient';
 import { PageSkeleton } from '@/components/states/States';
@@ -69,11 +69,12 @@ function buildRegretRadar(entries: RankingEntryDto[]): RegretRadarEntry[] {
 }
 
 export default async function RankingsPage() {
-  const [categories, initialEntries, regretEntries, regretCards] = await Promise.all([
+  const [categories, initialEntries, regretEntries, regretCards, blindSpots] = await Promise.all([
     safe(api.categories.list({ next: { revalidate: 300 } }), [] as CategoryDto[]),
     safe(api.rankings.topRebuy(30, { next: { revalidate: 30 } }), [] as RankingEntryDto[]),
     safe(api.rankings.topRegret(50, { next: { revalidate: 30 } }), [] as RankingEntryDto[]),
     safe(api.rankings.regretCards(6, { next: { revalidate: 30 } }), [] as RegretCardDto[]),
+    safe(api.rankings.blindSpots({ next: { revalidate: 300 } }), [] as BlindSpotDto[]),
   ]);
 
   return (
@@ -83,6 +84,7 @@ export default async function RankingsPage() {
         initialEntries={initialEntries}
         initialRadar={buildRegretRadar(regretEntries)}
         initialRegretCards={regretCards}
+        initialBlindSpots={blindSpots}
       />
     </Suspense>
   );

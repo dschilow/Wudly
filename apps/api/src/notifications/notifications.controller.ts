@@ -59,10 +59,7 @@ export class NotificationsController {
   }
 
   @Get()
-  list(
-    @CurrentUser() user: AuthUser,
-    @Query('take') take?: string,
-  ): Promise<NotificationListDto> {
+  list(@CurrentUser() user: AuthUser, @Query('take') take?: string): Promise<NotificationListDto> {
     const n = Math.min(Math.max(Number(take) || 30, 1), 100);
     return this.notifications.list(user.id, n);
   }

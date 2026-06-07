@@ -33,9 +33,7 @@ describe('buildInsightSnapshot', () => {
           ],
         }),
         makeExp({
-          aspects: [
-            { key: 'saugkraft', label: 'Saugkraft', sentiment: AspectSentiment.POSITIVE },
-          ],
+          aspects: [{ key: 'saugkraft', label: 'Saugkraft', sentiment: AspectSentiment.POSITIVE }],
         }),
       ],
       2,
@@ -77,5 +75,33 @@ describe('buildInsightSnapshot', () => {
       1,
     );
     expect(snap.notSuitedFor.length).toBeGreaterThan(0);
+  });
+
+  it('aggregates comparative regret (insteadOf) share + top alternatives', () => {
+    const snap = buildInsightSnapshot(
+      [
+        makeExp({ insteadOfText: 'Roborock S8' }),
+        makeExp({ insteadOfText: 'roborock s8' }), // same alternative, different casing
+        makeExp({ insteadOfText: 'Dreame L20' }),
+        makeExp({ insteadOfText: null }),
+      ],
+      4,
+    );
+    expect(snap.insteadOfShare).toBe(75); // 3 of 4 named an alternative
+    expect(snap.insteadOfHighlights[0]).toBe('Roborock S8'); // most frequent, original casing
+    expect(snap.insteadOfHighlights).toContain('Dreame L20');
+  });
+
+  it('awards the Wudly seal only with enough long-term high-rebuy data', () => {
+    const many = Array.from({ length: 50 }, () =>
+      makeExp({
+        wouldBuyAgain: WouldBuyAgain.YES,
+        usageDuration: UsageDuration.MORE_THAN_YEAR,
+      }),
+    );
+    expect(buildInsightSnapshot(many, 50).wudlySeal).toBe(true);
+
+    // Too few experiences → no seal even if perfect.
+    expect(buildInsightSnapshot([makeExp()], 1).wudlySeal).toBe(false);
   });
 });

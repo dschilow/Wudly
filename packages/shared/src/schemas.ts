@@ -28,21 +28,21 @@ export const paginationQuerySchema = z.object({
 });
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 
-const wouldBuyAgainSchema = z.enum(
-  enumValues(WouldBuyAgain) as [string, ...string[]],
-) as z.ZodType<(typeof WouldBuyAgain)[keyof typeof WouldBuyAgain]>;
-const usageDurationSchema = z.enum(
-  enumValues(UsageDuration) as [string, ...string[]],
-) as z.ZodType<(typeof UsageDuration)[keyof typeof UsageDuration]>;
+const wouldBuyAgainSchema = z.enum(enumValues(WouldBuyAgain) as [string, ...string[]]) as z.ZodType<
+  (typeof WouldBuyAgain)[keyof typeof WouldBuyAgain]
+>;
+const usageDurationSchema = z.enum(enumValues(UsageDuration) as [string, ...string[]]) as z.ZodType<
+  (typeof UsageDuration)[keyof typeof UsageDuration]
+>;
 const experienceMoodSchema = z.enum(
   enumValues(ExperienceMood) as [string, ...string[]],
 ) as z.ZodType<(typeof ExperienceMood)[keyof typeof ExperienceMood]>;
 const aspectSentimentSchema = z.enum(
   enumValues(AspectSentiment) as [string, ...string[]],
 ) as z.ZodType<(typeof AspectSentiment)[keyof typeof AspectSentiment]>;
-const quickAnswerSchema = z.enum(
-  enumValues(QuickAnswer) as [string, ...string[]],
-) as z.ZodType<(typeof QuickAnswer)[keyof typeof QuickAnswer]>;
+const quickAnswerSchema = z.enum(enumValues(QuickAnswer) as [string, ...string[]]) as z.ZodType<
+  (typeof QuickAnswer)[keyof typeof QuickAnswer]
+>;
 
 /* ------------------------------------------------------------------ *
  * Auth
@@ -115,6 +115,8 @@ export const createExperienceSchema = z.object({
   experienceMood: experienceMoodSchema,
   wishKnownText: z.string().trim().max(1000).optional(),
   freeText: z.string().trim().max(2000).optional(),
+  /** Comparative regret: what they'd have bought instead. */
+  insteadOfText: z.string().trim().max(160).optional(),
   isPublic: z.boolean().default(true),
   variantId: idSchema.optional(),
   positiveAspects: z.array(z.string().trim().min(1).max(80)).max(20).optional(),

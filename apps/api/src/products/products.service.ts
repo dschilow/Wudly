@@ -120,7 +120,11 @@ export class ProductsService {
       include: { product: { include: PRODUCT_INCLUDE } },
     });
     if (identifier?.product && identifier.product.status !== 'HIDDEN') {
-      return { ean: normalized, product: toProductSummaryDto(identifier.product), suggestion: null };
+      return {
+        ean: normalized,
+        product: toProductSummaryDto(identifier.product),
+        suggestion: null,
+      };
     }
 
     const external = await this.lookupEanExternal(normalized);
@@ -161,7 +165,12 @@ export class ProductsService {
       categorySlug =
         cats.find((c) => c.slug === norm || c.name.toLowerCase() === norm)?.slug ?? null;
     }
-    return this.ensureProduct({ canonicalName: name, brand: input.brand ?? null, categorySlug, userId });
+    return this.ensureProduct({
+      canonicalName: name,
+      brand: input.brand ?? null,
+      categorySlug,
+      userId,
+    });
   }
 
   /** Manual entry that isn't in the catalog → live web research → auto-create. */
@@ -262,7 +271,12 @@ export class ProductsService {
       if (!res.ok) return null;
       const data = (await res.json()) as {
         status?: number;
-        product?: { product_name?: string; brands?: string; image_url?: string; image_front_url?: string };
+        product?: {
+          product_name?: string;
+          brands?: string;
+          image_url?: string;
+          image_front_url?: string;
+        };
       };
       if (data.status !== 1 || !data.product) return null;
       const title = data.product.product_name?.trim();
@@ -673,10 +687,7 @@ export class ProductsService {
     }
   }
 
-  private async maybeLogMergeCandidate(
-    created: ProductWithRelations,
-    name: string,
-  ): Promise<void> {
+  private async maybeLogMergeCandidate(created: ProductWithRelations, name: string): Promise<void> {
     const candidates = await this.matching.findDuplicateCandidates(name, 1);
     const top = candidates.find((c) => c.product.id !== created.id);
     if (!top) return;

@@ -176,13 +176,48 @@ const CATEGORY_ALIASES = [
 ] as const;
 
 const QUERY_REWRITES = [
-  { terms: ['iphone', 'iphon'], addTerms: ['apple', 'smartphone'], brand: 'apple', categorySlugs: ['smartphone'] },
-  { terms: ['galaxy'], addTerms: ['samsung', 'smartphone'], brand: 'samsung', categorySlugs: ['smartphone'] },
-  { terms: ['pixel'], addTerms: ['google', 'smartphone'], brand: 'google', categorySlugs: ['smartphone'] },
-  { terms: ['macbook', 'mac book'], addTerms: ['apple', 'laptop'], brand: 'apple', categorySlugs: ['laptop'] },
-  { terms: ['thinkpad'], addTerms: ['lenovo', 'laptop'], brand: 'lenovo', categorySlugs: ['laptop'] },
-  { terms: ['delonghi', 'de longhi'], addTerms: ['delonghi', 'kaffeevollautomat'], brand: 'delonghi', categorySlugs: ['kaffeevollautomat'] },
-  { terms: ['dyson'], addTerms: ['dyson', 'staubsauger'], brand: 'dyson', categorySlugs: ['akku-staubsauger'] },
+  {
+    terms: ['iphone', 'iphon'],
+    addTerms: ['apple', 'smartphone'],
+    brand: 'apple',
+    categorySlugs: ['smartphone'],
+  },
+  {
+    terms: ['galaxy'],
+    addTerms: ['samsung', 'smartphone'],
+    brand: 'samsung',
+    categorySlugs: ['smartphone'],
+  },
+  {
+    terms: ['pixel'],
+    addTerms: ['google', 'smartphone'],
+    brand: 'google',
+    categorySlugs: ['smartphone'],
+  },
+  {
+    terms: ['macbook', 'mac book'],
+    addTerms: ['apple', 'laptop'],
+    brand: 'apple',
+    categorySlugs: ['laptop'],
+  },
+  {
+    terms: ['thinkpad'],
+    addTerms: ['lenovo', 'laptop'],
+    brand: 'lenovo',
+    categorySlugs: ['laptop'],
+  },
+  {
+    terms: ['delonghi', 'de longhi'],
+    addTerms: ['delonghi', 'kaffeevollautomat'],
+    brand: 'delonghi',
+    categorySlugs: ['kaffeevollautomat'],
+  },
+  {
+    terms: ['dyson'],
+    addTerms: ['dyson', 'staubsauger'],
+    brand: 'dyson',
+    categorySlugs: ['akku-staubsauger'],
+  },
 ] as const;
 
 type PreparedSearch = {
@@ -217,11 +252,7 @@ export class ProductMatchingService {
     const prepared = prepareSearch(query);
     if (!prepared.normalized) return [];
 
-    const prefiltered = await this.prefilter(
-      prepared,
-      Math.max(take * 12, 80),
-      'search',
-    );
+    const prefiltered = await this.prefilter(prepared, Math.max(take * 12, 80), 'search');
     const candidates =
       prefiltered.length >= Math.max(take * 2, 20)
         ? prefiltered
@@ -417,7 +448,8 @@ function scoreSearchProduct(product: ProductWithRelations, prepared: PreparedSea
   const queryTokens = prepared.tokens;
   const nameTokens = distinctTokens(name);
   const documentTokens = distinctTokens(document);
-  const categoryScore = product.category?.slug && prepared.categorySlugs.has(product.category.slug) ? 1 : 0;
+  const categoryScore =
+    product.category?.slug && prepared.categorySlugs.has(product.category.slug) ? 1 : 0;
   const brandScore = scoreBrand(product, prepared);
   const nameCoverage = tokenCoverage(queryTokens, nameTokens);
   const documentCoverage = tokenCoverage(queryTokens, documentTokens);

@@ -50,6 +50,7 @@ export class ProductInsightsService {
       // Trust weight: camera/barcode-verified owners count more (brief trust model).
       verificationStatus: report.ownership?.verificationStatus ?? 'SELF_DECLARED',
       wishKnownText: report.wishKnownText,
+      insteadOfText: report.insteadOfText,
       aspects: report.aspects.map((a) => ({
         key: a.aspectKey,
         label: labelByKey.get(a.aspectKey) ?? a.aspectKey,
@@ -70,6 +71,8 @@ export class ProductInsightsService {
       topNegativeAspects: snapshot.topNegativeAspects as unknown as Prisma.InputJsonValue,
       wishKnownHighlights: snapshot.wishKnownHighlights as unknown as Prisma.InputJsonValue,
       usageDurationStats: snapshot.usageDurationStats as unknown as Prisma.InputJsonValue,
+      insteadOfShare: snapshot.insteadOfShare,
+      insteadOfHighlights: snapshot.insteadOfHighlights as unknown as Prisma.InputJsonValue,
       wudlySeal: snapshot.wudlySeal,
     };
 

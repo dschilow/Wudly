@@ -103,8 +103,7 @@ export const MergeCandidateStatus = {
   MERGED: 'MERGED',
   REJECTED: 'REJECTED',
 } as const;
-export type MergeCandidateStatus =
-  (typeof MergeCandidateStatus)[keyof typeof MergeCandidateStatus];
+export type MergeCandidateStatus = (typeof MergeCandidateStatus)[keyof typeof MergeCandidateStatus];
 
 export const UserRole = {
   USER: 'USER',
@@ -116,6 +115,8 @@ export const NotificationType = {
   QUESTION_ASKED: 'QUESTION_ASKED',
   QUESTION_ANSWERED: 'QUESTION_ANSWERED',
   ANSWER_HELPFUL: 'ANSWER_HELPFUL',
+  /** 6-month "would you buy it again?" nudge after the honeymoon phase. */
+  REBUY_REMINDER: 'REBUY_REMINDER',
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 

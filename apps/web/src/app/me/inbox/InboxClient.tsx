@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Bell, MessageCircleQuestion, ThumbsUp, Package } from 'lucide-react';
+import { Bell, MessageCircleQuestion, ThumbsUp, Package, Clock3 } from 'lucide-react';
 import type {
   NotificationDto,
   NotificationListDto,
@@ -23,6 +23,7 @@ const typeIcon: Record<NotificationType, typeof Bell> = {
   QUESTION_ASKED: MessageCircleQuestion,
   QUESTION_ANSWERED: MessageCircleQuestion,
   ANSWER_HELPFUL: ThumbsUp,
+  REBUY_REMINDER: Clock3,
 };
 
 export function InboxClient() {
@@ -119,11 +120,7 @@ export function InboxClient() {
             {data && data.items.length > 0 ? (
               <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
                 {data.items.map((n, i) => (
-                  <NotificationRow
-                    key={n.id}
-                    notification={n}
-                    last={i === data.items.length - 1}
-                  />
+                  <NotificationRow key={n.id} notification={n} last={i === data.items.length - 1} />
                 ))}
               </div>
             ) : (
@@ -151,19 +148,11 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function NotificationRow({
-  notification,
-  last,
-}: {
-  notification: NotificationDto;
-  last: boolean;
-}) {
+function NotificationRow({ notification, last }: { notification: NotificationDto; last: boolean }) {
   const Icon = typeIcon[notification.type] ?? Bell;
   const body = (
     <div
-      className={
-        'flex items-start gap-3 px-4 py-3 ' + (last ? '' : 'hairline')
-      }
+      className={'flex items-start gap-3 px-4 py-3 ' + (last ? '' : 'hairline')}
       style={{ ['--hairline-inset' as string]: '3.25rem' }}
     >
       <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
@@ -179,13 +168,20 @@ function NotificationRow({
             {notification.title}
           </p>
           {!notification.read && (
-            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" aria-label="ungelesen" />
+            <span
+              className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent"
+              aria-label="ungelesen"
+            />
           )}
         </div>
         {notification.body && (
-          <p className="mt-0.5 truncate text-[0.875rem] text-muted-foreground">{notification.body}</p>
+          <p className="mt-0.5 truncate text-[0.875rem] text-muted-foreground">
+            {notification.body}
+          </p>
         )}
-        <p className="mt-0.5 text-[0.75rem] text-faint">{formatRelativeTime(notification.createdAt)}</p>
+        <p className="mt-0.5 text-[0.75rem] text-faint">
+          {formatRelativeTime(notification.createdAt)}
+        </p>
       </div>
     </div>
   );

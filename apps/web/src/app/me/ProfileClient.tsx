@@ -3,14 +3,21 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { WouldBuyAgain, type ProfileSummaryDto, type ExperienceDto } from '@wudly/shared';
+import {
+  WouldBuyAgain,
+  UsageDuration,
+  type ProfileSummaryDto,
+  type ExperienceDto,
+} from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useNotifications } from '@/lib/notifications-context';
+import { renderProfileCardPng } from '@/lib/profile-card';
 import { cn } from '@/lib/utils';
 import { Bell, ChevronRight, Euro, Share2, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ExperienceCard } from '@/components/ExperienceCard';
+import { PushOptIn } from '@/components/PushOptIn';
 import { PageSkeleton, ListSkeleton, EmptyState } from '@/components/states/States';
 
 export function ProfileClient() {
@@ -48,9 +55,23 @@ export function ProfileClient() {
     { label: 'Antworten', value: summary?.answerCount ?? 0 },
     { label: 'Hilfreich', value: summary?.helpfulReceived ?? 0 },
   ];
-  const regretCount = experiences.filter((experience) => experience.wouldBuyAgain === WouldBuyAgain.NO).length;
+  const regretCount = experiences.filter(
+    (experience) => experience.wouldBuyAgain === WouldBuyAgain.NO,
+  ).length;
   const regretRate =
     experiences.length > 0 ? Math.round((regretCount / experiences.length) * 100) : 0;
+  // Top purchases: would-buy-again, longest real usage first (a proxy for confidence).
+  const durationRank: Record<UsageDuration, number> = {
+    [UsageDuration.LESS_THAN_WEEK]: 0,
+    [UsageDuration.ONE_TO_FOUR_WEEKS]: 1,
+    [UsageDuration.ONE_TO_SIX_MONTHS]: 2,
+    [UsageDuration.SIX_TO_TWELVE_MONTHS]: 3,
+    [UsageDuration.MORE_THAN_YEAR]: 4,
+  };
+  const topPurchases = experiences
+    .filter((e) => e.wouldBuyAgain === WouldBuyAgain.YES)
+    .sort((a, b) => durationRank[b.usageDuration] - durationRank[a.usageDuration])
+    .slice(0, 3);
   const percentile =
     experiences.length > 0 ? Math.max(51, Math.min(94, Math.round(94 - regretRate * 1.7))) : 71;
   const regretEuroEstimate = regretCount * 89;
@@ -75,13 +96,23 @@ export function ProfileClient() {
         {stats.map((s, i) => (
           <div
             key={s.label}
-            className={cn('px-1 py-4 text-center', i < stats.length - 1 && 'border-r border-separator')}
+            className={cn(
+              'px-1 py-4 text-center',
+              i < stats.length - 1 && 'border-r border-separator',
+            )}
           >
-            <div className="text-[1.5rem] font-semibold tnum leading-none text-label">{s.value}</div>
+            <div className="text-[1.5rem] font-semibold tnum leading-none text-label">
+              {s.value}
+            </div>
             <div className="mt-1 text-[0.6875rem] text-muted-foreground">{s.label}</div>
           </div>
         ))}
       </div>
+
+      {/* Push opt-in — the key contribution loop: get pinged when someone asks
+          about your products, even with the app closed. Self-hides when already
+          enabled/unsupported. */}
+      <PushOptIn />
 
       <section className="card-elevated overflow-hidden">
         <div className="p-4">
@@ -125,6 +156,37 @@ export function ProfileClient() {
               type="button"
               onClick={async () => {
                 const text = `Ich bereue ${regretRate}% meiner Käufe auf Wudly. Echte Nutzung schlägt Sterne.`;
+                navigator.vibrate?.(12);
+                try {
+                  const blob = await renderProfileCardPng({
+                    regretRate,
+                    experienceCount: experiences.length,
+                    percentile,
+                    displayName: user.displayName ?? 'Wudly',
+                  });
+                  if (blob) {
+                    const file = new File([blob], 'wudly-profil.png', { type: 'image/png' });
+                    // Native share with the image where supported (mobile).
+                    if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+                      await navigator.share({
+                        files: [file],
+                        title: 'Mein Käufer-Profil · Wudly',
+                        text,
+                      });
+                      return;
+                    }
+                    // Otherwise download the PNG.
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'wudly-profil.png';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    return;
+                  }
+                } catch {
+                  /* fall through to text share */
+                }
                 if (navigator.share) {
                   await navigator.share({ title: 'Mein Wudly Regret-Profil', text });
                 } else {
@@ -141,6 +203,40 @@ export function ProfileClient() {
           </div>
         </div>
       </section>
+
+      {/* Top-Käufe — the products you'd buy again, longest-used first. */}
+      {topPurchases.length > 0 && (
+        <section>
+          <h2 className="px-1 pb-1.5 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
+            Deine Top-Käufe
+          </h2>
+          <div className="card overflow-hidden">
+            {topPurchases.map((e, i) => (
+              <Link
+                key={e.id}
+                href={`/products/${e.productId}`}
+                className={cn(
+                  'tap flex items-center justify-between gap-3 px-4 py-3',
+                  i < topPurchases.length - 1 && 'hairline',
+                )}
+              >
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-positive-soft text-[0.8125rem] font-bold text-positive-ink">
+                    {i + 1}
+                  </span>
+                  <span className="min-w-0 truncate text-[1.0625rem] text-label">
+                    {e.productName ?? 'Produkt'}
+                  </span>
+                </span>
+                <ChevronRight
+                  className="-mr-1 h-[1.0625rem] w-[1.0625rem] shrink-0 text-label-3"
+                  strokeWidth={2.5}
+                />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {(summary?.helpfulReceived ?? 0) > 0 && (
         <p className="px-1 text-[0.9375rem] text-positive-ink">
@@ -161,12 +257,21 @@ export function ProfileClient() {
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
-            <ChevronRight className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3" strokeWidth={2.5} />
+            <ChevronRight
+              className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3"
+              strokeWidth={2.5}
+            />
           </span>
         </Link>
-        <Link href="/check?own=1" className="tap hairline flex items-center justify-between px-4 py-3">
+        <Link
+          href="/check?own=1"
+          className="tap hairline flex items-center justify-between px-4 py-3"
+        >
           <span className="text-[1.0625rem] text-label">Erfahrung teilen</span>
-          <ChevronRight className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3" strokeWidth={2.5} />
+          <ChevronRight
+            className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3"
+            strokeWidth={2.5}
+          />
         </Link>
         <Link
           href="/me/products"
@@ -176,12 +281,18 @@ export function ProfileClient() {
           )}
         >
           <span className="text-[1.0625rem] text-label">Meine Produkte</span>
-          <ChevronRight className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3" strokeWidth={2.5} />
+          <ChevronRight
+            className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3"
+            strokeWidth={2.5}
+          />
         </Link>
         {user.role === 'ADMIN' && (
           <Link href="/admin" className="tap flex items-center justify-between px-4 py-3">
             <span className="text-[1.0625rem] text-label">Admin-Bereich</span>
-            <ChevronRight className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3" strokeWidth={2.5} />
+            <ChevronRight
+              className="-mr-1 h-[1.0625rem] w-[1.0625rem] text-label-3"
+              strokeWidth={2.5}
+            />
           </Link>
         )}
       </div>

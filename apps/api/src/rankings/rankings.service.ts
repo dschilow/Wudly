@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   isExcludedFromRankings,
+  type BlindSpotDto,
   type CategoryOverviewDto,
   type ProductSummaryDto,
   type RankingEntryDto,
@@ -222,6 +223,55 @@ export class RankingsService {
       sealCount,
       blindSpot,
     };
+  }
+
+  /**
+   * The Regret-Radar "blind spots": per category, the most common thing owners
+   * wish they'd known. A free, shareable public report (organic traffic / PR).
+   */
+  async blindSpots(): Promise<BlindSpotDto[]> {
+    const products = moderatePublic(
+      await this.prisma.product.findMany({
+        where: { status: 'ACTIVE', categoryId: { not: null } },
+        include: PRODUCT_INCLUDE,
+      }),
+    );
+
+    const byCategory = new Map<
+      string,
+      { category: { id: string; slug: string; name: string }; quotes: string[]; regrets: number[] }
+    >();
+
+    for (const p of products) {
+      if (!p.category) continue;
+      const group = byCategory.get(p.category.slug) ?? {
+        category: { id: p.category.id, slug: p.category.slug, name: p.category.name },
+        quotes: [],
+        regrets: [],
+      };
+      group.quotes.push(...asStringArray(p.insightSnapshot?.wishKnownHighlights));
+      const regret = p.insightSnapshot?.regretScore;
+      if (regret !== null && regret !== undefined) group.regrets.push(regret);
+      byCategory.set(p.category.slug, group);
+    }
+
+    const result: BlindSpotDto[] = [];
+    for (const group of byCategory.values()) {
+      const blindSpot = pickBlindSpot(group.quotes);
+      if (!blindSpot) continue;
+      const averageRegretScore =
+        group.regrets.length === 0
+          ? null
+          : Math.round(group.regrets.reduce((a, b) => a + b, 0) / group.regrets.length);
+      result.push({
+        category: group.category,
+        blindSpot,
+        productCount: group.quotes.length,
+        averageRegretScore,
+      });
+    }
+
+    return result.sort((a, b) => (b.averageRegretScore ?? 0) - (a.averageRegretScore ?? 0));
   }
 
   private toEntries(

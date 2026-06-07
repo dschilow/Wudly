@@ -23,6 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/check`, lastModified: now, changeFrequency: 'daily', priority: 0.9 },
     { url: `${base}/rankings`, lastModified: now, changeFrequency: 'daily', priority: 0.9 },
     { url: `${base}/compare`, lastModified: now, changeFrequency: 'weekly', priority: 0.4 },
+    { url: `${base}/report/2025`, lastModified: now, changeFrequency: 'weekly', priority: 0.7 },
   ];
 
   // Category landing pages — the primary SEO channel ("[Produkt] Erfahrungen").
