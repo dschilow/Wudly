@@ -6,6 +6,7 @@ import {
   Barcode,
   Camera,
   CheckCircle2,
+  ImagePlus,
   Loader2,
   RotateCcw,
   ScanLine,
@@ -54,39 +55,70 @@ function barcodeDetector(): BarcodeDetectorCtor | null {
   return (window as unknown as { BarcodeDetector: BarcodeDetectorCtor }).BarcodeDetector;
 }
 
+type FrameSource = HTMLVideoElement | HTMLImageElement;
+
+function sourceDimensions(source: FrameSource): { sw: number; sh: number } {
+  if (source instanceof HTMLVideoElement) {
+    return { sw: source.videoWidth || 1280, sh: source.videoHeight || 720 };
+  }
+  return { sw: source.naturalWidth || 1280, sh: source.naturalHeight || 720 };
+}
+
+/**
+ * Draw a still from a live video frame or a picked image into a JPEG data URL.
+ * `center-square` crops the middle 82% to a square — used for the product photo;
+ * `full` keeps the aspect ratio — used for the higher-context recognition frame.
+ */
 function captureFrame(
-  video: HTMLVideoElement,
+  source: FrameSource,
   {
     maxDim,
     quality,
     crop = 'full',
   }: { maxDim: number; quality: number; crop?: 'full' | 'center-square' },
 ): string | null {
-  const vw = video.videoWidth || 1280;
-  const vh = video.videoHeight || 720;
+  const { sw, sh } = sourceDimensions(source);
 
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
+  ctx.imageSmoothingQuality = 'high';
 
   if (crop === 'center-square') {
-    const sourceSize = Math.round(Math.min(vw, vh) * 0.82);
-    const sx = Math.max(0, Math.round((vw - sourceSize) / 2));
-    const sy = Math.max(0, Math.round((vh - sourceSize) / 2));
+    const sourceSize = Math.round(Math.min(sw, sh) * 0.82);
+    const sx = Math.max(0, Math.round((sw - sourceSize) / 2));
+    const sy = Math.max(0, Math.round((sh - sourceSize) / 2));
     const size = Math.min(maxDim, sourceSize);
     canvas.width = size;
     canvas.height = size;
-    ctx.drawImage(video, sx, sy, sourceSize, sourceSize, 0, 0, size, size);
+    ctx.drawImage(source, sx, sy, sourceSize, sourceSize, 0, 0, size, size);
     return canvas.toDataURL('image/jpeg', quality);
   }
 
-  const scale = Math.min(1, maxDim / Math.max(vw, vh));
-  const w = Math.round(vw * scale);
-  const h = Math.round(vh * scale);
+  const scale = Math.min(1, maxDim / Math.max(sw, sh));
+  const w = Math.round(sw * scale);
+  const h = Math.round(sh * scale);
   canvas.width = w;
   canvas.height = h;
-  ctx.drawImage(video, 0, 0, w, h);
+  ctx.drawImage(source, 0, 0, w, h);
   return canvas.toDataURL('image/jpeg', quality);
+}
+
+/** Decode a picked image File into an HTMLImageElement (object URL revoked after). */
+function loadImageFromFile(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Bild konnte nicht gelesen werden.'));
+    };
+    img.src = url;
+  });
 }
 
 export function CameraScanner({
@@ -106,6 +138,7 @@ export function CameraScanner({
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const zxingControlsRef = useRef<IScannerControls | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const busyRef = useRef(false);
   const [status, setStatus] = useState<ScannerStatus>('starting');
   const [photo, setPhoto] = useState<PhotoState>({ status: 'idle' });
@@ -285,28 +318,22 @@ export function CameraScanner({
     }
   }
 
-  async function capturePhoto() {
-    const video = videoRef.current;
-    if (!video || video.readyState < 2 || busyRef.current) return;
+  /** Run KI recognition on a captured/picked source and drive the photo state. */
+  async function recognizeFrom(source: FrameSource) {
+    const recognitionImage = captureFrame(source, { maxDim: 960, quality: 0.74 });
+    const productImage = captureFrame(source, {
+      maxDim: 720,
+      quality: 0.78,
+      crop: 'center-square',
+    });
+    if (!recognitionImage || !productImage) {
+      setPhoto({ status: 'error' });
+      busyRef.current = false;
+      return;
+    }
 
-    busyRef.current = true;
-    navigator.vibrate?.(12);
-    setMode('photo');
-
+    setPhoto({ status: 'working', imageDataUrl: productImage });
     try {
-      const recognitionImage = captureFrame(video, { maxDim: 960, quality: 0.74 });
-      const productImage = captureFrame(video, {
-        maxDim: 520,
-        quality: 0.72,
-        crop: 'center-square',
-      });
-      if (!recognitionImage || !productImage) {
-        setPhoto({ status: 'error' });
-        busyRef.current = false;
-        return;
-      }
-
-      setPhoto({ status: 'working', imageDataUrl: productImage });
       const result = await api.products.identify(recognitionImage);
       if (result.confidence >= MIN_CONFIDENCE && result.query.length > 0) {
         navigator.vibrate?.([14, 40, 14]);
@@ -316,6 +343,31 @@ export function CameraScanner({
         setPhoto({ status: 'nomatch', imageDataUrl: productImage });
         busyRef.current = false;
       }
+    } catch {
+      setPhoto({ status: 'error', imageDataUrl: productImage });
+      busyRef.current = false;
+    }
+  }
+
+  async function capturePhoto() {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2 || busyRef.current) return;
+
+    busyRef.current = true;
+    navigator.vibrate?.(12);
+    setMode('photo');
+    await recognizeFrom(video);
+  }
+
+  async function pickFromGallery(file: File | null | undefined) {
+    if (!file || busyRef.current) return;
+    busyRef.current = true;
+    navigator.vibrate?.(12);
+    setMode('photo');
+    setPhoto({ status: 'working', imageDataUrl: '' });
+    try {
+      const img = await loadImageFromFile(file);
+      await recognizeFrom(img);
     } catch {
       setPhoto({ status: 'error' });
       busyRef.current = false;
@@ -476,23 +528,33 @@ export function CameraScanner({
                 </p>
                 <p className="mt-1 text-[0.8125rem] leading-snug text-white/68">
                   {photo.status === 'nomatch'
-                    ? 'Näher ran, Licht verbessern oder manuell suchen.'
+                    ? 'Näher ran, Licht verbessern oder ein Foto aus der Galerie wählen.'
                     : photo.status === 'error'
                       ? 'Bitte erneut aufnehmen oder die Suche nutzen.'
                       : status === 'denied'
-                        ? 'Prüfe die Kamera-Freigabe in den Browser-Einstellungen.'
+                        ? 'Kamera-Freigabe prüfen – oder einfach ein Foto aus der Galerie wählen.'
                         : mode === 'barcode'
                           ? 'Bei spiegelnden Codes kurz kippen oder auf Foto wechseln.'
                           : 'Der zentrierte Ausschnitt wird als Produktfoto übernommen.'}
                 </p>
               </div>
             </div>
-            {status !== 'denied' && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => {
+                void pickFromGallery(event.target.files?.[0]);
+                event.target.value = '';
+              }}
+            />
+            {status !== 'denied' ? (
               <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
                 <button
                   type="button"
                   onClick={capturePhoto}
-                  disabled={working}
+                  disabled={working || status === 'starting'}
                   className="press flex h-12 items-center justify-center gap-2 rounded-[0.85rem] bg-white text-[0.9375rem] font-semibold text-ink disabled:opacity-70"
                 >
                   {working ? (
@@ -512,7 +574,7 @@ export function CameraScanner({
                     </>
                   )}
                 </button>
-                {showCapture && !working && (
+                {showCapture && !working ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -525,8 +587,37 @@ export function CameraScanner({
                   >
                     <RotateCcw className="h-5 w-5" strokeWidth={2.4} />
                   </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={working}
+                    className="press grid h-12 w-12 place-items-center rounded-[0.85rem] bg-white/16 text-white ring-1 ring-white/14 disabled:opacity-50"
+                    aria-label="Foto aus Galerie wählen"
+                  >
+                    <ImagePlus className="h-5 w-5" strokeWidth={2.3} />
+                  </button>
                 )}
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={working}
+                className="press mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-[0.85rem] bg-white text-[0.9375rem] font-semibold text-ink disabled:opacity-70"
+              >
+                {working ? (
+                  <>
+                    <Loader2 className="h-[1.125rem] w-[1.125rem] animate-spin" strokeWidth={2.4} />
+                    Wird erkannt
+                  </>
+                ) : (
+                  <>
+                    <ImagePlus className="h-[1.125rem] w-[1.125rem]" strokeWidth={2.3} />
+                    Foto aus Galerie wählen
+                  </>
+                )}
+              </button>
             )}
           </div>
         )}
