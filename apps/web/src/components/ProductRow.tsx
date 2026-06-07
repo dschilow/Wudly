@@ -25,9 +25,16 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
   const medal = rank !== undefined && rank <= 3;
 
   return (
-    <Link href={`/products/${product.id}`} className="block">
+    <Link
+      href={`/products/${product.id}`}
+      className="group block"
+      aria-label={`${product.canonicalName} ansehen`}
+    >
       <div
-        className={cn('tap relative flex items-center gap-3 px-3.5 py-2.5', !last && 'hairline')}
+        className={cn(
+          'tap relative flex min-h-[4.65rem] items-center gap-3 px-3.5 py-2.5 transition-colors duration-150 hover:bg-fill',
+          !last && 'hairline',
+        )}
         style={{ ['--hairline-inset' as string]: rank !== undefined ? '5.4rem' : '4.4rem' }}
       >
         {rank !== undefined && (
@@ -52,7 +59,7 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
             {rank}
           </span>
         )}
-        <Thumb product={product} className="h-12 w-12" />
+        <Thumb product={product} className="h-[3.25rem] w-[3.25rem]" />
 
         <div className="min-w-0 flex-1">
           <div className="truncate text-[1.0625rem] font-medium leading-tight text-label">

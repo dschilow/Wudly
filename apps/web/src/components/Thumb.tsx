@@ -19,7 +19,7 @@ export function Thumb({
   return (
     <div
       className={cn(
-        'relative shrink-0 overflow-hidden bg-surface-muted ring-1 ring-black/[0.06]',
+        'relative shrink-0 overflow-hidden bg-surface-muted ring-1 ring-black/[0.06] transition-transform duration-200 group-hover:scale-[1.03]',
         rounded,
         className,
       )}
@@ -36,7 +36,9 @@ export function Thumb({
       <span
         aria-hidden
         className="pointer-events-none absolute inset-0"
-        style={{ boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.5), inset 0 -8px 14px rgba(0,0,0,0.04)' }}
+        style={{
+          boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.5), inset 0 -8px 14px rgba(0,0,0,0.04)',
+        }}
       />
     </div>
   );

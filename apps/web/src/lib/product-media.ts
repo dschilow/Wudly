@@ -14,6 +14,7 @@ function getPublicApiBaseUrl(): string {
 /** Resolve a stored imageUrl (absolute or API-relative) to an absolute URL, or null. */
 export function resolveProductImageUrl(imageUrl: string | null): string | null {
   if (!imageUrl) return null;
+  if (/^data:image\//i.test(imageUrl)) return imageUrl;
   if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
   return new URL(imageUrl, getPublicApiBaseUrl()).toString();
 }

@@ -178,6 +178,12 @@ export default async function ProductPage({ params }: PageProps) {
         </p>
       )}
 
+      {product.imageUrl && (
+        <section className="overflow-hidden rounded-[1.35rem] bg-surface shadow-[var(--shadow-card)] ring-1 ring-border">
+          <Thumb product={product} className="aspect-[16/10] w-full" rounded="rounded-[1.35rem]" />
+        </section>
+      )}
+
       <section className="card-elevated relative overflow-hidden">
         {/* Verdict-tinted light behind the score — the page's signature moment. */}
         <div

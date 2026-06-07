@@ -1,4 +1,5 @@
 import type { ProductSummaryDto } from '@wudly/shared';
+import { cn } from '@/lib/utils';
 import { ProductRow } from './ProductRow';
 
 interface Entry {
@@ -26,15 +27,16 @@ export function ProductList({
   );
 
   return (
-    <div className={'card overflow-hidden ' + (className ?? '')}>
+    <div className={cn('card animate-stagger overflow-hidden', className)}>
       {entries.map((entry, i) => (
-        <ProductRow
-          key={entry.product.id}
-          product={entry.product}
-          rank={entry.rank}
-          emphasis={emphasis}
-          last={i === entries.length - 1}
-        />
+        <div key={entry.product.id} style={{ ['--i' as string]: i }}>
+          <ProductRow
+            product={entry.product}
+            rank={entry.rank}
+            emphasis={emphasis}
+            last={i === entries.length - 1}
+          />
+        </div>
       ))}
     </div>
   );

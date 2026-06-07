@@ -210,6 +210,14 @@ export const fromPhotoSchema = z
     brand: z.string().trim().max(80).optional(),
     product: z.string().trim().max(160).optional(),
     category: z.string().trim().max(80).optional(),
+    /** Small centered JPEG preview captured by the scanner, used as a product photo. */
+    imageDataUrl: z
+      .string()
+      .trim()
+      .min(32)
+      .max(1_500_000)
+      .refine((v) => v.startsWith('data:image/'), 'Erwartet eine Bild-Data-URL.')
+      .optional(),
   })
   .refine((d) => (d.brand?.trim().length ?? 0) + (d.product?.trim().length ?? 0) >= 2, {
     message: 'brand oder product erforderlich.',

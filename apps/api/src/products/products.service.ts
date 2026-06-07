@@ -15,6 +15,7 @@ import {
   type IdentifiedProductDto,
   type EanResolutionDto,
   type EnsuredProductDto,
+  type FromPhotoInput,
   type RegretCheckDto,
   type RegretCheckInput,
   type QuickVoteInput,
@@ -148,7 +149,7 @@ export class ProductsService {
 
   /** Camera photo identification → find-or-create the product (no manual data). */
   async createFromIdentification(
-    input: { brand?: string | null; product?: string | null; category?: string | null },
+    input: FromPhotoInput,
     userId: string | null = null,
   ): Promise<EnsuredProductDto> {
     const name = [input.brand, input.product]
@@ -169,6 +170,7 @@ export class ProductsService {
       canonicalName: name,
       brand: input.brand ?? null,
       categorySlug,
+      imageUrl: input.imageDataUrl ?? null,
       userId,
     });
   }
@@ -222,6 +224,14 @@ export class ProductsService {
     const strong = candidates.find((c) => c.similarity >= DEFAULT_SIMILARITY_THRESHOLDS.duplicate);
     if (strong) {
       if (params.ean) await this.attachIdentifier(strong.product.id, params.ean);
+      if (params.imageUrl && !strong.product.imageUrl) {
+        const updated = await this.prisma.product.update({
+          where: { id: strong.product.id },
+          data: { imageUrl: params.imageUrl },
+          include: PRODUCT_INCLUDE,
+        });
+        return { product: toProductSummaryDto(updated), created: false };
+      }
       return { product: toProductSummaryDto(strong.product), created: false };
     }
 

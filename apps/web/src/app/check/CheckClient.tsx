@@ -3,7 +3,16 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Camera, ChevronRight, Link2, Loader2, Search, ShieldCheck, Sparkles, X } from 'lucide-react';
+import {
+  Camera,
+  ChevronRight,
+  Link2,
+  Loader2,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import type {
   CategoryDto,
   ProductSummaryDto,
@@ -133,7 +142,7 @@ export function CheckClient({
   );
 
   const handleIdentified = useCallback(
-    async (result: IdentifiedProductDto) => {
+    async (result: IdentifiedProductDto, imageDataUrl: string) => {
       setScannerOpen(false);
       setShowAdd(false);
       const label = [result.brand, result.product].filter(Boolean).join(' ') || result.query;
@@ -143,6 +152,7 @@ export function CheckClient({
           brand: result.brand ?? undefined,
           product: result.product ?? undefined,
           category: result.category ?? undefined,
+          imageDataUrl,
         });
         if (res.product) {
           router.push(`/products/${res.product.id}`);
@@ -218,6 +228,33 @@ export function CheckClient({
           <Camera className="h-[1.375rem] w-[1.375rem]" strokeWidth={2.3} />
         </button>
       </div>
+
+      {idle && (
+        <section className="relative overflow-hidden rounded-[1.35rem] bg-ink p-4 text-white shadow-[var(--shadow-pop)] ring-1 ring-black/5">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(10,116,255,0.36),transparent_44%),linear-gradient(225deg,rgba(47,159,86,0.22),transparent_48%)]"
+          />
+          <div className="relative flex items-center gap-3.5">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[1rem] bg-white text-ink shadow-sm">
+              <Camera className="h-6 w-6" strokeWidth={2.3} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[1.0625rem] font-bold leading-tight">Barcode oder Produktfoto</h2>
+              <p className="mt-1 text-[0.8125rem] leading-snug text-white/68">
+                Neue Produkte bekommen beim Foto-Scan direkt ein Bild.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setScannerOpen(true)}
+              className="press flex h-11 shrink-0 items-center justify-center rounded-[0.85rem] bg-white px-4 text-[0.9375rem] font-semibold text-ink"
+            >
+              Scan
+            </button>
+          </div>
+        </section>
+      )}
 
       {scanNotice && (
         <div className="flex items-center gap-2 rounded-[0.85rem] bg-accent-soft px-3 py-2 text-[0.875rem] font-medium text-accent-ink">
@@ -398,7 +435,9 @@ export function CheckClient({
           {featured.length > 0 && (
             <section>
               <div className="mb-2 flex items-end justify-between px-1">
-                <p className="text-[1.0625rem] font-bold tracking-tight text-label">Beliebt gerade</p>
+                <p className="text-[1.0625rem] font-bold tracking-tight text-label">
+                  Beliebt gerade
+                </p>
                 <Link
                   href="/rankings"
                   className="tap-dim flex items-center gap-0.5 text-[0.9375rem] font-medium text-accent"

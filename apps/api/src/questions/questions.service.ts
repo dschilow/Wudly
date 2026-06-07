@@ -84,7 +84,7 @@ export class QuestionsService {
   ): Promise<QuestionDto> {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, canonicalName: true },
+      select: { id: true, canonicalName: true, createdByUserId: true },
     });
     if (!product) throw new NotFoundException('Produkt nicht gefunden.');
 
@@ -93,8 +93,14 @@ export class QuestionsService {
       include: QUESTION_INCLUDE,
     });
 
-    // Notify every owner of this product (except the asker) that they can answer.
-    void this.notifyOwnersOfQuestion(productId, userId, product.canonicalName, question.id);
+    // Persist owner inbox notifications before returning so the Q&A loop is durable.
+    await this.notifyOwnersOfQuestion({
+      productId,
+      askerId: userId,
+      productName: product.canonicalName,
+      questionId: question.id,
+      createdByUserId: product.createdByUserId,
+    });
 
     return toQuestionDto(question as QuestionWithRelations);
   }
@@ -173,29 +179,24 @@ export class QuestionsService {
     return toAnswerDto(answer);
   }
 
-  private async notifyOwnersOfQuestion(
-    productId: string,
-    askerId: string,
-    productName: string,
-    questionId: string,
-  ): Promise<void> {
+  private async notifyOwnersOfQuestion(params: {
+    productId: string;
+    askerId: string;
+    productName: string;
+    questionId: string;
+    createdByUserId: string | null;
+  }): Promise<void> {
     // Recipients = everyone who owns the product PLUS whoever added it to Wudly
     // (the creator), minus the person asking. The missing creator was the bug:
     // adding a product no longer means you silently miss its questions.
-    const [owners, product] = await Promise.all([
-      this.prisma.ownership.findMany({
-        where: { productId, NOT: { userId: askerId } },
-        select: { userId: true },
-      }),
-      this.prisma.product.findUnique({
-        where: { id: productId },
-        select: { createdByUserId: true },
-      }),
-    ]);
+    const owners = await this.prisma.ownership.findMany({
+      where: { productId: params.productId },
+      select: { userId: true },
+    });
 
     const recipientIds = new Set<string>(owners.map((o) => o.userId));
-    if (product?.createdByUserId) recipientIds.add(product.createdByUserId);
-    recipientIds.delete(askerId);
+    if (params.createdByUserId) recipientIds.add(params.createdByUserId);
+    recipientIds.delete(params.askerId);
     if (recipientIds.size === 0) return;
 
     await this.notifications.createMany(
@@ -203,10 +204,10 @@ export class QuestionsService {
         userId,
         type: NotificationType.QUESTION_ASKED,
         title: 'Neue Frage zu deinem Produkt',
-        body: `Jemand fragt zu „${productName}".`,
-        link: `/products/${productId}`,
-        productId,
-        questionId,
+        body: `Jemand fragt zu „${params.productName}".`,
+        link: `/products/${params.productId}`,
+        productId: params.productId,
+        questionId: params.questionId,
       })),
     );
   }
