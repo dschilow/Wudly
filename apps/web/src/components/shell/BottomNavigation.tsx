@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion } from 'motion/react';
 import { Home, Search, BarChart3, User, Camera, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,13 +29,27 @@ function Tab({ item, active }: { item: NavItem; active: boolean }) {
     <li className="flex-1">
       <Link
         href={item.href}
+        aria-current={active ? 'page' : undefined}
         className={cn(
-          'tap-dim flex flex-col items-center gap-1 pb-1 pt-2 text-[0.625rem] font-medium tracking-tight',
+          'tap-dim relative flex flex-col items-center gap-1 pb-1 pt-2 text-[0.625rem] font-medium tracking-tight transition-colors duration-200',
           active ? 'text-accent' : 'text-faint',
         )}
       >
-        <Icon className="h-[1.55rem] w-[1.55rem]" strokeWidth={active ? 2.4 : 1.9} aria-hidden />
+        <motion.span
+          animate={{ scale: active ? 1.06 : 1, y: active ? -1 : 0 }}
+          transition={{ type: 'spring', stiffness: 520, damping: 30 }}
+        >
+          <Icon className="h-[1.55rem] w-[1.55rem]" strokeWidth={active ? 2.4 : 1.9} aria-hidden />
+        </motion.span>
         {item.label}
+        {active && (
+          <motion.span
+            layoutId="nav-active-dot"
+            aria-hidden
+            className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-accent"
+            transition={{ type: 'spring', stiffness: 520, damping: 34 }}
+          />
+        )}
       </Link>
     </li>
   );
