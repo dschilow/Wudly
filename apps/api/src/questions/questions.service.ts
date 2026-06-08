@@ -61,7 +61,6 @@ export class QuestionsService {
       where: {
         productId: { in: productIds },
         status: 'OPEN',
-        NOT: { askedByUserId: userId },
       },
       include: {
         ...QUESTION_INCLUDE,
@@ -96,7 +95,6 @@ export class QuestionsService {
     // Persist owner inbox notifications before returning so the Q&A loop is durable.
     await this.notifyOwnersOfQuestion({
       productId,
-      askerId: userId,
       productName: product.canonicalName,
       questionId: question.id,
       createdByUserId: product.createdByUserId,
@@ -181,14 +179,13 @@ export class QuestionsService {
 
   private async notifyOwnersOfQuestion(params: {
     productId: string;
-    askerId: string;
     productName: string;
     questionId: string;
     createdByUserId: string | null;
   }): Promise<void> {
-    // Recipients = everyone who owns the product PLUS whoever added it to Wudly
-    // (the creator), minus the person asking. The missing creator was the bug:
-    // adding a product no longer means you silently miss its questions.
+    // Recipients = everyone who owns the product PLUS whoever added it to Wudly.
+    // If the asker is also an owner/creator, keep them in the loop: owners expect
+    // product questions to land in their inbox on every device.
     const owners = await this.prisma.ownership.findMany({
       where: { productId: params.productId },
       select: { userId: true },
@@ -196,7 +193,6 @@ export class QuestionsService {
 
     const recipientIds = new Set<string>(owners.map((o) => o.userId));
     if (params.createdByUserId) recipientIds.add(params.createdByUserId);
-    recipientIds.delete(params.askerId);
     if (recipientIds.size === 0) return;
 
     await this.notifications.createMany(

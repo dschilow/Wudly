@@ -28,6 +28,35 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
   cache?: RequestCache;
 }
 
+const ACCESS_TOKEN_STORAGE_KEY = 'wudly_access_token';
+
+export function getStoredAccessToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredAccessToken(token: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
+  } catch {
+    /* storage can be disabled; the HttpOnly cookie still covers normal cases */
+  }
+}
+
+export function clearStoredAccessToken(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Core typed fetch wrapper.
  *
@@ -38,13 +67,14 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { json, token, headers, ...rest } = options;
   const url = `${getApiBaseUrl()}${path}`;
+  const authToken = token ?? getStoredAccessToken();
 
   const finalHeaders: Record<string, string> = {
     Accept: 'application/json',
     ...(headers as Record<string, string> | undefined),
   };
   if (json !== undefined) finalHeaders['Content-Type'] = 'application/json';
-  if (token) finalHeaders['Authorization'] = `Bearer ${token}`;
+  if (authToken) finalHeaders['Authorization'] = `Bearer ${authToken}`;
 
   const response = await fetch(url, {
     ...rest,

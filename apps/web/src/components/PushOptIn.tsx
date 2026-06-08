@@ -78,6 +78,7 @@ type TestState =
 export function PushOptIn() {
   const [state, setState] = useState<State>('idle');
   const [test, setTest] = useState<TestState>({ phase: 'idle' });
+  const [resetting, setResetting] = useState(false);
 
   async function sendTest() {
     setTest({ phase: 'sending' });
@@ -99,14 +100,57 @@ export function PushOptIn() {
       const first = res.results.find((r) => !r.ok);
       const reason =
         first?.statusCode === 403
-          ? 'Schlüssel-Konflikt (VAPID). Schalte Push unten aus und wieder ein.'
+          ? 'Schlüssel-Konflikt (VAPID). Tippe auf Reparieren oder deaktiviere Push und aktiviere es neu.'
           : first?.pruned
             ? 'Dein altes Geräte-Abo war abgelaufen. Aktiviere Push erneut.'
-            : `Zustellung fehlgeschlagen${first?.statusCode ? ` (${first.statusCode})` : ''}. Push aus- und wieder einschalten.`;
+            : `Zustellung fehlgeschlagen${first?.statusCode ? ` (${first.statusCode})` : ''}. Tippe auf Reparieren oder aktiviere Push neu.`;
       setTest({ phase: 'failed', reason });
     } catch {
       setTest({ phase: 'failed', reason: 'Test fehlgeschlagen. Versuch es nochmal.' });
     }
+  }
+
+  async function disablePush(options: { keepWorkingState?: boolean } = {}) {
+    if (!pushSupported()) {
+      setState('unsupported');
+      return;
+    }
+    setResetting(true);
+    if (!options.keepWorkingState) setState('working');
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      if (sub) {
+        const endpoint = sub.endpoint;
+        await sub.unsubscribe().catch(() => undefined);
+        await api.notifications.pushUnsubscribe(endpoint).catch(() => undefined);
+      }
+      setTest({ phase: 'idle' });
+      setState('idle');
+    } catch {
+      setState('error');
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  async function repairPush() {
+    setTest({ phase: 'idle' });
+    await disablePush({ keepWorkingState: true });
+    await enable();
+  }
+
+  async function syncSubscription(sub: PushSubscription): Promise<boolean> {
+    const json = sub.toJSON() as {
+      endpoint?: string;
+      keys?: { p256dh?: string; auth?: string };
+    };
+    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
+    await api.notifications.pushSubscribe({
+      endpoint: json.endpoint,
+      keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
+    });
+    return true;
   }
 
   useEffect(() => {
@@ -122,7 +166,21 @@ export function PushOptIn() {
       try {
         const reg = await navigator.serviceWorker.getRegistration();
         const sub = reg ? await reg.pushManager.getSubscription() : null;
-        if (sub && Notification.permission === 'granted') setState('enabled');
+        if (sub && Notification.permission === 'granted') {
+          const { publicKey } = await api.notifications.pushKey({ cache: 'no-store' });
+          if (!publicKey) {
+            setState('unconfigured');
+            return;
+          }
+          if (!subscriptionMatchesKey(sub, publicKey)) {
+            const endpoint = sub.endpoint;
+            await sub.unsubscribe().catch(() => undefined);
+            await api.notifications.pushUnsubscribe(endpoint).catch(() => undefined);
+            setState('idle');
+            return;
+          }
+          setState((await syncSubscription(sub)) ? 'enabled' : 'error');
+        }
       } catch {
         /* ignore */
       }
@@ -164,18 +222,10 @@ export function PushOptIn() {
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(publicKey),
         }));
-      const json = sub.toJSON() as {
-        endpoint?: string;
-        keys?: { p256dh?: string; auth?: string };
-      };
-      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+      if (!(await syncSubscription(sub))) {
         setState('error');
         return;
       }
-      await api.notifications.pushSubscribe({
-        endpoint: json.endpoint,
-        keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
-      });
       navigator.vibrate?.(18);
       setState('enabled');
     } catch {
@@ -211,19 +261,42 @@ export function PushOptIn() {
 
   if (state === 'enabled') {
     const testing = test.phase === 'sending';
+    const needsRepair = test.phase === 'failed' || test.phase === 'empty';
     return (
       <div className="rounded-[var(--radius-lg)] bg-positive-soft px-4 py-3">
-        <div className="flex items-center gap-2.5 text-[0.875rem] font-medium text-positive-ink">
+        <div className="flex flex-wrap items-center gap-2.5 text-[0.875rem] font-medium text-positive-ink">
           <BellRing className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2.2} />
           <span className="flex-1">Push aktiv — du wirst bei neuen Fragen benachrichtigt.</span>
+          {needsRepair && (
+            <button
+              type="button"
+              onClick={repairPush}
+              disabled={testing || resetting}
+              className="press inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[0.7rem] bg-accent px-3 text-[0.8125rem] font-semibold text-white disabled:opacity-70"
+            >
+              {resetting && <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.4} />}
+              Reparieren
+            </button>
+          )}
           <button
             type="button"
             onClick={sendTest}
-            disabled={testing}
+            disabled={testing || resetting}
             className="press inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[0.7rem] bg-positive px-3 text-[0.8125rem] font-semibold text-white disabled:opacity-70"
           >
             {testing && <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.4} />}
             Test senden
+          </button>
+          <button
+            type="button"
+            onClick={() => void disablePush()}
+            disabled={testing || resetting}
+            className="press inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[0.7rem] bg-white/70 px-3 text-[0.8125rem] font-semibold text-positive-ink ring-1 ring-positive-ink/15 disabled:opacity-70"
+          >
+            {resetting && !needsRepair && (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.4} />
+            )}
+            Deaktivieren
           </button>
         </div>
         {test.phase === 'sent' && (
@@ -234,7 +307,7 @@ export function PushOptIn() {
         )}
         {test.phase === 'empty' && (
           <p className="mt-2 text-[0.8125rem] leading-snug text-regret-ink">
-            Kein Geräte-Abo gefunden. Schalte Push unten aus und gleich wieder ein.
+            Kein Geräte-Abo gefunden. Tippe auf Reparieren oder aktiviere Push neu.
           </p>
         )}
         {test.phase === 'failed' && (

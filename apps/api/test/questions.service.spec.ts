@@ -5,7 +5,7 @@ import type { PrismaService } from '../src/prisma/prisma.service';
 import type { NotificationsService } from '../src/notifications/notifications.service';
 
 describe('QuestionsService owner notifications', () => {
-  it('notifies product owners and the product creator, but never the asker', async () => {
+  it('notifies product owners and the product creator, including the asker when they are an owner', async () => {
     const { service, notifications } = createService({
       owners: ['owner-1', 'asker', 'creator'],
       createdByUserId: 'creator',
@@ -19,6 +19,12 @@ describe('QuestionsService owner notifications', () => {
     expect(notifications.createMany).toHaveBeenCalledWith([
       expect.objectContaining({
         userId: 'owner-1',
+        type: NotificationType.QUESTION_ASKED,
+        productId: 'product-1',
+        questionId: 'question-1',
+      }),
+      expect.objectContaining({
+        userId: 'asker',
         type: NotificationType.QUESTION_ASKED,
         productId: 'product-1',
         questionId: 'question-1',
