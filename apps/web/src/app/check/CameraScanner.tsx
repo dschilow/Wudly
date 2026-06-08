@@ -385,7 +385,7 @@ export function CameraScanner({
     : ['Code füllen', 'leicht kippen', 'Abstand halten'];
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] bg-ink text-white" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[100] bg-[#07080d] text-white" role="dialog" aria-modal="true">
       <video
         ref={videoRef}
         muted
@@ -425,7 +425,7 @@ export function CameraScanner({
               onClick={() => void toggleTorch()}
               className={
                 'press grid h-11 w-11 place-items-center rounded-full backdrop-blur-xl ' +
-                (torchOn ? 'bg-white text-ink' : 'bg-white/14 text-white')
+                (torchOn ? 'bg-white text-[#0a0a0c]' : 'bg-white/14 text-white')
               }
               aria-label={torchOn ? 'Licht ausschalten' : 'Licht einschalten'}
             >
@@ -518,7 +518,7 @@ export function CameraScanner({
                   className="h-14 w-14 shrink-0 rounded-[0.85rem] object-cover ring-1 ring-white/20"
                 />
               ) : (
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-ink">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[#0a0a0c]">
                   {photoMode ? (
                     <Camera className="h-5 w-5" strokeWidth={2.3} />
                   ) : (
@@ -569,7 +569,7 @@ export function CameraScanner({
                   type="button"
                   onClick={capturePhoto}
                   disabled={working || status === 'starting'}
-                  className="press flex h-12 items-center justify-center gap-2 rounded-[0.85rem] bg-white text-[0.9375rem] font-semibold text-ink disabled:opacity-70"
+                  className="press flex h-12 items-center justify-center gap-2 rounded-[0.85rem] bg-white text-[0.9375rem] font-semibold text-[#0a0a0c] disabled:opacity-70"
                 >
                   {working ? (
                     <>
@@ -618,7 +618,7 @@ export function CameraScanner({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={working}
-                className="press mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-[0.85rem] bg-white text-[0.9375rem] font-semibold text-ink disabled:opacity-70"
+                className="press mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-[0.85rem] bg-white text-[0.9375rem] font-semibold text-[#0a0a0c] disabled:opacity-70"
               >
                 {working ? (
                   <>
@@ -681,7 +681,7 @@ function ResultCard({
         <button
           type="button"
           onClick={onOpen}
-          className="press flex h-12 items-center justify-center rounded-[0.85rem] bg-white text-[0.9375rem] font-semibold text-ink"
+          className="press flex h-12 items-center justify-center rounded-[0.85rem] bg-white text-[0.9375rem] font-semibold text-[#0a0a0c]"
         >
           Score ansehen
         </button>
@@ -714,7 +714,7 @@ function ModeButton({
       onClick={onClick}
       className={
         'press flex h-10 items-center justify-center gap-1.5 rounded-[0.7rem] text-[0.875rem] font-semibold transition-colors ' +
-        (active ? 'bg-white text-ink shadow-sm' : 'text-white/70')
+        (active ? 'bg-white text-[#0a0a0c] shadow-sm' : 'text-white/70')
       }
       aria-pressed={active}
     >

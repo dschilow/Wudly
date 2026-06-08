@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  type ReactNode,
-} from 'react';
+import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 type ToastTone = 'success' | 'error' | 'info';
@@ -47,10 +41,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="animate-sheet pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-full bg-ink/85 px-4 py-2.5 text-[0.9375rem] font-medium text-white shadow-[0_8px_24px_-6px_rgba(0,0,0,0.3)] backdrop-blur-xl"
+            className="animate-sheet pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-full bg-[#0b0e15]/90 px-4 py-2.5 text-[0.9375rem] font-medium text-white shadow-[0_8px_24px_-6px_rgba(0,0,0,0.3)] backdrop-blur-xl"
             role="status"
           >
-            <span className={cn('h-2 w-2 shrink-0 rounded-full', dotColor[toast.tone])} aria-hidden />
+            <span
+              className={cn('h-2 w-2 shrink-0 rounded-full', dotColor[toast.tone])}
+              aria-hidden
+            />
             {toast.message}
           </div>
         ))}

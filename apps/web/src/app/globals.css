@@ -256,6 +256,20 @@
     background-clip: text;
     color: transparent;
   }
+  .premium-panel {
+    background:
+      linear-gradient(135deg, rgba(54, 101, 255, 0.28), rgba(54, 101, 255, 0) 38%),
+      linear-gradient(225deg, rgba(47, 159, 86, 0.22), rgba(47, 159, 86, 0) 44%),
+      linear-gradient(180deg, #121826 0%, #0b0e15 100%);
+    color: #fff;
+  }
+  .premium-ink {
+    background: #0b0e15;
+    color: #fff;
+  }
+  .on-light {
+    color: #0a0a0c;
+  }
 
   /* Ambient brand light behind the whole app — depth without chrome. */
   .app-ambient {

@@ -152,14 +152,10 @@ export default async function HomePage() {
   return (
     <div className="animate-fade space-y-7 pt-2">
       <JsonLd data={[websiteJsonLd(), organizationJsonLd()]} />
-      <section className="relative overflow-hidden rounded-[1.7rem] bg-ink text-white shadow-[var(--shadow-pop)] ring-1 ring-black/5">
+      <section className="premium-panel relative overflow-hidden rounded-[1.7rem] shadow-[var(--shadow-pop)] ring-1 ring-white/10">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(83,132,255,0.52),transparent_34%),radial-gradient(circle_at_92%_8%,rgba(47,159,86,0.34),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_42%)]"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-24 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-white/[0.07] blur-3xl"
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),transparent_48%)]"
         />
         <div className="relative grid gap-5 p-5 sm:grid-cols-[1fr_18rem] sm:items-center sm:p-6">
           <div>
@@ -171,13 +167,14 @@ export default async function HomePage() {
               Würdest du es wieder kaufen?
             </h1>
             <p className="mt-3 max-w-[22rem] text-pretty text-[1.0625rem] leading-snug text-white/68">
-              Scanne Barcode oder Produktfoto und sieh, was Besitzer nach Wochen oder Monaten wirklich sagen.
+              Scanne Barcode oder Produktfoto und sieh, was Besitzer nach Wochen oder Monaten
+              wirklich sagen.
             </p>
 
             <div className="mt-5 grid gap-2.5">
               <Link
                 href="/check"
-                className="press flex h-[3.25rem] items-center justify-center gap-2 rounded-[1rem] bg-white text-[1.0625rem] font-semibold text-ink shadow-[0_14px_30px_-14px_rgba(255,255,255,0.9)]"
+                className="press on-light flex h-[3.25rem] items-center justify-center gap-2 rounded-[1rem] bg-white text-[1.0625rem] font-semibold shadow-[0_14px_30px_-14px_rgba(255,255,255,0.9)]"
               >
                 <Search className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.5} />
                 Produkt prüfen

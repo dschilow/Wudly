@@ -193,7 +193,7 @@ export function ProfileClient() {
                   await navigator.clipboard?.writeText(text);
                 }
               }}
-              className="press rounded-[0.9rem] bg-ink p-3 text-left text-white"
+              className="press premium-ink rounded-[0.9rem] p-3 text-left"
             >
               <Share2 className="h-[1.125rem] w-[1.125rem]" strokeWidth={2.4} />
               <span className="mt-2 block text-[0.9375rem] font-semibold leading-tight">

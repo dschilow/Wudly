@@ -135,7 +135,7 @@ export default async function RegretReportPage() {
           </p>
           <Link
             href="/check"
-            className="press mt-4 inline-flex h-[3rem] items-center justify-center rounded-[var(--radius-md)] bg-ink px-5 text-[1.0625rem] font-semibold text-white"
+            className="press premium-ink mt-4 inline-flex h-[3rem] items-center justify-center rounded-[var(--radius-md)] px-5 text-[1.0625rem] font-semibold"
           >
             Produkt vor dem Kauf prüfen
           </Link>

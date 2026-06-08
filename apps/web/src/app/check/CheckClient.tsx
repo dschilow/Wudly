@@ -226,7 +226,7 @@ export function CheckClient({
         <button
           type="button"
           onClick={() => setScannerOpen(true)}
-          className="press grid h-12 w-12 shrink-0 place-items-center rounded-[0.95rem] bg-ink text-white shadow-[var(--shadow-pop)]"
+          className="press premium-ink grid h-12 w-12 shrink-0 place-items-center rounded-[0.95rem] shadow-[var(--shadow-pop)]"
           aria-label="Kamera-Scan starten"
         >
           <Camera className="h-[1.375rem] w-[1.375rem]" strokeWidth={2.3} />
@@ -234,14 +234,14 @@ export function CheckClient({
       </div>
 
       {idle && (
-        <section className="relative overflow-hidden rounded-[1.35rem] bg-ink p-4 text-white shadow-[var(--shadow-pop)] ring-1 ring-black/5">
+        <section className="premium-panel relative overflow-hidden rounded-[1.35rem] p-4 shadow-[var(--shadow-pop)] ring-1 ring-white/10">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(10,116,255,0.46),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(47,159,86,0.28),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_50%)]"
           />
           <div className="relative">
             <div className="flex items-center gap-3.5">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[1rem] bg-white text-ink shadow-sm">
+              <span className="on-light grid h-12 w-12 shrink-0 place-items-center rounded-[1rem] bg-white shadow-sm">
                 <Camera className="h-6 w-6" strokeWidth={2.3} />
               </span>
               <div className="min-w-0 flex-1">
@@ -253,7 +253,7 @@ export function CheckClient({
               <button
                 type="button"
                 onClick={() => setScannerOpen(true)}
-                className="press flex h-11 shrink-0 items-center justify-center rounded-[0.85rem] bg-white px-4 text-[0.9375rem] font-semibold text-ink"
+                className="press on-light flex h-11 shrink-0 items-center justify-center rounded-[0.85rem] bg-white px-4 text-[0.9375rem] font-semibold"
               >
                 Start
               </button>
