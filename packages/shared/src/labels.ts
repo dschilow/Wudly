@@ -10,6 +10,8 @@ import {
   ExperienceMood,
   QuickAnswer,
   AspectSentiment,
+  DisclosureType,
+  ProfessionalProfileType,
 } from './enums';
 import type {
   WouldBuyAgain as WouldBuyAgainType,
@@ -78,6 +80,87 @@ export const ASPECT_SENTIMENT_LABEL: Record<string, string> = {
   [AspectSentiment.NEGATIVE]: 'Negativ',
   [AspectSentiment.NEUTRAL]: 'Neutral',
 };
+
+/* ------------------------------------------------------------------ *
+ * Wudly Showcase labels (German). Used by the disclosure badges + the
+ * profile / showcase UI so wording is identical everywhere.
+ * ------------------------------------------------------------------ */
+
+export const PROFESSIONAL_PROFILE_TYPE_LABEL: Record<string, string> = {
+  [ProfessionalProfileType.CREATOR]: 'Creator',
+  [ProfessionalProfileType.INFLUENCER]: 'Influencer',
+  [ProfessionalProfileType.BRAND]: 'Hersteller',
+  [ProfessionalProfileType.MERCHANT]: 'Händler',
+  [ProfessionalProfileType.TESTER]: 'Produkttester',
+};
+
+export interface DisclosureMeta {
+  label: string;
+  /** Short hint shown under the label. */
+  hint: string;
+  /** Is this a commercial / paid relationship that needs the strongest flag? */
+  commercial: boolean;
+  tone: 'neutral' | 'warning' | 'commercial';
+}
+
+/**
+ * Transparency labels. `commercial: true` entries MUST be visibly flagged.
+ * The order here is also the menu order in the editor.
+ */
+export const DISCLOSURE_META: Record<string, DisclosureMeta> = {
+  [DisclosureType.WUDLY_NATIVE]: {
+    label: 'Wudly-Besitzererfahrung',
+    hint: 'Neutrale Erfahrung echter Besitzer.',
+    commercial: false,
+    tone: 'neutral',
+  },
+  [DisclosureType.SELF_BOUGHT]: {
+    label: 'Selbst gekauft',
+    hint: 'Unabhängig, selbst bezahlt.',
+    commercial: false,
+    tone: 'neutral',
+  },
+  [DisclosureType.INDEPENDENT_TEST]: {
+    label: 'Unabhängiger Creator-Test',
+    hint: 'Test ohne Bezahlung durch den Hersteller.',
+    commercial: false,
+    tone: 'neutral',
+  },
+  [DisclosureType.FREE_PRODUCT]: {
+    label: 'Kostenloses Testprodukt',
+    hint: 'Produkt wurde kostenlos zur Verfügung gestellt.',
+    commercial: true,
+    tone: 'warning',
+  },
+  [DisclosureType.AFFILIATE]: {
+    label: 'Affiliate-Links',
+    hint: 'Enthält Provisions-Links.',
+    commercial: true,
+    tone: 'warning',
+  },
+  [DisclosureType.PAID_PARTNERSHIP]: {
+    label: 'Bezahlte Kooperation',
+    hint: 'Bezahlter Werbeinhalt / Sponsoring.',
+    commercial: true,
+    tone: 'commercial',
+  },
+  [DisclosureType.MANUFACTURER]: {
+    label: 'Herstellerinhalt',
+    hint: 'Offizieller Inhalt des Herstellers.',
+    commercial: true,
+    tone: 'commercial',
+  },
+  [DisclosureType.MERCHANT]: {
+    label: 'Händlerinhalt',
+    hint: 'Offizieller Inhalt des Händlers.',
+    commercial: true,
+    tone: 'commercial',
+  },
+};
+
+export const DISCLOSURE_LABEL: Record<string, string> = Object.fromEntries(
+  Object.entries(DISCLOSURE_META).map(([k, v]) => [k, v.label]),
+);
 
 /** Common starter questions surfaced in the "ask owners" flow. */
 export const COMMON_QUESTIONS: readonly string[] = [

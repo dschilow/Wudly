@@ -163,6 +163,29 @@ pnpm lint
 Wiederkauf-/Regret-Score + Snapshots, Fragen & Antworten (+Hilfreich), Top&Flop-Rankings (inkl. Kategorie),
 Profil, Admin-Merge-Kandidaten, AI-Stub (`DummyAiService` hinter `AiService`-Interface), Dockerized, auf Railway live.
 
+**Neu (2026-06-08) — Wudly Showcase (MVP-Kern):** Zweiter, klar getrennter Bereich für
+professionelle Hersteller-/Creator-Inhalte. Produktregel umgesetzt: **Showcase-Inhalte fließen
+NIE in Score oder Rankings** — die bleiben rein aus Signal-Daten.
+- **Datenmodell** (Migration `20260608120000_add_showcase`): `ProfessionalProfile` (1:1 zu User,
+  type CREATOR/INFLUENCER/BRAND/MERCHANT/TESTER, slug, paidPartnerships), `ProductShowcase`
+  (productId+profileId, status DRAFT/PUBLISHED/ARCHIVED, `disclosureType`), `ShowcaseBlock`
+  (type-spezifisches JSON `content`, sortOrder), `ProductTemplate` (kategoriebasiert, blocks JSON).
+  Enums + Labels in `@wudly/shared` (`DISCLOSURE_META` = Werbekennzeichnungs-Metadaten).
+- **Backend** `ShowcaseModule` (ein Modul: Profiles + Showcases + Blocks + Templates). Endpoints:
+  `GET/POST/PATCH /profiles*`, `GET /products/:id/showcases`, `GET/POST/PATCH /showcases*`,
+  `/showcases/:id/publish`, Block-CRUD + `reorder-blocks`, `GET /templates*`. Owner-Checks im Service.
+- **Frontend**: `DisclosureBadge` (Pflicht-Transparenz, commercial→Akzent, frei/affiliate→Amber),
+  `ShowcaseRenderer` (rendert alle Blocktypen), `ShowcaseCard` (Teaser). Neue Seiten
+  `/creator/[slug]` (Profil) und `/showcases/[id]` (beide `robots: noindex`). Auf der Produktseite
+  eigene **„Wudly Showcase"-Sektion** unter dem Signal, visuell getrennt.
+- **Seed** (`seed-showcase.ts`, in Haupt-Seed eingehängt): 12 Kategorie-Templates, 3 Profile
+  (INFLUENCER/BRAND/TESTER), 3 publizierte Demo-Showcases mit Blöcken. Login der Creator-Accounts:
+  `<handle>@creators.wudly.app / wudly12345`.
+- **Status**: builds/typecheck/lint/shared-Tests grün. Migration + Seed + Integrationstests brauchen
+  laufende DB (lokal Docker down beim Bau) — laufen via `pnpm db:migrate && pnpm db:seed` bzw.
+  in prod automatisch (`prisma migrate deploy` beim API-Boot). **Noch offen (bewusst, „danach"):**
+  Block-Editor-UI, KI-Showcase-Generator, Creator-Listen, Kampagnen, Profil-Erstellungs-UI.
+
 **Neu (2026-06-03):**
 - **In-App-Benachrichtigungen / Q&A-Loop** — neues `Notification`-Modell (Migration `20260603130000_add_notifications`,
   muss in prod per `prisma migrate deploy` laufen). Frage zu eigenem Produkt → alle Besitzer werden benachrichtigt;

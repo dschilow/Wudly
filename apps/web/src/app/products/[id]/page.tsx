@@ -12,7 +12,12 @@ import {
   Quote,
   ShieldCheck,
 } from 'lucide-react';
-import type { ExperienceDto, QuestionDto, ProductSummaryDto } from '@wudly/shared';
+import type {
+  ExperienceDto,
+  QuestionDto,
+  ProductSummaryDto,
+  ShowcaseSummaryDto,
+} from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { rebuyVerdict } from '@/lib/verdict';
@@ -29,6 +34,7 @@ import { UsageDurationChart } from '@/components/UsageDurationChart';
 import { ExperienceCard } from '@/components/ExperienceCard';
 import { QuestionCard } from '@/components/QuestionCard';
 import { ProductList } from '@/components/ProductList';
+import { ShowcaseCard } from '@/components/showcase/ShowcaseCard';
 import { Pill } from '@/components/ui/Pill';
 import { EmptyState } from '@/components/states/States';
 import { HouseholdSwipeDeck } from '@/app/check/HouseholdSwipeDeck';
@@ -124,10 +130,11 @@ export default async function ProductPage({ params }: PageProps) {
     throw err;
   }
 
-  const [experiences, questions, similar] = await Promise.all([
+  const [experiences, questions, similar, showcases] = await Promise.all([
     safe(api.products.experiences(id, { next: { revalidate: 20 } }), [] as ExperienceDto[]),
     safe(api.products.questions(id, { next: { revalidate: 20 } }), [] as QuestionDto[]),
     safe(api.products.similar(id, { next: { revalidate: 120 } }), [] as ProductSummaryDto[]),
+    safe(api.showcase.forProduct(id, { next: { revalidate: 60 } }), [] as ShowcaseSummaryDto[]),
   ]);
 
   const ins = product.insights;
@@ -517,6 +524,27 @@ export default async function ProductPage({ params }: PageProps) {
               <ExperienceCard key={exp.id} experience={exp} />
             ))}
           </div>
+        </section>
+      )}
+
+      {/* ── Wudly Showcase ── clearly-separated commercial / creator content.
+          Visually distinct from the neutral Signal above; never affects the score. */}
+      {showcases.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="flex items-center gap-2 px-1 pb-0.5 pt-2">
+            <span className="h-px flex-1 bg-separator" aria-hidden />
+            <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Wudly Showcase
+            </span>
+            <span className="h-px flex-1 bg-separator" aria-hidden />
+          </div>
+          <p className="px-1 text-center text-[0.8125rem] leading-snug text-muted-foreground">
+            Hersteller- und Creator-Präsentationen. Klar gekennzeichnet und{' '}
+            <span className="font-medium text-label">getrennt vom neutralen Score</span>.
+          </p>
+          {showcases.map((s) => (
+            <ShowcaseCard key={s.id} showcase={s} href={`/showcases/${s.id}`} />
+          ))}
         </section>
       )}
 

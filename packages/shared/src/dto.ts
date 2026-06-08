@@ -18,6 +18,10 @@ import type {
   UserRole,
   NotificationType,
   VerificationStatus,
+  ProfessionalProfileType,
+  ShowcaseStatus,
+  ShowcaseBlockType,
+  DisclosureType,
 } from './enums';
 import type { UsageDurationStats } from './scoring';
 
@@ -344,4 +348,73 @@ export interface QuickVoteResultDto {
   count: number;
   yes: number;
   no: number;
+}
+
+/* ------------------------------------------------------------------ *
+ * Wudly Showcase DTOs (professional creator / brand content).
+ * Always disclosure-labelled; never part of the neutral score / rankings.
+ * ------------------------------------------------------------------ */
+
+export interface ProfessionalProfileDto {
+  id: string;
+  type: ProfessionalProfileType;
+  displayName: string;
+  slug: string;
+  logoUrl: string | null;
+  bio: string | null;
+  websiteUrl: string | null;
+  socialLinks: Record<string, string>;
+  verificationStatus: VerificationStatus;
+  /** Self-declared: this profile may publish paid cooperations. */
+  paidPartnerships: boolean;
+  createdAt: string;
+}
+
+/** A profile plus light aggregates for the public /creator/:slug page. */
+export interface ProfileDetailDto extends ProfessionalProfileDto {
+  showcaseCount: number;
+  showcases: ShowcaseSummaryDto[];
+}
+
+export interface ShowcaseBlockDto {
+  id: string;
+  type: ShowcaseBlockType;
+  sortOrder: number;
+  /** Type-specific payload; shape is owned by the renderer. */
+  content: Record<string, unknown>;
+}
+
+/** Lightweight showcase reference (cards, lists, product-page teaser). */
+export interface ShowcaseSummaryDto {
+  id: string;
+  productId: string;
+  title: string;
+  subtitle: string | null;
+  status: ShowcaseStatus;
+  disclosureType: DisclosureType;
+  /** Whether this disclosure must be flagged as commercial. */
+  isCommercial: boolean;
+  affiliateDisclosure: string | null;
+  blockCount: number;
+  profile: ProfessionalProfileDto;
+  /** The product this showcase presents (for cross-linking from a profile). */
+  product: ProductSummaryDto | null;
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+/** Full showcase with all blocks, for the product-page Showcase tab. */
+export interface ShowcaseDetailDto extends ShowcaseSummaryDto {
+  blocks: ShowcaseBlockDto[];
+}
+
+/** A reusable, category-specific starting point for a showcase. */
+export interface ProductTemplateDto {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  category: CategoryDto | null;
+  /** Preset blocks: ordered { type, content } entries. */
+  blocks: Array<{ type: ShowcaseBlockType; content: Record<string, unknown> }>;
 }

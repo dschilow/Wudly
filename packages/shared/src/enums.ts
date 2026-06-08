@@ -120,6 +120,77 @@ export const NotificationType = {
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 
+/* ----------------------------------------------------------------- *
+ * Wudly Showcase — professional creator / brand product presentation.
+ *
+ * IMPORTANT product rule: Showcase content is clearly-labelled commercial /
+ * creator material. It NEVER influences the neutral Wudly Signal score or the
+ * rankings — those derive only from real owner experiences.
+ * ----------------------------------------------------------------- */
+
+/** Who owns a professional profile. Drives default disclosure + labelling. */
+export const ProfessionalProfileType = {
+  CREATOR: 'CREATOR',
+  INFLUENCER: 'INFLUENCER',
+  BRAND: 'BRAND',
+  MERCHANT: 'MERCHANT',
+  TESTER: 'TESTER',
+} as const;
+export type ProfessionalProfileType =
+  (typeof ProfessionalProfileType)[keyof typeof ProfessionalProfileType];
+
+export const ShowcaseStatus = {
+  DRAFT: 'DRAFT',
+  PUBLISHED: 'PUBLISHED',
+  ARCHIVED: 'ARCHIVED',
+} as const;
+export type ShowcaseStatus = (typeof ShowcaseStatus)[keyof typeof ShowcaseStatus];
+
+/** Block types for the Showcase builder (content shape lives in the JSON payload). */
+export const ShowcaseBlockType = {
+  HERO: 'HERO',
+  PROMISE: 'PROMISE',
+  AUDIENCE: 'AUDIENCE',
+  GALLERY: 'GALLERY',
+  FEATURE_CARDS: 'FEATURE_CARDS',
+  USE_CASES: 'USE_CASES',
+  PROBLEM_SOLUTION: 'PROBLEM_SOLUTION',
+  COMPARISON: 'COMPARISON',
+  CHART: 'CHART',
+  FAQ: 'FAQ',
+  VIDEO: 'VIDEO',
+  CREATOR_VERDICT: 'CREATOR_VERDICT',
+  BRAND_STATEMENT: 'BRAND_STATEMENT',
+  TECH_SPECS: 'TECH_SPECS',
+  BUY_LINK: 'BUY_LINK',
+  AFFILIATE_NOTE: 'AFFILIATE_NOTE',
+  DOWNLOADS: 'DOWNLOADS',
+  CTA: 'CTA',
+  DISCLOSURE: 'DISCLOSURE',
+} as const;
+export type ShowcaseBlockType = (typeof ShowcaseBlockType)[keyof typeof ShowcaseBlockType];
+
+/** Mandatory transparency label for any commercial / creator contribution. */
+export const DisclosureType = {
+  /** Self-bought, independent. */
+  SELF_BOUGHT: 'SELF_BOUGHT',
+  /** Received the product for free to test. */
+  FREE_PRODUCT: 'FREE_PRODUCT',
+  /** Paid cooperation / sponsored. */
+  PAID_PARTNERSHIP: 'PAID_PARTNERSHIP',
+  /** Contains affiliate links. */
+  AFFILIATE: 'AFFILIATE',
+  /** Official manufacturer content. */
+  MANUFACTURER: 'MANUFACTURER',
+  /** Official merchant / retailer content. */
+  MERCHANT: 'MERCHANT',
+  /** Independent creator test (no payment, may have been self-bought). */
+  INDEPENDENT_TEST: 'INDEPENDENT_TEST',
+  /** Native Wudly owner experience (the neutral baseline). */
+  WUDLY_NATIVE: 'WUDLY_NATIVE',
+} as const;
+export type DisclosureType = (typeof DisclosureType)[keyof typeof DisclosureType];
+
 /** Helper to turn a const-enum object into an array of its values. */
 export function enumValues<T extends Record<string, string>>(e: T): Array<T[keyof T]> {
   return Object.values(e) as Array<T[keyof T]>;

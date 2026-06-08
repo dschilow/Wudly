@@ -41,6 +41,19 @@ import type {
   RegretCardDto,
   CategoryOverviewDto,
   BlindSpotDto,
+  ProfessionalProfileDto,
+  ProfileDetailDto,
+  ShowcaseSummaryDto,
+  ShowcaseDetailDto,
+  ShowcaseBlockDto,
+  ProductTemplateDto,
+  CreateProfileInput,
+  UpdateProfileInput,
+  CreateShowcaseInput,
+  UpdateShowcaseInput,
+  CreateBlockInput,
+  UpdateBlockInput,
+  ReorderBlocksInput,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -169,6 +182,60 @@ export const api = {
     /** Self-test: send a push to the caller's own devices, report the real result. */
     pushTest: () =>
       apiFetch<PushTestResultDto>('/me/notifications/push/test', { method: 'POST' }),
+  },
+
+  /**
+   * Wudly Showcase — professional creator / brand content. Clearly labelled and
+   * deliberately separate from the neutral Signal score / rankings.
+   */
+  showcase: {
+    // Profiles
+    profile: (slug: string, opts?: RequestOptions) =>
+      apiFetch<ProfileDetailDto>(`/profiles/${slug}`, opts),
+    myProfile: (opts?: RequestOptions) =>
+      apiFetch<ProfessionalProfileDto | null>('/me/profile/professional', opts),
+    createProfile: (input: CreateProfileInput) =>
+      apiFetch<ProfessionalProfileDto>('/profiles', { method: 'POST', json: input }),
+    updateProfile: (id: string, input: UpdateProfileInput) =>
+      apiFetch<ProfessionalProfileDto>(`/profiles/${id}`, { method: 'PATCH', json: input }),
+    requestVerification: (id: string) =>
+      apiFetch<ProfessionalProfileDto>(`/profiles/${id}/verify-request`, { method: 'POST' }),
+
+    // Showcases
+    forProduct: (productId: string, opts?: RequestOptions) =>
+      apiFetch<ShowcaseSummaryDto[]>(`/products/${productId}/showcases`, opts),
+    get: (id: string, opts?: RequestOptions) =>
+      apiFetch<ShowcaseDetailDto>(`/showcases/${id}`, opts),
+    create: (productId: string, input: CreateShowcaseInput) =>
+      apiFetch<ShowcaseDetailDto>(`/products/${productId}/showcases`, {
+        method: 'POST',
+        json: input,
+      }),
+    update: (id: string, input: UpdateShowcaseInput) =>
+      apiFetch<ShowcaseDetailDto>(`/showcases/${id}`, { method: 'PATCH', json: input }),
+    publish: (id: string) =>
+      apiFetch<ShowcaseDetailDto>(`/showcases/${id}/publish`, { method: 'POST' }),
+
+    // Blocks
+    addBlock: (showcaseId: string, input: CreateBlockInput) =>
+      apiFetch<ShowcaseBlockDto>(`/showcases/${showcaseId}/blocks`, {
+        method: 'POST',
+        json: input,
+      }),
+    updateBlock: (blockId: string, input: UpdateBlockInput) =>
+      apiFetch<ShowcaseBlockDto>(`/showcase-blocks/${blockId}`, { method: 'PATCH', json: input }),
+    deleteBlock: (blockId: string) =>
+      apiFetch<{ success: true }>(`/showcase-blocks/${blockId}`, { method: 'DELETE' }),
+    reorderBlocks: (showcaseId: string, input: ReorderBlocksInput) =>
+      apiFetch<ShowcaseDetailDto>(`/showcases/${showcaseId}/reorder-blocks`, {
+        method: 'PATCH',
+        json: input,
+      }),
+
+    // Templates
+    templates: (opts?: RequestOptions) => apiFetch<ProductTemplateDto[]>('/templates', opts),
+    templatesForCategory: (categorySlug: string, opts?: RequestOptions) =>
+      apiFetch<ProductTemplateDto[]>(`/templates/category/${categorySlug}`, opts),
   },
 
   admin: {

@@ -22,6 +22,7 @@ import {
   type SeedExperience,
 } from './seed-data';
 import { buildProductImageUrl, buildProducts } from './seed-generator';
+import { seedShowcase } from './seed-showcase';
 
 if (process.env.SEED_USE_PUBLIC_DATABASE_URL === 'true' && process.env.DATABASE_PUBLIC_URL) {
   process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
@@ -309,6 +310,9 @@ async function main() {
   });
   console.warn('   - badges created');
 
+  // Wudly Showcase: professional profiles, templates, demo showcases.
+  await seedShowcase(prisma);
+
   console.warn('Seed complete.');
 }
 
@@ -592,6 +596,11 @@ function seedId(prefix: string, index: number): string {
  * CASCADE) so it works the same on any Postgres without elevated privileges.
  */
 async function reset() {
+  // Showcase tables first — ProfessionalProfile FKs to User (deleted below).
+  await prisma.showcaseBlock.deleteMany();
+  await prisma.productShowcase.deleteMany();
+  await prisma.professionalProfile.deleteMany();
+  await prisma.productTemplate.deleteMany();
   await prisma.userBadge.deleteMany();
   await prisma.badge.deleteMany();
   await prisma.notification.deleteMany();

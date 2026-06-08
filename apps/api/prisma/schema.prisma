@@ -114,6 +114,57 @@ enum NotificationType {
   REBUY_REMINDER // 6-month "would you buy it again?" nudge
 }
 
+// --- Wudly Showcase (professional creator / brand content) ---
+// Showcase content is clearly-labelled commercial material and NEVER feeds the
+// neutral Wudly Signal score or the rankings.
+
+enum ProfessionalProfileType {
+  CREATOR
+  INFLUENCER
+  BRAND
+  MERCHANT
+  TESTER
+}
+
+enum ShowcaseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ShowcaseBlockType {
+  HERO
+  PROMISE
+  AUDIENCE
+  GALLERY
+  FEATURE_CARDS
+  USE_CASES
+  PROBLEM_SOLUTION
+  COMPARISON
+  CHART
+  FAQ
+  VIDEO
+  CREATOR_VERDICT
+  BRAND_STATEMENT
+  TECH_SPECS
+  BUY_LINK
+  AFFILIATE_NOTE
+  DOWNLOADS
+  CTA
+  DISCLOSURE
+}
+
+enum DisclosureType {
+  SELF_BOUGHT
+  FREE_PRODUCT
+  PAID_PARTNERSHIP
+  AFFILIATE
+  MANUFACTURER
+  MERCHANT
+  INDEPENDENT_TEST
+  WUDLY_NATIVE
+}
+
 /* ----------------------------------------------------------------- *
  * Identity
  * ----------------------------------------------------------------- */
@@ -136,6 +187,7 @@ model User {
   quickVotes        QuickVote[]
   createdProducts   Product[]          @relation("CreatedProducts")
   pushSubscriptions PushSubscription[]
+  professionalProfile ProfessionalProfile?
 
   @@index([role])
 }
@@ -150,8 +202,9 @@ model Category {
   name      String
   createdAt DateTime @default(now())
 
-  products Product[]
-  aspects  CategoryAspect[]
+  products  Product[]
+  aspects   CategoryAspect[]
+  templates ProductTemplate[]
 }
 
 model CategoryAspect {
@@ -197,6 +250,7 @@ model Product {
   aliasAsOld        ProductAlias?           @relation("OldProduct")
   mergeCandidatesA  AdminMergeCandidate[]   @relation("ProductA")
   mergeCandidatesB  AdminMergeCandidate[]   @relation("ProductB")
+  showcases         ProductShowcase[]
 
   @@index([normalizedName])
   @@index([categoryId])
@@ -513,4 +567,93 @@ model ProductAlias {
   canonicalProduct Product @relation("CanonicalProduct", fields: [canonicalProductId], references: [id], onDelete: Cascade)
 
   @@index([canonicalProductId])
+}
+
+/* ----------------------------------------------------------------- *
+ * Wudly Showcase — professional creator / brand product presentation.
+ *
+ * These tables hold clearly-labelled COMMERCIAL / CREATOR content. They are
+ * intentionally separate from the Signal tables (experiences, insights) and
+ * must NEVER be read into the score or the rankings.
+ * ----------------------------------------------------------------- */
+
+/// A professional profile (creator, influencer, brand, merchant, tester).
+/// One per user; the public page lives at /creator/:slug.
+model ProfessionalProfile {
+  id                 String                  @id @default(cuid())
+  userId             String                  @unique
+  type               ProfessionalProfileType
+  displayName        String
+  slug               String                  @unique
+  logoUrl            String?
+  bio                String?
+  websiteUrl         String?
+  socialLinks        Json                    @default("{}")
+  verificationStatus VerificationStatus      @default(SELF_DECLARED)
+  /// Self-declared: this profile may publish paid cooperations.
+  paidPartnerships   Boolean                 @default(false)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  showcases ProductShowcase[]
+
+  @@index([type])
+}
+
+/// A professional product landing page built from blocks. Always attributed to
+/// a profile and always carries a disclosure type.
+model ProductShowcase {
+  id                  String         @id @default(cuid())
+  productId           String
+  profileId           String
+  title               String
+  subtitle            String?
+  status              ShowcaseStatus @default(DRAFT)
+  disclosureType      DisclosureType
+  /// Free-text disclosure detail (e.g. "Enthält Affiliate-Links zu Amazon").
+  affiliateDisclosure String?
+  publishedAt         DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  product Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  profile ProfessionalProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  blocks  ShowcaseBlock[]
+
+  @@index([productId, status])
+  @@index([profileId])
+}
+
+/// One content block of a showcase. The `content` JSON shape depends on `type`.
+model ShowcaseBlock {
+  id         String            @id @default(cuid())
+  showcaseId String
+  type       ShowcaseBlockType
+  sortOrder  Int               @default(0)
+  content    Json              @default("{}")
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  showcase ProductShowcase @relation(fields: [showcaseId], references: [id], onDelete: Cascade)
+
+  @@index([showcaseId, sortOrder])
+}
+
+/// A reusable, category-specific starting point for a showcase (block layout +
+/// suggested comparison criteria). Seeded by admins.
+model ProductTemplate {
+  id          String   @id @default(cuid())
+  categoryId  String?
+  slug        String   @unique
+  name        String
+  description String?
+  /// Array of { type, content } block presets, plus suggested criteria.
+  blocks      Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([categoryId])
 }
