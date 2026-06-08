@@ -148,49 +148,80 @@ export default async function ProductPage({ params }: PageProps) {
   return (
     <div className="animate-fade space-y-5 pb-4 pt-1">
       <JsonLd data={structuredData} />
-      {/* Header — show the identity avatar only when there's no large real photo
-          below, so a real product image never appears twice on the page. */}
-      <header className="flex items-start gap-3.5 px-1 pt-1">
-        {!hasRealImage && (
-          <Thumb product={product} className="h-16 w-16" rounded="rounded-[0.95rem]" />
-        )}
-        <div className="min-w-0 flex-1">
-          <h1 className="text-balance text-[1.625rem] font-bold leading-[1.12] tracking-tight text-label">
-            {product.canonicalName}
-          </h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[0.9375rem] text-muted-foreground">
-            {product.brand && <span className="font-medium">{product.brand}</span>}
-            {product.category && (
-              <Link href={`/kategorie/${product.category.slug}`} className="tap-dim">
-                <Pill tone="neutral">{product.category.name}</Pill>
-              </Link>
-            )}
-            {ins.wudlySeal && <SealBadge />}
+      <section className="card-elevated animate-rise relative overflow-hidden p-4">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-accent-soft blur-3xl"
+        />
+        <div className="relative flex items-start gap-4">
+          <Thumb
+            product={product}
+            className="h-24 w-24 ring-1 ring-border sm:h-32 sm:w-32"
+            rounded="rounded-[1.15rem]"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  {hasRealImage ? 'Produktfoto' : 'Produktvorschau'}
+                </p>
+                <h1 className="mt-1 text-balance text-[1.625rem] font-bold leading-[1.08] tracking-tight text-label">
+                  {product.canonicalName}
+                </h1>
+              </div>
+              <ShareButton
+                title={`${product.canonicalName} — Würdest du es wieder kaufen?`}
+                text={
+                  product.insights.aiHeadline ??
+                  `Wiederkauf-Score ${ins.rebuyScore ?? '–'} auf Wudly`
+                }
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[0.9375rem] text-muted-foreground">
+              {product.brand && <span className="font-medium">{product.brand}</span>}
+              {product.category && (
+                <Link href={`/kategorie/${product.category.slug}`} className="tap-dim">
+                  <Pill tone="neutral">{product.category.name}</Pill>
+                </Link>
+              )}
+              {ins.wudlySeal && <SealBadge />}
+            </div>
           </div>
         </div>
-        <ShareButton
-          title={`${product.canonicalName} — Würdest du es wieder kaufen?`}
-          text={
-            product.insights.aiHeadline ?? `Wiederkauf-Score ${ins.rebuyScore ?? '–'} auf Wudly`
-          }
-        />
-      </header>
 
-      {product.description && (
-        <p className="px-1 text-[0.9375rem] leading-snug text-muted-foreground">
-          {product.description}
-        </p>
-      )}
+        {product.description && (
+          <p className="relative mt-3 text-[0.9375rem] leading-snug text-muted-foreground">
+            {product.description}
+          </p>
+        )}
 
-      {hasRealImage && (
-        <section className="animate-rise relative overflow-hidden rounded-[1.35rem] bg-surface shadow-[var(--shadow-card)] ring-1 ring-border">
-          <Thumb product={product} className="aspect-[16/10] w-full" rounded="rounded-[1.35rem]" />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent"
-          />
-        </section>
-      )}
+        <div className="relative mt-4 grid grid-cols-3 gap-2">
+          <div className="rounded-[0.85rem] bg-fill-2 px-3 py-2">
+            <div className="text-[1.0625rem] font-bold tnum leading-none text-label">
+              {ins.rebuyScore === null ? '–' : `${ins.rebuyScore}%`}
+            </div>
+            <div className="mt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Rebuy
+            </div>
+          </div>
+          <div className="rounded-[0.85rem] bg-fill-2 px-3 py-2">
+            <div className="text-[1.0625rem] font-bold tnum leading-none text-label">
+              {ins.ownerCount}
+            </div>
+            <div className="mt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Besitzer
+            </div>
+          </div>
+          <div className="rounded-[0.85rem] bg-fill-2 px-3 py-2">
+            <div className="text-[1.0625rem] font-bold tnum leading-none text-label">
+              {ins.experienceCount}
+            </div>
+            <div className="mt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Stimmen
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="card-elevated relative overflow-hidden">
         {/* Verdict-tinted light behind the score — the page's signature moment. */}

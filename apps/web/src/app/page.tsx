@@ -5,10 +5,13 @@ import {
   Camera,
   ChevronRight,
   Hourglass,
+  Image,
   Package,
   Radar,
   Search,
   ShieldCheck,
+  Sparkles,
+  TrendingUp,
   Users,
 } from 'lucide-react';
 import type { ProductSummaryDto, RankingEntryDto } from '@wudly/shared';
@@ -53,6 +56,17 @@ const TRUST = [
   { icon: ShieldCheck, label: 'Ehrliche Wertung' },
 ];
 
+function HeroMetric({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-[0.95rem] bg-white/[0.08] px-3 py-2 ring-1 ring-white/12">
+      <div className="text-[1.0625rem] font-bold leading-none text-white">{value}</div>
+      <div className="mt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-white/48">
+        {label}
+      </div>
+    </div>
+  );
+}
+
 function HeroVisual({
   product,
   score,
@@ -62,34 +76,47 @@ function HeroVisual({
   score: number | null;
   owners: number;
 }) {
+  const meta = product
+    ? [product.brand, product.category?.name].filter(Boolean).join(' · ') || 'Produkt'
+    : 'Klarer als Sterne';
+
   const content = (
     <>
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         {product ? (
-          <Thumb product={product} className="h-16 w-16 ring-white/20" rounded="rounded-[1rem]" />
+          <Thumb
+            product={product}
+            className="h-20 w-20 ring-white/20 sm:h-24 sm:w-24"
+            rounded="rounded-[1.15rem]"
+          />
         ) : (
-          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-[1rem] bg-white/12 text-white ring-1 ring-white/14">
+          <span className="grid h-20 w-20 shrink-0 place-items-center rounded-[1.15rem] bg-white/12 text-white ring-1 ring-white/14">
             <BadgeCheck className="h-7 w-7" strokeWidth={2.2} />
           </span>
         )}
         <div className="min-w-0">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-white/52">
-            Aktuelles Signal
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-white/62 ring-1 ring-white/12">
+            <Sparkles className="h-3 w-3" strokeWidth={2.4} aria-hidden />
+            Live-Signal
           </p>
-          <h3 className="mt-1 truncate text-[1.125rem] font-bold leading-tight text-white">
+          <h3 className="mt-2 line-clamp-2 text-[1.25rem] font-bold leading-[1.05] text-white">
             {product?.canonicalName ?? 'Wudly Score'}
           </h3>
-          <p className="mt-0.5 truncate text-[0.8125rem] text-white/58">
-            {product
-              ? [product.brand, product.category?.name].filter(Boolean).join(' · ') || 'Produkt'
-              : 'Klarer als Sterne'}
-          </p>
+          <p className="mt-1 truncate text-[0.8125rem] text-white/58">{meta}</p>
         </div>
       </div>
-      <div className="mt-5 flex items-end justify-between gap-4">
-        <p className="max-w-[11rem] text-[0.875rem] leading-snug text-white/62">
-          {owners} Besitzer liefern das Signal nach echter Nutzung.
-        </p>
+      <div className="mt-5 grid grid-cols-[1fr_auto] items-end gap-4">
+        <div className="space-y-2">
+          <p className="text-[0.875rem] leading-snug text-white/62">
+            {owners} Besitzer liefern das Signal nach echter Nutzung.
+          </p>
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-positive shadow-[0_0_18px_rgba(47,159,86,0.55)]"
+              style={{ width: `${Math.max(8, score ?? 0)}%` }}
+            />
+          </div>
+        </div>
         <ScoreRing score={score} tone="auto" size={98} animate className="shrink-0" />
       </div>
     </>
@@ -117,6 +144,10 @@ export default async function HomePage() {
   const heroProduct = topRebuy[0]?.product ?? mostDiscussed[0]?.product;
   const heroScore = heroProduct?.rebuyScore ?? 86;
   const heroOwners = heroProduct?.ownerCount ?? 142;
+  const signalCount = [...topRebuy, ...topRegret, ...mostDiscussed].reduce(
+    (sum, entry) => sum + entry.product.experienceCount,
+    0,
+  );
 
   return (
     <div className="animate-fade space-y-7 pt-2">
@@ -124,18 +155,23 @@ export default async function HomePage() {
       <section className="relative overflow-hidden rounded-[1.7rem] bg-ink text-white shadow-[var(--shadow-pop)] ring-1 ring-black/5">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(43,107,255,0.42),transparent_38%),linear-gradient(225deg,rgba(47,159,86,0.28),transparent_42%)]"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(83,132,255,0.52),transparent_34%),radial-gradient(circle_at_92%_8%,rgba(47,159,86,0.34),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_42%)]"
         />
-        <div className="relative grid gap-5 p-5 sm:grid-cols-[1fr_15rem] sm:items-center">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-24 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-white/[0.07] blur-3xl"
+        />
+        <div className="relative grid gap-5 p-5 sm:grid-cols-[1fr_18rem] sm:items-center sm:p-6">
           <div>
-            <p className="text-[0.75rem] font-semibold uppercase tracking-[0.14em] text-white/55">
-              Wudly
+            <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[0.75rem] font-semibold uppercase tracking-[0.12em] text-white/62 ring-1 ring-white/12">
+              <TrendingUp className="h-3.5 w-3.5" strokeWidth={2.4} aria-hidden />
+              Kaufentscheidung nach echter Nutzung
             </p>
-            <h1 className="mt-2 text-balance text-[2.45rem] font-bold leading-[1.02] text-white">
+            <h1 className="mt-3 text-balance text-[2.45rem] font-bold leading-[1.02] text-white sm:text-[3rem]">
               Würdest du es wieder kaufen?
             </h1>
             <p className="mt-3 max-w-[22rem] text-pretty text-[1.0625rem] leading-snug text-white/68">
-              Echte Besitzer. Echte Nutzung. Bessere Käufe.
+              Scanne Barcode oder Produktfoto und sieh, was Besitzer nach Wochen oder Monaten wirklich sagen.
             </p>
 
             <div className="mt-5 grid gap-2.5">
@@ -152,8 +188,13 @@ export default async function HomePage() {
                 className="press flex h-[3.125rem] items-center justify-center gap-2 rounded-[1rem] bg-white/12 text-[1.0625rem] font-semibold text-white ring-1 ring-white/14"
               >
                 <Camera className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.4} />
-                Kamera öffnen
+                Kamera & Foto öffnen
               </Link>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <HeroMetric value={signalCount > 0 ? String(signalCount) : 'Live'} label="Signale" />
+              <HeroMetric value="Foto" label="Produktbild" />
+              <HeroMetric value="EAN" label="Barcode" />
             </div>
           </div>
 
@@ -177,6 +218,39 @@ export default async function HomePage() {
           );
         })}
       </div>
+
+      <section className="grid gap-2.5 sm:grid-cols-3">
+        {[
+          {
+            icon: Camera,
+            title: 'Barcode scannt schnell',
+            desc: 'EAN/UPC wird direkt mit dem Katalog abgeglichen.',
+          },
+          {
+            icon: Image,
+            title: 'Foto wird Produktbild',
+            desc: 'Wenn kein Barcode passt, übernimmt Wudly den zentrierten Fotoausschnitt.',
+          },
+          {
+            icon: ShieldCheck,
+            title: 'Score statt Sterne',
+            desc: 'Das Signal basiert auf echter Besitzdauer und Nutzung.',
+          },
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <div key={item.title} className="card-elevated p-4">
+              <span className="grid h-10 w-10 place-items-center rounded-[0.9rem] bg-accent-soft text-accent">
+                <Icon className="h-5 w-5" strokeWidth={2.3} aria-hidden />
+              </span>
+              <h2 className="mt-3 text-[1rem] font-bold leading-tight text-label">{item.title}</h2>
+              <p className="mt-1 text-[0.8125rem] leading-snug text-muted-foreground">
+                {item.desc}
+              </p>
+            </div>
+          );
+        })}
+      </section>
 
       <section className="card-elevated overflow-hidden">
         <div className="p-4">

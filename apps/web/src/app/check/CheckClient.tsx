@@ -4,10 +4,13 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
+  Barcode,
   Camera,
   ChevronRight,
+  ImagePlus,
   Link2,
   Loader2,
+  PackageCheck,
   Search,
   ShieldCheck,
   Sparkles,
@@ -24,7 +27,7 @@ import { ApiError } from '@/lib/api-client';
 import { ProductList } from '@/components/ProductList';
 import { EmptyState, Skeleton } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
-import { categoryEmoji, categoryTile } from '@/lib/categories';
+import { categoryTile } from '@/lib/categories';
 import { AddProductForm } from './AddProductForm';
 import { CameraScanner } from './CameraScanner';
 import { HouseholdSwipeDeck } from './HouseholdSwipeDeck';
@@ -60,6 +63,7 @@ export function CheckClient({
   const [regretLoading, setRegretLoading] = useState(false);
   const [researching, setResearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shopInputRef = useRef<HTMLInputElement | null>(null);
 
   const runSearch = useCallback(async (q: string) => {
     if (q.trim().length < 2) {
@@ -233,25 +237,58 @@ export function CheckClient({
         <section className="relative overflow-hidden rounded-[1.35rem] bg-ink p-4 text-white shadow-[var(--shadow-pop)] ring-1 ring-black/5">
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(10,116,255,0.36),transparent_44%),linear-gradient(225deg,rgba(47,159,86,0.22),transparent_48%)]"
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(10,116,255,0.46),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(47,159,86,0.28),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_50%)]"
           />
-          <div className="relative flex items-center gap-3.5">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[1rem] bg-white text-ink shadow-sm">
-              <Camera className="h-6 w-6" strokeWidth={2.3} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[1.0625rem] font-bold leading-tight">Barcode oder Produktfoto</h2>
-              <p className="mt-1 text-[0.8125rem] leading-snug text-white/68">
-                Neue Produkte bekommen beim Foto-Scan direkt ein Bild.
-              </p>
+          <div className="relative">
+            <div className="flex items-center gap-3.5">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[1rem] bg-white text-ink shadow-sm">
+                <Camera className="h-6 w-6" strokeWidth={2.3} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[1.125rem] font-bold leading-tight">Scanner Studio</h2>
+                <p className="mt-1 text-[0.8125rem] leading-snug text-white/68">
+                  Barcode lesen, Produkt fotografieren oder direkt vor dem Kauf prüfen.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setScannerOpen(true)}
+                className="press flex h-11 shrink-0 items-center justify-center rounded-[0.85rem] bg-white px-4 text-[0.9375rem] font-semibold text-ink"
+              >
+                Start
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setScannerOpen(true)}
-              className="press flex h-11 shrink-0 items-center justify-center rounded-[0.85rem] bg-white px-4 text-[0.9375rem] font-semibold text-ink"
-            >
-              Scan
-            </button>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {[
+                { icon: Barcode, label: 'Barcode', text: 'EAN/UPC' },
+                { icon: ImagePlus, label: 'Foto', text: 'mit Bild' },
+                { icon: Link2, label: 'Shop', text: 'Regret' },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => {
+                      if (item.label === 'Shop') {
+                        shopInputRef.current?.focus();
+                      } else {
+                        setScannerOpen(true);
+                      }
+                    }}
+                    className="press rounded-[0.95rem] bg-white/10 px-2 py-3 text-left ring-1 ring-white/12"
+                  >
+                    <Icon className="h-5 w-5 text-white" strokeWidth={2.3} aria-hidden />
+                    <span className="mt-2 block text-[0.8125rem] font-semibold leading-tight">
+                      {item.label}
+                    </span>
+                    <span className="mt-0.5 block text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-white/48">
+                      {item.text}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </section>
       )}
@@ -354,6 +391,7 @@ export function CheckClient({
                 }}
               >
                 <input
+                  ref={shopInputRef}
                   value={shopUrl}
                   onChange={(event) => {
                     setShopUrl(event.target.value);
@@ -415,17 +453,22 @@ export function CheckClient({
                   <Link
                     key={c.id}
                     href={`/rankings?cat=${c.slug}`}
-                    className="card press flex min-h-[4.25rem] items-center gap-3 p-2.5"
+                    className="card press flex min-h-[4.5rem] items-center gap-3 p-2.5"
                   >
                     <span
-                      className="grid h-12 w-12 shrink-0 place-items-center rounded-[0.75rem] text-[1.5rem] ring-1 ring-black/[0.04]"
+                      className="grid h-12 w-12 shrink-0 place-items-center rounded-[0.75rem] text-accent ring-1 ring-black/[0.04]"
                       style={{ backgroundImage: categoryTile(c.slug) }}
                     >
-                      {categoryEmoji(c.slug, c.name)}
+                      <PackageCheck className="h-5 w-5" strokeWidth={2.2} aria-hidden />
                     </span>
                     <span className="min-w-0 flex-1 text-[0.9375rem] font-medium leading-tight text-label [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
                       {c.name}
                     </span>
+                    <ChevronRight
+                      className="h-4 w-4 shrink-0 text-label-3"
+                      strokeWidth={2.5}
+                      aria-hidden
+                    />
                   </Link>
                 ))}
               </div>

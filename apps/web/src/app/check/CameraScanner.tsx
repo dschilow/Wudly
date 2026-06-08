@@ -380,6 +380,9 @@ export function CameraScanner({
   const capturedImage = photo.status === 'idle' ? null : photo.imageDataUrl;
   const showCapture = Boolean(capturedImage);
   const photoMode = mode === 'photo' || status === 'unsupported';
+  const captureGuides = photoMode
+    ? ['Front sichtbar', 'ruhig halten', 'Licht nutzen']
+    : ['Code füllen', 'leicht kippen', 'Abstand halten'];
 
   return createPortal(
     <div className="fixed inset-0 z-[100] bg-ink text-white" role="dialog" aria-modal="true">
@@ -493,6 +496,17 @@ export function CameraScanner({
                 icon={<Camera className="h-4 w-4" strokeWidth={2.4} />}
                 onClick={() => setMode('photo')}
               />
+            </div>
+
+            <div className="mt-3 grid grid-cols-3 gap-1.5">
+              {captureGuides.map((guide) => (
+                <div
+                  key={guide}
+                  className="rounded-[0.7rem] bg-white/8 px-2 py-1.5 text-center text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-white/58 ring-1 ring-white/10"
+                >
+                  {guide}
+                </div>
+              ))}
             </div>
 
             <div className="mt-3 flex items-start gap-3">
@@ -658,6 +672,9 @@ function ResultCard({
           </p>
           <h3 className="mt-0.5 truncate text-[1.125rem] font-bold leading-tight">{title}</h3>
           {sub && <p className="mt-0.5 truncate text-[0.8125rem] text-white/70">{sub}</p>}
+          <p className="mt-1 text-[0.75rem] font-medium text-white/56">
+            Foto wird als Produktbild übernommen.
+          </p>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
