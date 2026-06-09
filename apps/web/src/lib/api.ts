@@ -204,6 +204,7 @@ export const api = {
     // Showcases
     forProduct: (productId: string, opts?: RequestOptions) =>
       apiFetch<ShowcaseSummaryDto[]>(`/products/${productId}/showcases`, opts),
+    mine: (opts?: RequestOptions) => apiFetch<ShowcaseSummaryDto[]>('/me/showcases', opts),
     get: (id: string, opts?: RequestOptions) =>
       apiFetch<ShowcaseDetailDto>(`/showcases/${id}`, opts),
     create: (productId: string, input: CreateShowcaseInput) =>

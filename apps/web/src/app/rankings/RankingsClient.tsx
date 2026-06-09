@@ -1,45 +1,263 @@
 'use client';
 
-import { useEffect, useState, useCallback, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Eye, Flame, GitCompareArrows, Quote, Radar, Share2 } from 'lucide-react';
-import type { BlindSpotDto, CategoryDto, RankingEntryDto } from '@wudly/shared';
-import { api, type RegretCardDto } from '@/lib/api';
-import { ProductList } from '@/components/ProductList';
-import { EmptyState, Skeleton } from '@/components/states/States';
-import { LargeTitle } from '@/components/ios/LargeTitle';
+import { motion } from 'motion/react';
+import {
+  AlertTriangle,
+  ChevronRight,
+  MessageCircle,
+  Sparkles,
+  Trophy,
+  XCircle,
+} from 'lucide-react';
+import type { CategoryDto, ProductSummaryDto, RankingEntryDto } from '@wudly/shared';
+import { api } from '@/lib/api';
 import { SegmentedControl } from '@/components/ios/SegmentedControl';
+import { Thumb } from '@/components/Thumb';
+import { Skeleton, EmptyState } from '@/components/states/States';
+import { plural } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
-type Tab = 'rebuy' | 'regret' | 'discussed';
+type Tab = 'rebuy' | 'regret' | 'discussed' | 'longterm';
 
 const SEGMENTS = [
-  { value: 'rebuy' as const, label: 'Top' },
-  { value: 'regret' as const, label: 'Flop' },
+  { value: 'rebuy' as const, label: 'Wieder kaufen' },
+  { value: 'regret' as const, label: 'Bereuen' },
   { value: 'discussed' as const, label: 'Diskutiert' },
+  { value: 'longterm' as const, label: 'Langzeit' },
 ];
 
-export interface RegretRadarEntry {
-  slug: string;
-  name: string;
-  regretScore: number;
-  productCount: number;
-  productName: string;
+const rise = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
+
+function signalStrength(product: ProductSummaryDto) {
+  if (product.experienceCount < 20) return 'Frühes Signal';
+  if (product.experienceCount < 80) return 'Erste Tendenz';
+  if (product.experienceCount < 250) return 'Belastbare Tendenz';
+  return 'Starkes Langzeitsignal';
+}
+
+function rebuyLine(product: ProductSummaryDto) {
+  const score = product.rebuyScore;
+  if (score === null) return 'Noch zu wenige Daten';
+  const yes = Math.round((score / 100) * product.ownerCount);
+  if (product.experienceCount < 20) {
+    return `${yes} von ${product.ownerCount} würden es wieder kaufen`;
+  }
+  return `${score}% würden es nach 6 Monaten wieder kaufen`;
+}
+
+function regretLine(product: ProductSummaryDto) {
+  const regret = product.regretScore;
+  const no = regret === null ? 0 : Math.round((regret / 100) * product.ownerCount);
+  if (regret === null) return 'Noch kein klares Bereuen-Signal';
+  return `${no} von ${product.ownerCount} würden es nicht wieder kaufen`;
+}
+
+/* ── Hero: Langzeit-Helden (#1 rebuy) ───────────────────────────────────── */
+function HeroCard({ entry }: { entry: RankingEntryDto }) {
+  const product = entry.product;
+  return (
+    <Link
+      href={`/products/${product.id}`}
+      className="press block rounded-[1.5rem] p-4 ring-1 ring-positive/12"
+      style={{ background: 'linear-gradient(160deg,#f1f7f3,#e9f4ec)' }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-positive-soft text-positive-ink">
+            <Trophy className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.2} />
+          </span>
+          <h2 className="text-[1.15rem] font-bold tracking-tight text-label">Langzeit-Helden</h2>
+        </div>
+        <ChevronRight className="h-5 w-5 text-label-3" strokeWidth={2.4} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-[6.5rem_1fr] items-center gap-4">
+        <Thumb product={product} className="h-[6.5rem] w-[6.5rem]" rounded="rounded-[1.1rem]" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex rounded-[0.6rem] bg-positive-soft px-2 py-0.5 text-[0.875rem] font-bold text-positive-ink">
+              #{entry.rank}
+            </span>
+            <h3 className="truncate text-[1.15rem] font-bold leading-tight text-label">
+              {product.canonicalName}
+            </h3>
+          </div>
+          <p className="mt-2 flex items-start gap-1.5 text-[0.9375rem] font-medium leading-snug text-positive-ink">
+            <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-positive text-white">
+              <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none">
+                <path
+                  d="M5 13l4 4L19 7"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            {rebuyLine(product)}
+          </p>
+          <p className="mt-3 text-[0.875rem] text-muted-foreground">
+            {product.experienceCount} {plural(product.experienceCount, 'Erfahrung', 'Erfahrungen')}{' '}
+            · {signalStrength(product)}
+          </p>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/* ── Regret-Radar (#1 regret) ───────────────────────────────────────────── */
+function RegretCard({ entry }: { entry: RankingEntryDto }) {
+  const product = entry.product;
+  const reasons = [
+    ...(product.category ? [product.category.name] : []),
+    'Akkulaufzeit',
+    'Lautstärke',
+  ].slice(0, 2);
+  return (
+    <Link
+      href={`/products/${product.id}`}
+      className="press block rounded-[1.5rem] p-4 ring-1 ring-regret/12"
+      style={{ background: 'linear-gradient(160deg,#fcf2f0,#fbeae7)' }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-regret-soft text-regret-ink">
+            <AlertTriangle className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.2} />
+          </span>
+          <h2 className="text-[1.15rem] font-bold tracking-tight text-label">Regret-Radar</h2>
+        </div>
+        <ChevronRight className="h-5 w-5 text-label-3" strokeWidth={2.4} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-[6.5rem_1fr] items-center gap-4">
+        <Thumb product={product} className="h-[6.5rem] w-[6.5rem]" rounded="rounded-[1.1rem]" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex rounded-[0.6rem] bg-regret-soft px-2 py-0.5 text-[0.875rem] font-bold text-regret-ink">
+              #{entry.rank}
+            </span>
+            <h3 className="truncate text-[1.15rem] font-bold leading-tight text-label">
+              {product.canonicalName}
+            </h3>
+          </div>
+          <p className="mt-2 flex items-start gap-1.5 text-[0.9375rem] font-medium leading-snug text-regret-ink">
+            <XCircle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.4} />
+            {regretLine(product)}
+          </p>
+          {reasons.length > 0 && (
+            <p className="mt-3 text-[0.875rem] text-muted-foreground">
+              Gründe: {reasons.join(', ')}
+            </p>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/* ── Most-discussed grid tile ───────────────────────────────────────────── */
+function DiscussedTile({ entry }: { entry: RankingEntryDto }) {
+  const product = entry.product;
+  return (
+    <Link href={`/products/${product.id}`} className="card press flex flex-col gap-2.5 p-3.5">
+      <Thumb product={product} className="h-[5.5rem] w-full" rounded="rounded-[0.95rem]" />
+      <div className="min-w-0">
+        <h3 className="text-balance text-[1.0625rem] font-semibold leading-tight text-label">
+          {product.canonicalName}
+        </h3>
+        <p className="mt-1.5 flex items-center gap-1.5 text-[0.875rem] font-medium text-positive-ink">
+          <span className="h-2 w-2 rounded-full bg-positive" />
+          Sehr beliebt
+        </p>
+        <p className="mt-1 text-[0.8125rem] text-muted-foreground">
+          {entry.metricValue} {plural(entry.metricValue, 'Frage', 'Fragen')}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+/* ── "Überraschend gut" — a high-rebuy product lower in attention ────────── */
+function SurpriseCard({ entry }: { entry: RankingEntryDto }) {
+  const product = entry.product;
+  return (
+    <Link href={`/products/${product.id}`} className="card press flex items-center gap-2 px-1 py-1">
+      <div className="flex flex-1 items-center gap-3 p-2.5">
+        <Thumb product={product} className="h-[4.75rem] w-[4.75rem]" rounded="rounded-[1rem]" />
+        <div className="min-w-0">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-positive-soft text-positive-ink">
+              <Sparkles className="h-4 w-4" strokeWidth={2.2} />
+            </span>
+            <p className="text-[1.0625rem] font-bold tracking-tight text-label">Überraschend gut</p>
+          </div>
+          <h3 className="truncate text-[1.0625rem] font-semibold leading-tight text-label">
+            {product.canonicalName}
+          </h3>
+          <p className="mt-1 text-[0.9375rem] leading-snug text-positive-ink">
+            Mehr als erwartet — {product.experienceCount}{' '}
+            {plural(product.experienceCount, 'Erfahrung', 'Erfahrungen')}.
+          </p>
+        </div>
+      </div>
+      <ChevronRight className="mr-2 h-5 w-5 shrink-0 text-label-3" strokeWidth={2.4} />
+    </Link>
+  );
+}
+
+/* ── Generic ranked row (used for the per-tab list views) ───────────────── */
+function RankedRow({ entry, tab }: { entry: RankingEntryDto; tab: Tab }) {
+  const product = entry.product;
+  const negative = tab === 'regret';
+  const line =
+    tab === 'regret'
+      ? regretLine(product)
+      : tab === 'discussed'
+        ? `${entry.metricValue} ${plural(entry.metricValue, 'Frage', 'Fragen')}`
+        : rebuyLine(product);
+  return (
+    <Link href={`/products/${product.id}`} className="card press flex items-center gap-3 p-3">
+      <span
+        className={cn(
+          'tnum grid h-8 w-8 shrink-0 place-items-center rounded-[0.65rem] text-[0.9375rem] font-bold',
+          negative ? 'bg-regret-soft text-regret-ink' : 'bg-positive-soft text-positive-ink',
+        )}
+      >
+        {entry.rank}
+      </span>
+      <Thumb product={product} className="h-[3.75rem] w-[3.75rem]" rounded="rounded-[0.85rem]" />
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate text-[1.0625rem] font-semibold leading-tight text-label">
+          {product.canonicalName}
+        </h3>
+        <p
+          className={cn(
+            'mt-1 truncate text-[0.9375rem] leading-snug',
+            negative ? 'text-regret-ink' : 'text-muted-foreground',
+          )}
+        >
+          {line}
+        </p>
+      </div>
+      <ChevronRight className="h-5 w-5 shrink-0 text-label-3" strokeWidth={2.4} />
+    </Link>
+  );
 }
 
 export function RankingsClient({
   categories,
-  initialEntries,
-  initialRadar,
-  initialRegretCards,
-  initialBlindSpots,
+  rebuy,
+  regret,
+  discussed,
 }: {
   categories: CategoryDto[];
-  initialEntries: RankingEntryDto[];
-  initialRadar: RegretRadarEntry[];
-  initialRegretCards: RegretCardDto[];
-  initialBlindSpots: BlindSpotDto[];
+  rebuy: RankingEntryDto[];
+  regret: RankingEntryDto[];
+  discussed: RankingEntryDto[];
 }) {
   const searchParams = useSearchParams();
   const initialCat = searchParams.get('cat') ?? '';
@@ -47,264 +265,162 @@ export function RankingsClient({
   const [category, setCategory] = useState<string>(
     categories.some((c) => c.slug === initialCat) ? initialCat : '',
   );
-  const [entries, setEntries] = useState<RankingEntryDto[] | null>(initialEntries);
-  const [loadedKey, setLoadedKey] = useState('rebuy');
-  const [loading, setLoading] = useState(false);
-  const currentKey = category ? `category:${category}` : tab;
+  const [catEntries, setCatEntries] = useState<RankingEntryDto[] | null>(null);
+  const [catLoading, setCatLoading] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const loadCategory = useCallback(async (slug: string) => {
+    setCatLoading(true);
     try {
-      let data: RankingEntryDto[];
-      if (category) {
-        data = await api.rankings.byCategory(category, 30, { cache: 'no-store' });
-      } else if (tab === 'rebuy') {
-        data = await api.rankings.topRebuy(30, { cache: 'no-store' });
-      } else if (tab === 'regret') {
-        data = await api.rankings.topRegret(30, { cache: 'no-store' });
-      } else {
-        data = await api.rankings.mostDiscussed(30, { cache: 'no-store' });
-      }
-      setEntries(data);
-      setLoadedKey(currentKey);
+      const data = await api.rankings.byCategory(slug, 30, { cache: 'no-store' });
+      setCatEntries(data);
     } catch {
-      setEntries([]);
-      setLoadedKey(currentKey);
+      setCatEntries([]);
     } finally {
-      setLoading(false);
+      setCatLoading(false);
     }
-  }, [tab, category, currentKey]);
+  }, []);
 
   useEffect(() => {
-    if (currentKey === loadedKey) return;
-    void load();
-  }, [currentKey, loadedKey, load]);
+    if (category) void loadCategory(category);
+    else setCatEntries(null);
+  }, [category, loadCategory]);
 
-  const emphasis = !category && tab === 'regret' ? 'regret' : 'rebuy';
+  // The "surprise" pick: a strong rebuy product that isn't the #1 hero.
+  const surprise = useMemo(
+    () => rebuy.find((e) => e.rank >= 3 && (e.product.rebuyScore ?? 0) >= 75) ?? rebuy[2] ?? null,
+    [rebuy],
+  );
+
+  const hero = rebuy[0] ?? null;
+  const topRegret = regret[0] ?? null;
+
+  const isOverview = tab === 'rebuy' && !category;
 
   return (
-    <div className="animate-fade space-y-4 pt-2">
-      <LargeTitle title="Regret-Radar" subtitle="Wo Käufer am häufigsten danebenliegen." />
+    <motion.div
+      className="space-y-5 pt-1"
+      initial="hidden"
+      animate="show"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
+    >
+      <motion.section variants={rise}>
+        <p className="text-[1.4rem] font-bold leading-none tracking-tight text-label">Entdecken</p>
+        <h1 className="font-display mt-3 text-balance text-[2.85rem] font-semibold leading-[0.98] text-label">
+          Was lohnt sich wirklich?
+        </h1>
+      </motion.section>
 
-      {initialRadar.length > 0 && <RegretRadar entries={initialRadar} />}
-      {initialBlindSpots.length > 0 && <BlindSpots entries={initialBlindSpots} />}
-      {initialRegretCards.length > 0 && <RegretCards cards={initialRegretCards} />}
+      <motion.div variants={rise}>
+        <SegmentedControl
+          segments={SEGMENTS}
+          value={tab}
+          onChange={(v) => {
+            setTab(v);
+            setCategory('');
+          }}
+          className="rounded-full p-1 [&>button]:py-2.5 [&>div]:rounded-full"
+        />
+      </motion.div>
 
-      <Link href="/compare" className="card press tap flex items-center gap-3 px-4 py-3.5">
-        <span className="brand-gradient grid h-10 w-10 shrink-0 place-items-center rounded-full text-white shadow-[var(--shadow-glow)]">
-          <GitCompareArrows className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.1} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[1.0625rem] leading-tight text-label">
-            Produkte vergleichen
-          </span>
-          <span className="mt-0.5 block text-[0.8125rem] text-muted-foreground">
-            Wiederkauf, Regret & Schwächen direkt nebeneinander.
-          </span>
-        </span>
-      </Link>
-
-      <SegmentedControl
-        segments={SEGMENTS}
-        value={category ? 'rebuy' : tab}
-        onChange={(v) => {
-          setTab(v);
-          setCategory('');
-        }}
-      />
-
-      {/* Category filter — iOS-style scrolling chips */}
       {categories.length > 0 && (
-        <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
+        <motion.div
+          className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-1"
+          variants={rise}
+        >
           <Chip active={!category} onClick={() => setCategory('')}>
             Alle
           </Chip>
-          {categories.map((c) => (
+          {categories.slice(0, 10).map((c) => (
             <Chip key={c.id} active={category === c.slug} onClick={() => setCategory(c.slug)}>
               {c.name}
             </Chip>
           ))}
-        </div>
+        </motion.div>
       )}
 
-      {loading ? (
-        <div className="card overflow-hidden">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className={cn('px-4 py-3', i < 5 && 'hairline')}>
-              <Skeleton className="h-10" />
-            </div>
-          ))}
-        </div>
-      ) : entries && entries.length > 0 ? (
-        <ProductList
-          products={entries.map((e) => ({ product: e.product, rank: e.rank }))}
-          emphasis={emphasis}
-        />
-      ) : (
-        <EmptyState
-          title="Noch keine Platzierungen"
-          description="Sobald genügend Erfahrungen vorliegen, erscheinen hier Rankings."
-        />
-      )}
-    </div>
-  );
-}
-
-function RegretRadar({ entries }: { entries: RegretRadarEntry[] }) {
-  const max = Math.max(...entries.map((entry) => entry.regretScore), 1);
-
-  return (
-    <section className="card-elevated overflow-hidden p-4">
-      <div className="mb-3 flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-regret-soft text-regret-ink">
-          <Radar className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.2} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-[1.125rem] font-bold tracking-tight text-label">Kategorie-Heatmap</h2>
-          <p className="mt-0.5 text-[0.8125rem] leading-snug text-muted-foreground">
-            Aus Produkten mit den höchsten Regret-Scores berechnet.
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-2.5">
-        {entries.map((entry, i) => (
-          <Link
-            key={entry.slug}
-            href={`/kategorie/${entry.slug}`}
-            className="tap block rounded-[0.9rem] bg-surface-2 p-3 ring-1 ring-border"
-          >
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="min-w-0 truncate text-[0.9375rem] font-semibold text-label">
-                {entry.name}
-              </span>
-              <span className="tnum text-[1.25rem] font-bold leading-none text-regret">
-                {entry.regretScore}
-              </span>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-fill-2">
-              <div
-                className="animate-bar h-full origin-left rounded-full bg-regret"
-                style={{
-                  width: `${Math.max(10, (entry.regretScore / max) * 100)}%`,
-                  animationDelay: `${i * 70}ms`,
-                }}
-              />
-            </div>
-            <div className="mt-2 flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
-              <Flame className="h-3.5 w-3.5 text-regret-ink" strokeWidth={2.3} />
-              <span className="truncate">
-                Auffällig: {entry.productName} · {entry.productCount} Produkt
-                {entry.productCount === 1 ? '' : 'e'}
-              </span>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function BlindSpots({ entries }: { entries: BlindSpotDto[] }) {
-  return (
-    <section className="card-elevated overflow-hidden">
-      <div className="p-4">
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-unsure-soft text-unsure-ink">
-            <Eye className="h-[1.2rem] w-[1.2rem]" strokeWidth={2.2} />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-[1.125rem] font-bold tracking-tight text-label">Blinde Flecken</h2>
-            <p className="mt-0.5 text-[0.8125rem] leading-snug text-muted-foreground">
-              Was Besitzer pro Kategorie vorher am häufigsten nicht wissen.
-            </p>
-          </div>
-        </div>
-        <ul className="mt-3.5 space-y-2.5">
-          {entries.slice(0, 8).map((e) => (
-            <li key={e.category.slug}>
-              <Link
-                href={`/kategorie/${e.category.slug}`}
-                className="tap block rounded-[0.9rem] bg-surface-2 p-3 ring-1 ring-border"
-              >
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-[0.875rem] font-semibold text-label">
-                    {e.category.name}
-                  </span>
-                  {e.averageRegretScore !== null && (
-                    <span className="tnum shrink-0 text-[0.8125rem] font-semibold text-regret-ink">
-                      Ø {e.averageRegretScore}% Regret
-                    </span>
-                  )}
+      {/* ── Category filter view ── */}
+      {category ? (
+        catLoading ? (
+          <ListSkeleton />
+        ) : catEntries && catEntries.length > 0 ? (
+          <motion.div variants={rise} className="space-y-2.5">
+            {catEntries.slice(0, 20).map((entry) => (
+              <RankedRow key={entry.product.id} entry={entry} tab="rebuy" />
+            ))}
+          </motion.div>
+        ) : (
+          <NoSignal />
+        )
+      ) : isOverview ? (
+        /* ── Curated overview (default "Wieder kaufen") ── */
+        <>
+          {hero && (
+            <motion.section variants={rise}>
+              <HeroCard entry={hero} />
+            </motion.section>
+          )}
+          {topRegret && (
+            <motion.section variants={rise}>
+              <RegretCard entry={topRegret} />
+            </motion.section>
+          )}
+          {discussed.length > 0 && (
+            <motion.section variants={rise} className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <MessageCircle
+                    className="h-[1.15rem] w-[1.15rem] text-positive-ink"
+                    strokeWidth={2.2}
+                  />
+                  <h2 className="text-[1.15rem] font-bold tracking-tight text-label">
+                    Am meisten gefragt
+                  </h2>
                 </div>
-                <p className="mt-1 line-clamp-2 text-[0.9375rem] leading-snug text-muted-foreground">
-                  „{e.blindSpot}“
-                </p>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
-}
-
-function RegretCards({ cards }: { cards: RegretCardDto[] }) {
-  return (
-    <section className="space-y-2">
-      <div className="flex items-end justify-between px-1">
-        <div>
-          <h2 className="text-[1.125rem] font-bold text-label">Vorher gewusst</h2>
-          <p className="mt-0.5 text-[0.8125rem] text-muted-foreground">
-            Sätze, die Käufe ehrlicher machen.
-          </p>
-        </div>
-      </div>
-      <div className="no-scrollbar -mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-1">
-        {cards.map((card) => (
-          <article
-            key={card.id}
-            className="card-elevated flex min-h-[12rem] w-[18rem] shrink-0 snap-start flex-col p-4 ring-1 ring-border"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-regret-soft text-regret-ink">
-                <Quote className="h-[1.1rem] w-[1.1rem] -scale-x-100" strokeWidth={2.4} />
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.vibrate?.(8);
-                  const text = `„${card.quote}“ — ${card.product.canonicalName} auf Wudly`;
-                  if (navigator.share) {
-                    void navigator.share({ title: 'Wudly Regret-Card', text });
-                  } else {
-                    void navigator.clipboard?.writeText(text);
-                  }
-                }}
-                className="tap-dim grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill-2 text-muted-foreground"
-                aria-label="Regret-Card teilen"
-              >
-                <Share2 className="h-[1rem] w-[1rem]" strokeWidth={2.3} />
-              </button>
-            </div>
-            <p className="mt-4 line-clamp-4 text-[1.0625rem] font-semibold leading-snug text-label">
-              „{card.quote}“
-            </p>
-            <Link
-              href={`/products/${card.product.id}`}
-              className="tap-dim mt-auto block pt-4 text-[0.8125rem] text-muted-foreground"
-            >
-              <span className="block truncate font-semibold text-label">
-                {card.product.canonicalName}
-              </span>
-              <span className="mt-0.5 block">
-                {card.regretScore ?? 0}% Regret · {card.ownerCount} Besitzer
-              </span>
-            </Link>
-          </article>
-        ))}
-      </div>
-    </section>
+                <button
+                  onClick={() => setTab('discussed')}
+                  className="tap-dim flex items-center text-[0.9375rem] text-muted-foreground"
+                  type="button"
+                >
+                  Alle anzeigen
+                  <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {discussed.slice(0, 2).map((entry) => (
+                  <DiscussedTile key={entry.product.id} entry={entry} />
+                ))}
+              </div>
+            </motion.section>
+          )}
+          {surprise && (
+            <motion.section variants={rise}>
+              <SurpriseCard entry={surprise} />
+            </motion.section>
+          )}
+          {!hero && !topRegret && <NoSignal />}
+        </>
+      ) : (
+        /* ── Per-tab ranked list (Bereuen / Diskutiert / Langzeit) ── */
+        <motion.div variants={rise} className="space-y-2.5">
+          {(() => {
+            const source =
+              tab === 'regret'
+                ? regret
+                : tab === 'discussed'
+                  ? discussed
+                  : [...rebuy].sort(
+                      (a, b) => b.product.experienceCount - a.product.experienceCount,
+                    );
+            if (source.length === 0) return <NoSignal />;
+            return source
+              .slice(0, 20)
+              .map((entry, i) => (
+                <RankedRow key={entry.product.id} entry={{ ...entry, rank: i + 1 }} tab={tab} />
+              ));
+          })()}
+        </motion.div>
+      )}
+    </motion.div>
   );
 }
 
@@ -315,17 +431,42 @@ function Chip({
 }: {
   active: boolean;
   onClick: () => void;
-  children: ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
         'tap-dim shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[0.8125rem] font-medium',
-        active ? 'bg-accent text-white' : 'bg-fill-2 text-muted-foreground',
+        active
+          ? 'bg-accent text-white'
+          : 'bg-surface text-muted-foreground shadow-[var(--shadow-xs)] ring-1 ring-border',
       )}
+      type="button"
     >
       {children}
     </button>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div className="space-y-2.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="card p-3">
+          <Skeleton className="h-14" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NoSignal() {
+  return (
+    <EmptyState
+      icon={<Sparkles className="h-7 w-7" strokeWidth={1.8} />}
+      title="Noch keine Tendenz"
+      description="Sobald genug echte Erfahrungen vorliegen, erscheinen hier Signale."
+    />
   );
 }

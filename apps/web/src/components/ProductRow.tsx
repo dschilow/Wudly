@@ -23,6 +23,11 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
   const showRegret = emphasis === 'regret';
   const score = showRegret ? product.regretScore : product.rebuyScore;
   const medal = rank !== undefined && rank <= 3;
+  const earlySignal = product.experienceCount < 20;
+  const yesCount =
+    product.rebuyScore === null
+      ? null
+      : Math.round((product.rebuyScore / 100) * product.ownerCount);
 
   return (
     <Link
@@ -71,13 +76,22 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
           <div className="mt-1 flex items-center gap-2 text-[0.75rem] text-faint">
             <span className="flex items-center gap-1">
               <span className="tnum">{product.experienceCount}</span>
-              Erfahrung{product.experienceCount === 1 ? '' : 'en'}
+              {product.experienceCount === 1 ? 'Erfahrung' : 'Erfahrungen'}
             </span>
             {product.wudlySeal && <SealBadge />}
           </div>
+          {earlySignal && yesCount !== null && !showRegret && (
+            <p className="mt-1 truncate text-[0.75rem] font-medium text-positive-ink">
+              Frühes Signal · {yesCount} von {product.ownerCount} würden es wieder kaufen
+            </p>
+          )}
         </div>
 
-        <ScoreBadge score={score} kind={showRegret ? 'regret' : 'rebuy'} />
+        <ScoreBadge
+          score={earlySignal && !showRegret ? null : score}
+          kind={showRegret ? 'regret' : 'rebuy'}
+          labelOverride={earlySignal && !showRegret ? 'Signal' : undefined}
+        />
         <ChevronRight
           className="-ml-0.5 -mr-1 h-[1.0625rem] w-[1.0625rem] shrink-0 text-label-3"
           strokeWidth={2.5}

@@ -83,6 +83,12 @@ export class ShowcaseController {
 
   /* ----------------------------- Showcases ---------------------------- */
 
+  @Get('me/showcases')
+  @UseGuards(JwtAuthGuard)
+  listMine(@CurrentUser() user: AuthUser): Promise<ShowcaseSummaryDto[]> {
+    return this.showcase.listMine(user.id);
+  }
+
   @Get('products/:productId/showcases')
   listForProduct(@Param('productId') productId: string): Promise<ShowcaseSummaryDto[]> {
     return this.showcase.listForProduct(productId);

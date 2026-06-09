@@ -37,14 +37,14 @@
   --color-border-strong: #3c3c4340;
 
   /* ---- Brand / Tints ---- */
-  --color-accent: #0a74ff; /* Wudly blue — a touch more saturated than systemBlue */
-  --color-accent-hover: #0a66e6;
-  --color-accent-soft: #0a74ff14;
-  --color-accent-ink: #0058cc;
+  --color-accent: #063f2e; /* Wudly forest */
+  --color-accent-hover: #052f24;
+  --color-accent-soft: #0b6b4312;
+  --color-accent-ink: #063f2e;
   /* Signature brand gradient stops (hero, score ring, key CTAs) */
-  --brand-from: #2b6bff; /* royal blue */
-  --brand-mid: #3f7bff;
-  --brand-to: #6a5cff; /* indigo-violet */
+  --brand-from: #063f2e;
+  --brand-mid: #0b5a3d;
+  --brand-to: #02281f;
 
   --color-primary: #0a0a0c; /* solid action (rare) */
   --color-primary-hover: #1c1c1e;
@@ -84,6 +84,7 @@
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', system-ui,
     Roboto, Helvetica, Arial, sans-serif;
+  --font-display: 'New York', 'Iowan Old Style', Georgia, ui-serif, serif;
 
   --ease-ios: cubic-bezier(0.32, 0.72, 0, 1); /* iOS-like spring-out */
   --ease-out-soft: cubic-bezier(0.32, 0.72, 0, 1);
@@ -113,8 +114,8 @@
     --color-border: #ffffff14;
     --color-border-strong: #ffffff2b;
 
-    --color-accent-soft: #0a74ff24;
-    --color-accent-ink: #8dbbff;
+    --color-accent-soft: #30d15824;
+    --color-accent-ink: #9be7bd;
     --color-positive-soft: #2f9f5624;
     --color-positive-ink: #8edaa6;
     --color-regret-soft: #d84a3a24;
@@ -255,6 +256,10 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: 0;
   }
   .premium-panel {
     background:

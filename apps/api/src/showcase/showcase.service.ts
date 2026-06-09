@@ -149,6 +149,18 @@ export class ShowcaseService {
     return showcases.map(toShowcaseSummaryDto);
   }
 
+  /** All showcases owned by the caller (any status) — the studio overview. */
+  async listMine(userId: string): Promise<ShowcaseSummaryDto[]> {
+    const profile = await this.prisma.professionalProfile.findUnique({ where: { userId } });
+    if (!profile) return [];
+    const showcases = await this.prisma.productShowcase.findMany({
+      where: { profileId: profile.id },
+      orderBy: { updatedAt: 'desc' },
+      include: SHOWCASE_LIST_INCLUDE,
+    });
+    return showcases.map(toShowcaseSummaryDto);
+  }
+
   async getShowcase(id: string): Promise<ShowcaseDetailDto> {
     const showcase = await this.prisma.productShowcase.findUnique({
       where: { id },

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { MyProductsClient } from './MyProductsClient';
 
 export const metadata: Metadata = {
-  title: 'Meine Produkte',
+  title: 'Besitzen',
   robots: { index: false },
 };
 
