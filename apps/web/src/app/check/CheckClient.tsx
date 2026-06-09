@@ -1,40 +1,75 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'motion/react';
 import {
-  Barcode,
+  CalendarDays,
   Camera,
+  CheckCircle2,
   ChevronRight,
-  ImagePlus,
-  Link2,
   Loader2,
   PackageCheck,
   Search,
   ShieldCheck,
   Sparkles,
+  Users,
   X,
 } from 'lucide-react';
-import type {
-  CategoryDto,
-  ProductSummaryDto,
-  IdentifiedProductDto,
-  RegretCheckDto,
-} from '@wudly/shared';
+import type { CategoryDto, IdentifiedProductDto, ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
-import { ProductList } from '@/components/ProductList';
-import { EmptyState, Skeleton } from '@/components/states/States';
-import { LargeTitle } from '@/components/ios/LargeTitle';
 import { categoryTile } from '@/lib/categories';
+import { ProductList } from '@/components/ProductList';
+import { Thumb } from '@/components/Thumb';
+import { EmptyState, Skeleton } from '@/components/states/States';
 import { AddProductForm } from './AddProductForm';
 import { CameraScanner } from './CameraScanner';
-import { HouseholdSwipeDeck } from './HouseholdSwipeDeck';
 
-function GroupLabel({ children }: { children: React.ReactNode }) {
+const rise = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0 },
+};
+
+function signalLabel(product: ProductSummaryDto) {
+  if (product.experienceCount < 20) return 'Frühes Signal';
+  if (product.experienceCount < 80) return 'Erste Tendenz';
+  if (product.experienceCount < 250) return 'Belastbare Tendenz';
+  return 'Starkes Langzeitsignal';
+}
+
+function signalText(product: ProductSummaryDto) {
+  const yes =
+    product.rebuyScore === null
+      ? null
+      : Math.round((product.rebuyScore / 100) * product.ownerCount);
+  if (product.experienceCount < 20 && yes !== null) {
+    return `${signalLabel(product)} · ${yes} von ${product.ownerCount} würden es wieder kaufen`;
+  }
+  if (product.rebuyScore !== null) {
+    return `${signalLabel(product)} · ${product.rebuyScore}% würden es wieder kaufen`;
+  }
+  return 'Noch kein belastbares Signal';
+}
+
+function RecentProduct({ product }: { product: ProductSummaryDto }) {
   return (
-    <p className="px-1 pb-2 text-[1.0625rem] font-bold tracking-tight text-label">{children}</p>
+    <Link href={`/products/${product.id}`} className="card press flex items-center gap-3 p-3">
+      <Thumb product={product} className="h-[4.25rem] w-[4.25rem]" rounded="rounded-[1rem]" />
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate text-[1.0625rem] font-semibold leading-tight text-label">
+          {product.canonicalName}
+        </h3>
+        <p className="mt-1 text-[0.875rem] leading-snug text-muted-foreground">
+          {signalText(product)}
+        </p>
+      </div>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-positive text-white shadow-[var(--shadow-card)]">
+        <CheckCircle2 className="h-5 w-5" strokeWidth={2.4} />
+      </span>
+      <ChevronRight className="h-5 w-5 shrink-0 text-label-3" strokeWidth={2.4} />
+    </Link>
   );
 }
 
@@ -49,8 +84,6 @@ export function CheckClient({
   const router = useRouter();
   const ownIntent = searchParams.get('own') === '1';
   const scanIntent = searchParams.get('scan') === '1';
-
-  // Deep-link / sitelinks search box (Schema.org SearchAction) lands here as ?q=.
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
   const [results, setResults] = useState<ProductSummaryDto[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,12 +91,8 @@ export function CheckClient({
   const [showAdd, setShowAdd] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanNotice, setScanNotice] = useState<string | null>(null);
-  const [shopUrl, setShopUrl] = useState('');
-  const [regretResult, setRegretResult] = useState<RegretCheckDto | null>(null);
-  const [regretLoading, setRegretLoading] = useState(false);
   const [researching, setResearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shopInputRef = useRef<HTMLInputElement | null>(null);
 
   const runSearch = useCallback(async (q: string) => {
     if (q.trim().length < 2) {
@@ -96,9 +125,6 @@ export function CheckClient({
     if (scanIntent) setScannerOpen(true);
   }, [scanIntent]);
 
-  const hasNoResults = results !== null && results.length === 0 && !loading;
-  const idle = query.trim().length === 0;
-
   const handleResearch = useCallback(async () => {
     const q = query.trim();
     if (q.length < 2 || researching) return;
@@ -122,7 +148,7 @@ export function CheckClient({
     async (code: string) => {
       setScannerOpen(false);
       setShowAdd(false);
-      setScanNotice('Barcode erkannt …');
+      setScanNotice('Barcode erkannt');
       try {
         const res = await api.products.resolveEan(code, { cache: 'no-store' });
         if (res.product) {
@@ -130,15 +156,14 @@ export function CheckClient({
           return;
         }
         if (res.suggestion) {
-          setScanNotice(`Barcode erkannt: ${res.suggestion.title}`);
+          setScanNotice(`Erkannt: ${res.suggestion.title}`);
           setQuery(res.suggestion.title);
           void runSearch(res.suggestion.title);
           return;
         }
       } catch {
-        // fall through to a raw search on the code
+        // Search the raw code when resolution fails.
       }
-      setScanNotice(`Barcode erkannt: ${code}`);
       setQuery(code);
       void runSearch(code);
     },
@@ -150,7 +175,7 @@ export function CheckClient({
       setScannerOpen(false);
       setShowAdd(false);
       const label = [result.brand, result.product].filter(Boolean).join(' ') || result.query;
-      setScanNotice(`Per Foto erkannt: ${label} — wird gespeichert …`);
+      setScanNotice(`Erkannt: ${label}`);
       try {
         const res = await api.products.fromPhoto({
           brand: result.brand ?? undefined,
@@ -163,17 +188,24 @@ export function CheckClient({
           return;
         }
       } catch {
-        // fall through to a normal search
+        // Fall back to text search.
       }
-      setScanNotice(`Erkannt: ${label}`);
       setQuery(result.query);
       void runSearch(result.query);
     },
     [router, runSearch],
   );
 
+  const idle = query.trim().length === 0;
+  const hasNoResults = results !== null && results.length === 0 && !loading;
+
   return (
-    <div className="animate-fade space-y-5 pt-2">
+    <motion.div
+      className="space-y-6 pt-2"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
+      initial="hidden"
+      animate="show"
+    >
       <CameraScanner
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
@@ -181,22 +213,16 @@ export function CheckClient({
         onIdentified={handleIdentified}
       />
 
-      <LargeTitle
-        title={ownIntent ? 'Dein Produkt' : 'Prüfen'}
-        subtitle={
-          ownIntent
-            ? 'Finde dein Produkt und teile deine Erfahrung.'
-            : 'Suche, scanne oder prüfe einen Kauf vor dem Bezahlen.'
-        }
-      />
+      <motion.section variants={rise} transition={{ type: 'spring', stiffness: 360, damping: 34 }}>
+        <p className="text-[1.4rem] font-bold leading-none tracking-tight text-label">Prüfen</p>
+        <h1 className="font-display mt-3 text-balance text-[2.85rem] font-semibold leading-[0.99] text-label">
+          Welches Produkt möchtest du prüfen?
+        </h1>
+      </motion.section>
 
-      <div className="flex gap-2.5">
-        <div className="flex h-12 flex-1 items-center gap-2 rounded-[0.95rem] bg-fill-2 px-3.5">
-          <Search
-            className="h-[1.15rem] w-[1.15rem] shrink-0 text-faint"
-            strokeWidth={2.2}
-            aria-hidden
-          />
+      <motion.div variants={rise} className="space-y-3">
+        <div className="flex h-[4.35rem] items-center gap-3 rounded-[1.65rem] bg-surface px-5 shadow-[var(--shadow-card)] ring-1 ring-border">
+          <Search className="h-7 w-7 shrink-0 text-faint" strokeWidth={2.1} />
           <input
             autoFocus={!scanIntent && !ownIntent}
             value={query}
@@ -205,10 +231,10 @@ export function CheckClient({
               setShowAdd(false);
               setScanNotice(null);
             }}
-            placeholder="Produkt, Marke oder EAN"
-            className="h-full flex-1 bg-transparent text-[1.0625rem] text-label outline-none placeholder:text-faint"
+            placeholder="Produktname, Marke oder Link"
+            className="h-full min-w-0 flex-1 bg-transparent text-[1.1875rem] text-label outline-none placeholder:text-faint"
             inputMode="search"
-            aria-label="Produktsuche"
+            aria-label="Produktname, Marke oder Link"
           />
           {query && (
             <button
@@ -216,286 +242,172 @@ export function CheckClient({
                 setQuery('');
                 setScanNotice(null);
               }}
-              className="tap-dim grid h-5 w-5 shrink-0 place-items-center rounded-full bg-faint/70 text-white"
-              aria-label="Leeren"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-fill-2 text-muted-foreground"
+              aria-label="Suche leeren"
+              type="button"
             >
-              <X className="h-3 w-3" strokeWidth={3} />
+              <X className="h-4 w-4" strokeWidth={2.6} />
             </button>
           )}
         </div>
         <button
           type="button"
           onClick={() => setScannerOpen(true)}
-          className="press premium-ink grid h-12 w-12 shrink-0 place-items-center rounded-[0.95rem] shadow-[var(--shadow-pop)]"
-          aria-label="Kamera-Scan starten"
+          className="press brand-gradient flex h-[4.35rem] w-full items-center justify-center gap-3 rounded-full text-[1.1875rem] font-semibold text-white shadow-[0_18px_36px_-20px_rgba(6,63,46,0.75)]"
         >
-          <Camera className="h-[1.375rem] w-[1.375rem]" strokeWidth={2.3} />
+          <Camera className="h-6 w-6" strokeWidth={2.4} />
+          Scannen
         </button>
-      </div>
+      </motion.div>
+
+      {scanNotice && (
+        <motion.div
+          variants={rise}
+          className="flex items-center gap-2 rounded-[1rem] bg-accent-soft px-3 py-2 text-[0.9375rem] font-medium text-accent-ink"
+        >
+          <ShieldCheck className="h-5 w-5 shrink-0" strokeWidth={2.3} />
+          {scanNotice}
+        </motion.div>
+      )}
+
+      {!idle && (
+        <motion.section variants={rise}>
+          {loading && (
+            <div className="card overflow-hidden">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className={i < 3 ? 'hairline px-4 py-3' : 'px-4 py-3'}>
+                  <Skeleton className="h-11" />
+                </div>
+              ))}
+            </div>
+          )}
+          {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
+          {!loading && results && results.length > 0 && <ProductList products={results} />}
+          {hasNoResults && !showAdd && (
+            <EmptyState
+              title="Kein Produkt gefunden"
+              description={`Für "${query}" gibt es noch keinen Eintrag.`}
+              action={
+                <button
+                  onClick={handleResearch}
+                  disabled={researching}
+                  className="press inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white disabled:opacity-70"
+                >
+                  {researching ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-5 w-5" />
+                  )}
+                  Finden & anlegen
+                </button>
+              }
+            />
+          )}
+          {hasNoResults && showAdd && <AddProductForm initialName={query} ownIntent={ownIntent} />}
+        </motion.section>
+      )}
 
       {idle && (
-        <section className="premium-panel relative overflow-hidden rounded-[1.35rem] p-4 shadow-[var(--shadow-pop)] ring-1 ring-white/10">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(10,116,255,0.46),transparent_36%),radial-gradient(circle_at_100%_0%,rgba(47,159,86,0.28),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_50%)]"
-          />
-          <div className="relative">
-            <div className="flex items-center gap-3.5">
-              <span className="on-light grid h-12 w-12 shrink-0 place-items-center rounded-[1rem] bg-white shadow-sm">
-                <Camera className="h-6 w-6" strokeWidth={2.3} />
+        <>
+          <motion.section variants={rise} className="card-elevated p-5">
+            <div className="flex items-center gap-4">
+              <span className="grid h-20 w-20 shrink-0 place-items-center rounded-full bg-accent-soft text-accent ring-1 ring-border">
+                <span className="font-display text-[2.25rem] font-semibold leading-none">W</span>
               </span>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[1.125rem] font-bold leading-tight">Scanner Studio</h2>
-                <p className="mt-1 text-[0.8125rem] leading-snug text-white/68">
-                  Barcode lesen, Produkt fotografieren oder direkt vor dem Kauf prüfen.
+              <div>
+                <h2 className="text-[1.3125rem] font-bold tracking-tight text-accent">
+                  Wudly Signal
+                </h2>
+                <p className="mt-1 text-[1rem] leading-snug text-muted-foreground">
+                  Echte Besitzer. Nach Nutzung. Keine Sterne-Show.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setScannerOpen(true)}
-                className="press on-light flex h-11 shrink-0 items-center justify-center rounded-[0.85rem] bg-white px-4 text-[0.9375rem] font-semibold"
-              >
-                Start
-              </button>
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               {[
-                { icon: Barcode, label: 'Barcode', text: 'EAN/UPC' },
-                { icon: ImagePlus, label: 'Foto', text: 'mit Bild' },
-                { icon: Link2, label: 'Shop', text: 'Regret' },
+                { icon: Users, label: 'Echte Besitzer' },
+                { icon: CalendarDays, label: 'Nach Nutzung' },
+                { icon: Sparkles, label: 'Keine Sterne-Show' },
               ].map((item) => {
                 const Icon = item.icon;
                 return (
-                  <button
+                  <span
                     key={item.label}
-                    type="button"
-                    onClick={() => {
-                      if (item.label === 'Shop') {
-                        shopInputRef.current?.focus();
-                      } else {
-                        setScannerOpen(true);
-                      }
-                    }}
-                    className="press rounded-[0.95rem] bg-white/10 px-2 py-3 text-left ring-1 ring-white/12"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[0.8125rem] font-medium text-label shadow-[var(--shadow-xs)] ring-1 ring-border"
                   >
-                    <Icon className="h-5 w-5 text-white" strokeWidth={2.3} aria-hidden />
-                    <span className="mt-2 block text-[0.8125rem] font-semibold leading-tight">
-                      {item.label}
-                    </span>
-                    <span className="mt-0.5 block text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-white/48">
-                      {item.text}
-                    </span>
-                  </button>
+                    <Icon className="h-4 w-4 text-accent" strokeWidth={2.2} />
+                    {item.label}
+                  </span>
                 );
               })}
             </div>
-          </div>
-        </section>
-      )}
+          </motion.section>
 
-      {scanNotice && (
-        <div className="flex items-center gap-2 rounded-[0.85rem] bg-accent-soft px-3 py-2 text-[0.875rem] font-medium text-accent-ink">
-          <ShieldCheck className="h-[1.125rem] w-[1.125rem] shrink-0" strokeWidth={2.3} />
-          <span>{scanNotice}</span>
-        </div>
-      )}
-
-      {loading && (
-        <div className="card overflow-hidden">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className={i < 3 ? 'hairline px-4 py-3' : 'px-4 py-3'}>
-              <Skeleton className="h-11" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
-
-      {!loading && results && results.length > 0 && <ProductList products={results} />}
-
-      {hasNoResults && !showAdd && (
-        <EmptyState
-          title="Kein Produkt gefunden"
-          description={`Für „${query}" gibt es noch keinen Eintrag. Lass Wudly im Web recherchieren und es automatisch anlegen.`}
-          action={
-            <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={handleResearch}
-                disabled={researching}
-                className="press inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white shadow-[var(--shadow-glow)] disabled:opacity-70"
-              >
-                {researching ? (
-                  <>
-                    <Loader2 className="h-[1.15rem] w-[1.15rem] animate-spin" strokeWidth={2.4} />
-                    Recherchiere im Web …
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.4} />
-                    Finden &amp; anlegen
-                  </>
-                )}
-              </button>
-              <button
-                onClick={() => setShowAdd(true)}
-                className="tap-dim text-[0.9375rem] font-medium text-muted-foreground"
-              >
-                Stattdessen manuell anlegen
-              </button>
-            </div>
-          }
-        />
-      )}
-
-      {hasNoResults && showAdd && <AddProductForm initialName={query} ownIntent={ownIntent} />}
-
-      {/* Idle state — browse, never an empty void */}
-      {idle && (
-        <>
-          <section className="card-elevated overflow-hidden">
-            <div className="p-4">
-              <div className="flex items-start gap-3">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
-                  <Link2 className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.3} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-[1.125rem] font-bold tracking-tight text-label">
-                    Vor dem Kauf prüfen
-                  </h2>
-                  <p className="mt-1 text-[0.875rem] leading-snug text-muted-foreground">
-                    Shop-Link einfügen, Signal sehen, dann in Ruhe entscheiden.
-                  </p>
-                </div>
-              </div>
-              <form
-                className="mt-3 flex gap-2"
-                onSubmit={async (event) => {
-                  event.preventDefault();
-                  const value = shopUrl.trim();
-                  if (!value || regretLoading) return;
-                  navigator.vibrate?.(12);
-                  setRegretLoading(true);
-                  setRegretResult(null);
-                  const isUrl = /^(https?:\/\/|www\.)/i.test(value) || value.includes('/');
-                  try {
-                    const res = await api.products.regretCheck(
-                      isUrl ? { url: value } : { query: value },
-                    );
-                    setRegretResult(res);
-                  } catch {
-                    setRegretResult(null);
-                  } finally {
-                    setRegretLoading(false);
-                  }
-                }}
-              >
-                <input
-                  ref={shopInputRef}
-                  value={shopUrl}
-                  onChange={(event) => {
-                    setShopUrl(event.target.value);
-                    setRegretResult(null);
-                  }}
-                  placeholder="Shop-Link oder Produktname"
-                  inputMode="url"
-                  className="h-11 min-w-0 flex-1 rounded-[0.85rem] bg-fill-2 px-3 text-[0.9375rem] text-label outline-none placeholder:text-faint"
-                  aria-label="Shop-URL oder Produktname"
-                />
-                <button
-                  type="submit"
-                  disabled={regretLoading}
-                  className="press flex h-11 items-center gap-1.5 rounded-[0.85rem] bg-accent px-4 text-[0.9375rem] font-semibold text-white shadow-[var(--shadow-glow)] disabled:opacity-70"
+          {featured.length > 0 && (
+            <motion.section variants={rise} className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h2 className="text-[1.35rem] font-bold tracking-tight text-label">
+                  Zuletzt geprüft
+                </h2>
+                <Link
+                  href="/rankings"
+                  className="tap-dim flex items-center text-[0.9375rem] text-muted-foreground"
                 >
-                  {regretLoading && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.5} />}
-                  Prüfen
-                </button>
-              </form>
-              {regretResult && (
-                <div className="mt-3 rounded-[0.85rem] bg-surface-2 p-3 ring-1 ring-border">
-                  {regretResult.rebuyProbability !== null ? (
-                    <p className="text-[0.9375rem] leading-snug text-label">
-                      <span className="font-semibold">
-                        {regretResult.rebuyProbability}% würden wieder kaufen
-                      </span>
-                      {regretResult.topConcern
-                        ? ` — häufigster Vorbehalt: ${regretResult.topConcern}.`
-                        : '.'}
-                    </p>
-                  ) : (
-                    <p className="text-[0.9375rem] leading-snug text-muted-foreground">
-                      {regretResult.summary}
-                    </p>
-                  )}
-                  {regretResult.productId && (
-                    <Link
-                      href={`/products/${regretResult.productId}`}
-                      className="tap-dim mt-2 inline-block text-[0.875rem] font-medium text-accent"
-                    >
-                      Zum Produkt ansehen →
-                    </Link>
-                  )}
-                  {regretResult.source === 'ai' && (
-                    <p className="mt-1.5 text-[0.75rem] text-faint">
-                      KI-Schätzung — noch keine eigenen Wudly-Daten.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
+                  Alle anzeigen
+                  <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {featured.slice(0, 2).map((product) => (
+                  <RecentProduct key={product.id} product={product} />
+                ))}
+              </div>
+            </motion.section>
+          )}
 
           {categories.length > 0 && (
-            <section>
-              <GroupLabel>Kategorien</GroupLabel>
-              <div className="grid grid-cols-2 gap-2.5">
-                {categories.map((c) => (
+            <motion.section variants={rise} className="space-y-3">
+              <h2 className="px-1 text-[1.35rem] font-bold tracking-tight text-label">
+                Beliebte Kategorien
+              </h2>
+              <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
+                {categories.slice(0, 8).map((category) => (
                   <Link
-                    key={c.id}
-                    href={`/rankings?cat=${c.slug}`}
-                    className="card press flex min-h-[4.5rem] items-center gap-3 p-2.5"
+                    key={category.id}
+                    href={`/rankings?cat=${category.slug}`}
+                    className="press inline-flex shrink-0 items-center gap-2 rounded-full bg-surface px-3.5 py-2 text-[0.9375rem] font-medium text-label shadow-[var(--shadow-card)] ring-1 ring-border"
                   >
                     <span
-                      className="grid h-12 w-12 shrink-0 place-items-center rounded-[0.75rem] text-accent ring-1 ring-black/[0.04]"
-                      style={{ backgroundImage: categoryTile(c.slug) }}
+                      className="grid h-7 w-7 place-items-center rounded-full text-accent"
+                      style={{ backgroundImage: categoryTile(category.slug) }}
                     >
-                      <PackageCheck className="h-5 w-5" strokeWidth={2.2} aria-hidden />
+                      <PackageCheck className="h-4 w-4" strokeWidth={2.2} />
                     </span>
-                    <span className="min-w-0 flex-1 text-[0.9375rem] font-medium leading-tight text-label [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
-                      {c.name}
-                    </span>
-                    <ChevronRight
-                      className="h-4 w-4 shrink-0 text-label-3"
-                      strokeWidth={2.5}
-                      aria-hidden
-                    />
+                    {category.name}
                   </Link>
                 ))}
               </div>
-            </section>
+            </motion.section>
           )}
 
-          {featured.length > 0 && (
-            <section>
-              <div className="mb-2 flex items-end justify-between px-1">
-                <p className="text-[1.0625rem] font-bold tracking-tight text-label">
-                  Beliebt gerade
-                </p>
-                <Link
-                  href="/rankings"
-                  className="tap-dim flex items-center gap-0.5 text-[0.9375rem] font-medium text-accent"
-                >
-                  Alle
-                  <ChevronRight className="h-4 w-4" strokeWidth={2.6} />
-                </Link>
-              </div>
-              <ProductList products={featured} />
-            </section>
-          )}
-
-          <HouseholdSwipeDeck products={featured} />
+          <motion.section variants={rise} className="card p-5">
+            <div className="grid gap-4">
+              {[
+                ['1', 'Scannen oder suchen'],
+                ['2', 'Signal sehen'],
+                ['3', 'Entscheiden'],
+              ].map(([number, label]) => (
+                <div key={number} className="flex items-center gap-3">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-[0.875rem] font-bold text-white">
+                    {number}
+                  </span>
+                  <span className="text-[1.0625rem] font-semibold text-label">{label}</span>
+                </div>
+              ))}
+            </div>
+          </motion.section>
         </>
       )}
-    </div>
+    </motion.div>
   );
 }

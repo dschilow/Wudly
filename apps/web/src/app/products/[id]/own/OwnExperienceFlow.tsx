@@ -115,7 +115,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
             href="/check"
             className="tap-dim flex h-[3.125rem] items-center justify-center rounded-[var(--radius-md)] bg-fill-2 text-[1.0625rem] font-semibold text-label"
           >
-            Weiteres Produkt bewerten
+            Weiteres Produkt prüfen
           </Link>
         </div>
       </div>
@@ -126,8 +126,8 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   const titles = [
     'Würdest du es wieder kaufen?',
     'Wie lange nutzt du es?',
-    'Wie war deine Erfahrung?',
-    'Noch etwas?',
+    'Was trifft am besten zu?',
+    'Was hättest du gern vorher gewusst?',
   ];
 
   return (
@@ -169,7 +169,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
           <div className="space-y-5">
             <div>
               <label className="mb-1.5 block px-1 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
-                Was hättest du gerne vorher gewusst?
+                Was hättest du gern vorher gewusst?
               </label>
               <textarea
                 value={wish}

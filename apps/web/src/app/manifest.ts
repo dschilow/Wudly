@@ -11,7 +11,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description:
       'Echte Besitzer. Echte Nutzung. Bessere Käufe. Der Wiederkauf-Score statt Sterne beim Kauf.',
     id: '/',
-    start_url: '/?source=pwa',
+    start_url: '/check?source=pwa',
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',
@@ -39,10 +39,10 @@ export default function manifest(): MetadataRoute.Manifest {
         description: 'Barcode oder Foto prüfen',
       },
       {
-        name: 'Charts',
-        short_name: 'Charts',
+        name: 'Entdecken',
+        short_name: 'Entdecken',
         url: '/rankings',
-        description: 'Top & Flop Rankings',
+        description: 'Signale entdecken',
       },
     ],
   };

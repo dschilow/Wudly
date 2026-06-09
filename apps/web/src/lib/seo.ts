@@ -43,7 +43,7 @@ export function productJsonLd(product: ProductDetailDto): JsonLd {
 
   // Only claim a rating when owners have actually weighed in — the score is the
   // share who would rebuy (0–100), expressed honestly as the rating value.
-  if (ins.rebuyScore !== null && ins.experienceCount > 0) {
+  if (ins.rebuyScore !== null && ins.experienceCount >= 20) {
     data.aggregateRating = {
       '@type': 'AggregateRating',
       ratingValue: ins.rebuyScore,

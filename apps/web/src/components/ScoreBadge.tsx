@@ -9,9 +9,11 @@ import { rebuyVerdict } from '@/lib/verdict';
 export function ScoreBadge({
   score,
   kind = 'rebuy',
+  labelOverride,
 }: {
   score: number | null;
   kind?: 'rebuy' | 'regret';
+  labelOverride?: string;
 }) {
   if (kind === 'regret') {
     const strong = score !== null && score >= 40;
@@ -28,7 +30,7 @@ export function ScoreBadge({
           </span>
         </div>
         <span className="text-[0.625rem] font-semibold tracking-wide" style={{ color }}>
-          Regret
+          {labelOverride ?? 'Regret'}
         </span>
       </div>
     );
@@ -42,11 +44,11 @@ export function ScoreBadge({
         style={{ background: v.soft }}
       >
         <span className="text-[1.25rem] font-bold tnum leading-none" style={{ color: v.color }}>
-          {formatScore(score)}
+          {score === null && labelOverride ? '•' : formatScore(score)}
         </span>
       </div>
       <span className="text-[0.625rem] font-semibold tracking-wide" style={{ color: v.ink }}>
-        {v.short}
+        {labelOverride ?? v.short}
       </span>
     </div>
   );

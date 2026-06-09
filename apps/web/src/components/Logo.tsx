@@ -8,7 +8,7 @@ export function LogoMark({ size = 36, className }: { size?: number; className?: 
   return (
     <span
       className={cn(
-        'brand-gradient grid shrink-0 place-items-center text-white shadow-[var(--shadow-glow)]',
+        'grid shrink-0 place-items-center bg-accent text-white shadow-[var(--shadow-glow)]',
         className,
       )}
       style={{ width: size, height: size, borderRadius: size * 0.26 }}
@@ -31,8 +31,9 @@ export function LogoMark({ size = 36, className }: { size?: number; className?: 
 export function LogoWord({ className }: { className?: string }) {
   return (
     <span className={cn('flex items-center gap-2', className)}>
-      <LogoMark size={28} />
-      <span className="text-[1.0625rem] font-semibold tracking-tight text-label">Wudly</span>
+      <span className="font-display text-[1.75rem] font-semibold leading-none text-accent">
+        Wudly
+      </span>
     </span>
   );
 }

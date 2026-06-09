@@ -2,42 +2,32 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import {
-  ArrowLeftRight,
   BadgeCheck,
-  ChevronDown,
-  Clock3,
+  Battery,
+  ChevronRight,
   Lightbulb,
   MessagesSquare,
+  Minus,
   PackageOpen,
-  Quote,
-  ShieldCheck,
+  Sparkles,
+  Wind,
 } from 'lucide-react';
-import type {
-  ExperienceDto,
-  QuestionDto,
-  ProductSummaryDto,
-  ShowcaseSummaryDto,
-} from '@wudly/shared';
+import type { ExperienceDto, QuestionDto, ShowcaseSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { rebuyVerdict } from '@/lib/verdict';
+import { plural } from '@/lib/format';
 import { JsonLd } from '@/components/JsonLd';
 import { productJsonLd, breadcrumbJsonLd, absoluteUrl } from '@/lib/seo';
 import { ShareButton } from '@/components/ShareButton';
-import { ScoreRing } from '@/components/ScoreRing';
-import { SealBadge } from '@/components/SealBadge';
 import { ScoreTrend } from '@/components/ScoreTrend';
 import { Thumb } from '@/components/Thumb';
-import { AspectList } from '@/components/AspectList';
-import { AiInsightCard } from '@/components/AiInsightCard';
 import { UsageDurationChart } from '@/components/UsageDurationChart';
 import { ExperienceCard } from '@/components/ExperienceCard';
 import { QuestionCard } from '@/components/QuestionCard';
-import { ProductList } from '@/components/ProductList';
 import { ShowcaseCard } from '@/components/showcase/ShowcaseCard';
 import { Pill } from '@/components/ui/Pill';
 import { EmptyState } from '@/components/states/States';
-import { HouseholdSwipeDeck } from '@/app/check/HouseholdSwipeDeck';
 
 export const revalidate = 20;
 
@@ -58,11 +48,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     const product = await api.products.get(id, { next: { revalidate: 60 } });
     const score = product.insights.rebuyScore;
+    const early =
+      score !== null &&
+      product.insights.experienceCount > 0 &&
+      product.insights.experienceCount < 20;
+    const earlyYes = early
+      ? Math.round((score / 100) * Math.max(1, product.insights.ownerCount))
+      : 0;
     const description =
       product.insights.aiHeadline ??
-      `Wiederkauf-Score ${score ?? '–'} · ${product.insights.experienceCount} echte Erfahrungen.`;
-    // og:image / twitter:image come from the colocated opengraph-image.tsx (a crisp
-    // next/og PNG) — no manual image URL needed here.
+      (early
+        ? `Frühes Signal: ${earlyYes} von ${product.insights.ownerCount} Besitzern würden es wieder kaufen. Noch zu wenige Daten für einen belastbaren Score.`
+        : `Wudly Signal ${score ?? '–'} · ${product.insights.experienceCount} echte Erfahrungen.`);
     return {
       title: product.canonicalName,
       description,
@@ -84,40 +81,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-function GroupTitle({ children }: { children: React.ReactNode }) {
+function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="px-1 pb-2 pt-1 text-[1.0625rem] font-bold tracking-tight text-label">
+    <h2 className="px-1 pb-2.5 pt-1 text-[1.3rem] font-bold tracking-tight text-label">
       {children}
     </h2>
   );
 }
 
-function Stat({
-  value,
-  label,
-  tone = 'default',
-  divider,
-}: {
-  value: string;
-  label: string;
-  tone?: 'default' | 'regret' | 'muted';
-  divider?: boolean;
-}) {
-  const color =
-    tone === 'regret'
-      ? 'var(--color-regret)'
-      : tone === 'muted'
-        ? 'var(--color-muted-foreground)'
-        : 'var(--color-label)';
-  return (
-    <div className={'px-2 py-3.5 text-center ' + (divider ? 'border-r border-separator' : '')}>
-      <div className="text-[1.4rem] font-bold tnum leading-none" style={{ color }}>
-        {value}
-      </div>
-      <div className="mt-1 text-[0.75rem] text-muted-foreground">{label}</div>
-    </div>
-  );
-}
+/* A neutral icon for "Was du vorher wissen solltest" rows. We rotate a small,
+   calm icon set so the rows feel designed without inventing fake meaning. */
+const KNOW_ICONS = [Wind, Battery, Sparkles, Lightbulb];
 
 export default async function ProductPage({ params }: PageProps) {
   const { id } = await params;
@@ -130,272 +104,283 @@ export default async function ProductPage({ params }: PageProps) {
     throw err;
   }
 
-  const [experiences, questions, similar, showcases] = await Promise.all([
+  const [experiences, questions, showcases] = await Promise.all([
     safe(api.products.experiences(id, { next: { revalidate: 20 } }), [] as ExperienceDto[]),
     safe(api.products.questions(id, { next: { revalidate: 20 } }), [] as QuestionDto[]),
-    safe(api.products.similar(id, { next: { revalidate: 120 } }), [] as ProductSummaryDto[]),
     safe(api.showcase.forProduct(id, { next: { revalidate: 60 } }), [] as ShowcaseSummaryDto[]),
   ]);
 
   const ins = product.insights;
   const hasData = ins.experienceCount > 0;
-  const hasRealImage = Boolean(product.imageUrl);
 
   const verdict = rebuyVerdict(ins.rebuyScore);
+  const earlySignal =
+    ins.experienceCount > 0 && ins.experienceCount < 20 && ins.rebuyScore !== null;
+  const earlyYesCount = earlySignal
+    ? Math.round((ins.rebuyScore! / 100) * Math.max(1, ins.ownerCount))
+    : 0;
+  const signalStrength =
+    ins.experienceCount < 20
+      ? 'Frühes Signal'
+      : ins.experienceCount < 80
+        ? 'Erste Tendenz'
+        : ins.experienceCount < 250
+          ? 'Belastbare Tendenz'
+          : 'Starkes Langzeitsignal';
+
+  // Verdict headline shown in the recommend card (calm, one line).
+  const recommendLabel =
+    ins.rebuyScore === null
+      ? 'Noch keine klare Tendenz'
+      : ins.rebuyScore >= 75
+        ? 'Eher empfehlenswert'
+        : ins.rebuyScore >= 50
+          ? 'Gemischtes Echo'
+          : 'Eher nicht empfehlenswert';
+  const recommendSub =
+    ins.rebuyScore === null
+      ? 'Noch nicht genug echte Nutzung für ein Urteil.'
+      : ins.rebuyScore >= 75
+        ? 'Die Mehrheit der Wudly Community würde dieses Produkt weiterempfehlen.'
+        : ins.rebuyScore >= 50
+          ? 'Die Community ist hier geteilter Meinung.'
+          : 'Viele Besitzer würden es nicht wieder kaufen.';
+
+  const knowItems = ins.wishKnownHighlights.slice(0, 3);
+  const positive = ins.topPositiveAspects.slice(0, 3);
+  const negative = ins.topNegativeAspects.slice(0, 3);
+  const publicExperiences = experiences.filter((e) => e.isPublic);
 
   const structuredData = [
     productJsonLd(product),
     breadcrumbJsonLd([
       { name: 'Start', url: absoluteUrl('/') },
-      { name: 'Charts', url: absoluteUrl('/rankings') },
+      { name: 'Entdecken', url: absoluteUrl('/rankings') },
       { name: product.canonicalName, url: absoluteUrl(`/products/${id}`) },
     ]),
   ];
 
   return (
-    <div className="animate-fade space-y-5 pb-4 pt-1">
+    <div className="animate-fade space-y-4 pb-4 pt-1">
       <JsonLd data={structuredData} />
-      <section className="card-elevated animate-rise relative overflow-hidden p-4">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-accent-soft blur-3xl"
+
+      {/* 1 · Product image, name, brand, category */}
+      <section className="animate-rise flex flex-col items-center pt-2 text-center">
+        <Thumb
+          product={product}
+          className="h-44 w-44 ring-1 ring-border sm:h-52 sm:w-52"
+          rounded="rounded-[1.5rem]"
         />
-        <div className="relative flex items-start gap-4">
-          <Thumb
-            product={product}
-            className="h-24 w-24 ring-1 ring-border sm:h-32 sm:w-32"
-            rounded="rounded-[1.15rem]"
+        <div className="mt-4 flex w-full items-start justify-center gap-2">
+          <h1 className="text-balance text-[1.9rem] font-bold leading-[1.05] tracking-tight text-label">
+            {product.canonicalName}
+          </h1>
+          <ShareButton
+            title={`${product.canonicalName} — Würdest du es wieder kaufen?`}
+            text={
+              ins.aiHeadline ??
+              (earlySignal
+                ? `Frühes Signal: ${earlyYesCount} von ${ins.ownerCount} Besitzern würden es wieder kaufen.`
+                : `Wudly Signal ${ins.rebuyScore ?? '–'} auf Wudly`)
+            }
           />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {hasRealImage ? 'Produktfoto' : 'Produktvorschau'}
-                </p>
-                <h1 className="mt-1 text-balance text-[1.625rem] font-bold leading-[1.08] tracking-tight text-label">
-                  {product.canonicalName}
-                </h1>
-              </div>
-              <ShareButton
-                title={`${product.canonicalName} — Würdest du es wieder kaufen?`}
-                text={
-                  product.insights.aiHeadline ??
-                  `Wiederkauf-Score ${ins.rebuyScore ?? '–'} auf Wudly`
-                }
-              />
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[0.9375rem] text-muted-foreground">
-              {product.brand && <span className="font-medium">{product.brand}</span>}
-              {product.category && (
-                <Link href={`/kategorie/${product.category.slug}`} className="tap-dim">
-                  <Pill tone="neutral">{product.category.name}</Pill>
-                </Link>
-              )}
-              {ins.wudlySeal && <SealBadge />}
-            </div>
-          </div>
         </div>
-
-        {product.description && (
-          <p className="relative mt-3 text-[0.9375rem] leading-snug text-muted-foreground">
-            {product.description}
-          </p>
-        )}
-
-        <div className="relative mt-4 grid grid-cols-3 gap-2">
-          <div className="rounded-[0.85rem] bg-fill-2 px-3 py-2">
-            <div className="text-[1.0625rem] font-bold tnum leading-none text-label">
-              {ins.rebuyScore === null ? '–' : `${ins.rebuyScore}%`}
-            </div>
-            <div className="mt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Rebuy
-            </div>
-          </div>
-          <div className="rounded-[0.85rem] bg-fill-2 px-3 py-2">
-            <div className="text-[1.0625rem] font-bold tnum leading-none text-label">
-              {ins.ownerCount}
-            </div>
-            <div className="mt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Besitzer
-            </div>
-          </div>
-          <div className="rounded-[0.85rem] bg-fill-2 px-3 py-2">
-            <div className="text-[1.0625rem] font-bold tnum leading-none text-label">
-              {ins.experienceCount}
-            </div>
-            <div className="mt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Stimmen
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="card-elevated relative overflow-hidden">
-        {/* Verdict-tinted light behind the score — the page's signature moment. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 -top-12 mx-auto h-48 w-48 rounded-full opacity-[0.16] blur-3xl"
-          style={{ background: verdict.color }}
-        />
-        <div className="relative px-5 pb-5 pt-7 text-center">
-          <ScoreRing score={ins.rebuyScore} tone="auto" size={188} className="mx-auto" celebrate />
-          <div className="animate-rise" style={{ animationDelay: '0.45s' }}>
-            <div
-              className="mt-4 text-[0.75rem] font-semibold uppercase tracking-[0.08em]"
-              style={{ color: verdict.ink }}
-            >
-              Wiederkauf-Score
-            </div>
-            <h2 className="mx-auto mt-1 max-w-[20rem] text-balance text-[1.75rem] font-bold leading-[1.06] tracking-tight text-label">
-              {verdict.label}
-            </h2>
-          </div>
-          {hasData && ins.rebuyScore !== null ? (
-            <p className="mx-auto mt-2 max-w-[21rem] text-[0.9375rem] leading-snug text-muted-foreground">
-              {ins.rebuyScore}% von {ins.ownerCount} Besitzer
-              {ins.ownerCount === 1 ? '' : 'n'} würden es wieder kaufen.
-            </p>
-          ) : (
-            <p className="mx-auto mt-2 max-w-[21rem] text-[0.9375rem] leading-snug text-muted-foreground">
-              Noch nicht genug echte Nutzung für ein belastbares Signal.
-            </p>
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-[0.9375rem] text-muted-foreground">
+          {product.brand && <span className="font-medium">{product.brand}</span>}
+          {product.category && (
+            <Link href={`/kategorie/${product.category.slug}`} className="tap-dim">
+              <Pill tone="neutral">{product.category.name}</Pill>
+            </Link>
           )}
         </div>
-        <div className="relative grid grid-cols-3 border-t border-separator">
-          <Stat
-            value={ins.regretScore === null ? '–' : `${ins.regretScore}%`}
-            label="Regret"
-            tone={ins.regretScore !== null && ins.regretScore >= 40 ? 'regret' : 'muted'}
-            divider
-          />
-          <Stat value={String(ins.experienceCount)} label="Erfahrungen" divider />
-          <Stat value={String(ins.ownerCount)} label="Besitzer" />
-        </div>
       </section>
 
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          { icon: BadgeCheck, label: 'Echte Käufer' },
-          { icon: Clock3, label: 'Nach Nutzung' },
-          { icon: ShieldCheck, label: 'Gewichtet' },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={item.label}
-              className="rounded-[0.9rem] bg-fill-2 px-2 py-3 text-center text-muted-foreground"
-            >
-              <Icon className="mx-auto h-5 w-5 text-accent" strokeWidth={2.2} />
-              <div className="mt-1.5 text-[0.75rem] font-medium leading-tight">{item.label}</div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Trust transparency — the honesty model is Wudly's edge, so explain it. */}
-      <details className="group -mt-2 px-1">
-        <summary className="tap-dim flex cursor-pointer list-none items-center gap-1 text-[0.8125rem] font-medium text-accent [&::-webkit-details-marker]:hidden">
-          Wie Wudly wertet
-          <ChevronDown
-            className="h-3.5 w-3.5 transition-transform duration-200 group-open:rotate-180"
-            strokeWidth={2.6}
-            aria-hidden
-          />
-        </summary>
-        <div className="mt-2 rounded-[0.9rem] bg-fill-2 p-3.5 text-[0.8125rem] leading-snug text-muted-foreground">
-          <p className="text-label">
-            Nicht jede Stimme zählt gleich — ehrliche Signale wiegen mehr:
+      {/* 2 · Recommend verdict card */}
+      <Link
+        href="#signal"
+        className="press card flex items-center gap-3.5 p-4"
+        style={{ scrollBehavior: 'smooth' }}
+      >
+        <span
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full"
+          style={{ background: verdict.soft, color: verdict.ink }}
+        >
+          <BadgeCheck className="h-6 w-6" strokeWidth={2.2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[1.1875rem] font-bold leading-tight" style={{ color: verdict.ink }}>
+            {recommendLabel}
           </p>
-          <ul className="mt-2 space-y-1.5">
-            {[
-              'Per Kamera oder Barcode verifizierte Käufer zählen voll.',
-              'Längere Nutzung wiegt mehr als der erste Eindruck.',
-              'Generische oder anonyme Beiträge zählen bewusst weniger.',
-            ].map((line) => (
-              <li key={line} className="flex gap-2">
-                <span className="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-accent" />
-                {line}
-              </li>
-            ))}
-          </ul>
+          <p className="mt-0.5 text-[0.9375rem] leading-snug text-muted-foreground">
+            {recommendSub}
+          </p>
         </div>
-      </details>
+        <ChevronRight className="h-5 w-5 shrink-0 text-label-3" strokeWidth={2.4} />
+      </Link>
 
-      {/* AI summary */}
-      {ins.aiHeadline && <AiInsightCard headline={ins.aiHeadline} />}
-
-      {/* The unique data treasure — surfaced high, given a signature treatment. */}
-      {ins.wishKnownHighlights.length > 0 && (
-        <section className="card-elevated relative overflow-hidden">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-accent-soft blur-2xl"
-          />
-          <div className="relative p-4">
-            <div className="flex items-center gap-2.5">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
-                <Lightbulb className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.2} />
+      {/* 3 · Wudly Signal panel */}
+      <section
+        id="signal"
+        className="overflow-hidden rounded-[1.5rem] ring-1 ring-positive/12 scroll-mt-20"
+        style={{ background: 'linear-gradient(165deg,#f1f7f3,#e9f4ec)' }}
+      >
+        <div className="flex items-center justify-between gap-4 p-5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-[1.0625rem] font-bold tracking-tight text-accent-ink">
+                Wudly Signal
+              </h2>
+              <span className="grid h-4 w-4 place-items-center rounded-full bg-accent/12 text-[0.65rem] font-bold text-accent-ink">
+                i
               </span>
-              <div className="min-w-0">
-                <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-accent-ink">
-                  Wudly-Datenschatz
-                </p>
-                <h2 className="text-[1.0625rem] font-bold leading-tight tracking-tight text-label">
-                  Das hätten Besitzer vorher gern gewusst
-                </h2>
-              </div>
             </div>
-            <ul className="mt-3.5 space-y-3">
-              {ins.wishKnownHighlights.map((wish, i) => (
-                <li key={i} className="flex gap-2.5">
-                  <Quote
-                    className="mt-0.5 h-[0.95rem] w-[0.95rem] shrink-0 -scale-x-100 text-accent/55"
-                    strokeWidth={2.4}
-                    aria-hidden
-                  />
-                  <p className="text-[0.9375rem] leading-snug text-label">{wish}</p>
-                </li>
-              ))}
-            </ul>
+            {earlySignal ? (
+              <>
+                <p className="mt-2 text-[2.6rem] font-bold leading-none text-positive-ink">
+                  Frühes Signal
+                </p>
+                <p className="mt-2 text-[1.0625rem] font-semibold leading-snug text-label">
+                  {earlyYesCount} von {ins.ownerCount} würden es wieder kaufen
+                </p>
+              </>
+            ) : ins.rebuyScore !== null ? (
+              <>
+                <p className="tnum mt-2 text-[3rem] font-bold leading-none text-positive-ink">
+                  {ins.rebuyScore}%
+                </p>
+                <p className="mt-2 text-[1.0625rem] font-semibold leading-snug text-label">
+                  würden es nach 6 Monaten
+                  <br />
+                  wieder kaufen
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-[2rem] font-bold leading-none text-muted-foreground">
+                  Noch offen
+                </p>
+                <p className="mt-2 text-[1.0625rem] font-semibold leading-snug text-label">
+                  Noch nicht genug echte Nutzung
+                </p>
+              </>
+            )}
+          </div>
+          <SignalRing score={earlySignal ? null : ins.rebuyScore} owners={ins.ownerCount} />
+        </div>
+
+        <Link
+          href="#nutzung"
+          className="tap flex items-center gap-2 border-t border-positive/12 px-5 py-3.5"
+        >
+          <span className="grid h-7 w-7 place-items-center rounded-[0.6rem] bg-positive/12 text-positive-ink">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
+              <path
+                d="M4 19V5M4 19h16M8 16v-4M12 16V8M16 16v-7"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[0.9375rem] font-semibold text-positive-ink">
+              {signalStrength}
+            </span>
+            <span className="block text-[0.875rem] text-muted-foreground">
+              Datenbasis: {ins.experienceCount}{' '}
+              {plural(ins.experienceCount, 'Bewertung', 'Bewertungen')}
+            </span>
+          </span>
+          <ChevronRight className="h-5 w-5 text-label-3" strokeWidth={2.4} />
+        </Link>
+      </section>
+
+      {/* Early-signal disclaimer (honest, no hard score) */}
+      {earlySignal && (
+        <p className="px-1 text-[0.9375rem] leading-snug text-muted-foreground">
+          Frühes Signal: {earlyYesCount} von {ins.ownerCount} Besitzern würden es wieder kaufen.
+          Noch zu wenige Daten für einen belastbaren Score.
+        </p>
+      )}
+
+      {/* 4 · Was du vorher wissen solltest */}
+      {knowItems.length > 0 && (
+        <section>
+          <SectionTitle>Was du vorher wissen solltest</SectionTitle>
+          <div className="card overflow-hidden">
+            {knowItems.map((wish, i) => {
+              const Icon = KNOW_ICONS[i % KNOW_ICONS.length]!;
+              return (
+                <div
+                  key={i}
+                  className={
+                    'flex items-center gap-3 px-4 py-3.5 ' +
+                    (i < knowItems.length - 1 ? 'hairline' : '')
+                  }
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[0.7rem] bg-fill-2 text-accent">
+                    <Icon className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.1} />
+                  </span>
+                  <p className="min-w-0 flex-1 text-[0.9375rem] leading-snug text-label">{wish}</p>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
 
-      {/* Comparative regret — "would rather have bought X" */}
-      {hasData && ins.insteadOfShare > 0 && ins.insteadOfHighlights.length > 0 && (
-        <section className="card-elevated overflow-hidden">
-          <div className="p-4">
-            <div className="flex items-center gap-2.5">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-unsure-soft text-unsure-ink">
-                <ArrowLeftRight className="h-[1.1rem] w-[1.1rem]" strokeWidth={2.2} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-unsure-ink">
-                  Komparative Reue
-                </p>
-                <h2 className="text-[1.0625rem] font-bold leading-tight tracking-tight text-label">
-                  {ins.insteadOfShare}% hätten lieber etwas anderes gekauft
-                </h2>
-              </div>
+      {/* 5 + 6 · Stärken / Kritik */}
+      {hasData && (positive.length > 0 || negative.length > 0) && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="card flex flex-col p-4 ring-1 ring-positive/10">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[1.0625rem] font-bold text-positive-ink">Stärken</h3>
+              <ChevronRight className="h-4 w-4 text-label-3" strokeWidth={2.4} />
             </div>
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {ins.insteadOfHighlights.map((alt, i) => (
-                <li key={i}>
-                  <Link
-                    href={`/check?q=${encodeURIComponent(alt)}`}
-                    className="tap-dim inline-flex items-center gap-1 rounded-full bg-fill-2 px-3 py-1.5 text-[0.875rem] font-medium text-label"
-                  >
-                    {alt}
-                    <ChevronDown
-                      className="-mr-0.5 h-3.5 w-3.5 -rotate-90 text-label-3"
-                      strokeWidth={2.6}
-                    />
-                  </Link>
-                </li>
-              ))}
+            <ul className="mt-3 space-y-2.5">
+              {positive.length > 0 ? (
+                positive.map((a) => (
+                  <li key={a.key} className="flex items-start gap-2 text-[0.9375rem] text-label">
+                    <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-positive text-white">
+                      <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none">
+                        <path
+                          d="M5 13l4 4L19 7"
+                          stroke="currentColor"
+                          strokeWidth="3.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                    <span className="leading-snug">{a.label}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-[0.9375rem] text-muted-foreground">Noch keine.</li>
+              )}
             </ul>
           </div>
-        </section>
+          <div className="card flex flex-col p-4 ring-1 ring-regret/10">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[1.0625rem] font-bold text-regret-ink">Kritik</h3>
+              <ChevronRight className="h-4 w-4 text-label-3" strokeWidth={2.4} />
+            </div>
+            <ul className="mt-3 space-y-2.5">
+              {negative.length > 0 ? (
+                negative.map((a) => (
+                  <li key={a.key} className="flex items-start gap-2 text-[0.9375rem] text-label">
+                    <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-regret text-white">
+                      <Minus className="h-2.5 w-2.5" strokeWidth={4} />
+                    </span>
+                    <span className="leading-snug">{a.label}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-[0.9375rem] text-muted-foreground">Noch keine.</li>
+              )}
+            </ul>
+          </div>
+        </div>
       )}
 
       {!hasData && (
@@ -416,85 +401,30 @@ export default async function ProductPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Strengths & problems */}
-      {hasData && (ins.topPositiveAspects.length > 0 || ins.topNegativeAspects.length > 0) && (
-        <div className="space-y-4">
-          {ins.topPositiveAspects.length > 0 && (
-            <section>
-              <GroupTitle>Stärken</GroupTitle>
-              <div className="card p-4">
-                <AspectList title="" aspects={ins.topPositiveAspects} tone="positive" />
-              </div>
-            </section>
-          )}
-          {ins.topNegativeAspects.length > 0 && (
-            <section>
-              <GroupTitle>Probleme</GroupTitle>
-              <div className="card p-4">
-                <AspectList title="" aspects={ins.topNegativeAspects} tone="negative" />
-              </div>
-            </section>
-          )}
-        </div>
-      )}
-
-      {/* Audience */}
-      {hasData && (ins.suitedFor.length > 0 || ins.notSuitedFor.length > 0) && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {ins.suitedFor.length > 0 && (
-            <section>
-              <GroupTitle>Geeignet für</GroupTitle>
-              <ul className="space-y-2 card p-4 text-[0.9375rem] text-label">
-                {ins.suitedFor.map((s, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
-                    {s}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {ins.notSuitedFor.length > 0 && (
-            <section>
-              <GroupTitle>Eher nicht für</GroupTitle>
-              <ul className="space-y-2 card p-4 text-[0.9375rem] text-label">
-                {ins.notSuitedFor.map((s, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-regret" />
-                    {s}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </div>
-      )}
-
-      {/* Score over time */}
-      {hasData && experiences.filter((e) => e.isPublic).length >= 3 && (
-        <section>
-          <GroupTitle>Score-Verlauf</GroupTitle>
+      {/* 7 · Nach Nutzungsdauer */}
+      {hasData && publicExperiences.length >= 3 && (
+        <section id="nutzung" className="scroll-mt-20">
+          <SectionTitle>Nach Nutzungsdauer</SectionTitle>
           <div className="card p-4">
             <ScoreTrend experiences={experiences} />
           </div>
         </section>
       )}
 
-      {/* Usage duration */}
       {hasData && (
         <section>
-          <GroupTitle>Wie lange im Einsatz</GroupTitle>
+          <SectionTitle>Häufige Nutzungsdauer</SectionTitle>
           <div className="card p-4">
             <UsageDurationChart stats={ins.usageDurationStats} />
           </div>
         </section>
       )}
 
-      {/* Questions */}
+      {/* 8 · Fragen an Besitzer */}
       <section>
-        <div className="flex items-end justify-between px-1 pb-1.5">
-          <GroupTitle>Fragen an Besitzer</GroupTitle>
-          <Link href={`/products/${id}/ask`} className="tap-dim pb-1 text-[0.9375rem] text-accent">
+        <div className="flex items-end justify-between px-1 pb-1">
+          <SectionTitle>Fragen an Besitzer</SectionTitle>
+          <Link href={`/products/${id}/ask`} className="tap-dim pb-3 text-[0.9375rem] text-accent">
             Frage stellen
           </Link>
         </div>
@@ -518,7 +448,7 @@ export default async function ProductPage({ params }: PageProps) {
       {/* Recent experiences */}
       {experiences.length > 0 && (
         <section>
-          <GroupTitle>Echte Erfahrungen · {experiences.length}</GroupTitle>
+          <SectionTitle>Echte Erfahrungen · {experiences.length}</SectionTitle>
           <div className="space-y-2.5">
             {experiences.map((exp) => (
               <ExperienceCard key={exp.id} experience={exp} />
@@ -527,8 +457,7 @@ export default async function ProductPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* ── Wudly Showcase ── clearly-separated commercial / creator content.
-          Visually distinct from the neutral Signal above; never affects the score. */}
+      {/* Wudly Showcase — clearly separated commercial / creator content. */}
       {showcases.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center gap-2 px-1 pb-0.5 pt-2">
@@ -548,39 +477,57 @@ export default async function ProductPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* Similar products — compare & discover alternatives */}
-      {similar.length > 0 && <HouseholdSwipeDeck products={similar} />}
-
-      {similar.length > 0 && (
-        <section>
-          <div className="flex items-end justify-between px-1 pb-1.5">
-            <GroupTitle>Ähnliche Produkte</GroupTitle>
-            <Link href="/compare" className="tap-dim pb-1 text-[0.9375rem] text-accent">
-              Vergleichen
-            </Link>
-          </div>
-          <ProductList products={similar} />
-        </section>
-      )}
-
-      {/* Sticky action bar (iOS bottom toolbar, material) */}
+      {/* 9 · Sticky action bar */}
       <div className="safe-bottom fixed inset-x-0 bottom-[3.75rem] z-30 border-t border-separator bg-canvas/80 px-5 py-2.5 backdrop-blur-2xl backdrop-saturate-150 md:bottom-0">
         <div className="mx-auto flex max-w-2xl gap-2.5">
           <Link
             href={`/products/${id}/own`}
-            className="press flex h-[2.875rem] flex-1 items-center justify-center rounded-[var(--radius-md)] bg-accent text-[1.0625rem] font-semibold text-white shadow-[var(--shadow-glow)]"
+            className="press flex h-[2.875rem] flex-1 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-accent text-[1.0625rem] font-semibold text-white shadow-[var(--shadow-glow)]"
           >
+            <BadgeCheck className="h-5 w-5" strokeWidth={2.2} />
             Ich besitze es
           </Link>
           <Link
             href={`/products/${id}/ask`}
-            className="press flex h-[2.875rem] flex-1 items-center justify-center rounded-[var(--radius-md)] bg-fill-2 text-[1.0625rem] font-semibold text-label"
+            className="press flex h-[2.875rem] flex-1 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-fill-2 text-[1.0625rem] font-semibold text-label"
           >
-            Besitzer fragen
+            <MessagesSquare className="h-5 w-5" strokeWidth={2.1} />
+            Frage stellen
           </Link>
         </div>
       </div>
       <div className="h-16" aria-hidden />
+    </div>
+  );
+}
+
+/* Compact ring used inside the Wudly Signal panel (people glyph at center). */
+function SignalRing({ score, owners }: { score: number | null; owners: number }) {
+  const pct = score ?? 0;
+  return (
+    <div
+      className="relative grid h-[6.5rem] w-[6.5rem] shrink-0 place-items-center rounded-full"
+      style={{
+        background:
+          score === null
+            ? 'var(--color-fill-2)'
+            : `conic-gradient(var(--color-positive) ${pct}%, rgba(47,159,86,0.14) 0)`,
+      }}
+    >
+      <div className="grid h-[5.1rem] w-[5.1rem] place-items-center rounded-full bg-surface/80 backdrop-blur-sm">
+        <svg viewBox="0 0 24 24" className="h-7 w-7 text-positive-ink" fill="none" aria-hidden>
+          <path
+            d="M16 11a4 4 0 1 0-8 0M3 20a6 6 0 0 1 18 0"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            strokeLinecap="round"
+          />
+          <circle cx="12" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.9" />
+        </svg>
+      </div>
+      <span className="sr-only">
+        {score === null ? 'Noch kein Signal' : `${score}% von ${owners} Besitzern`}
+      </span>
     </div>
   );
 }

@@ -181,10 +181,22 @@ NIE in Score oder Rankings** — die bleiben rein aus Signal-Daten.
 - **Seed** (`seed-showcase.ts`, in Haupt-Seed eingehängt): 12 Kategorie-Templates, 3 Profile
   (INFLUENCER/BRAND/TESTER), 3 publizierte Demo-Showcases mit Blöcken. Login der Creator-Accounts:
   `<handle>@creators.wudly.app / wudly12345`.
-- **Status**: builds/typecheck/lint/shared-Tests grün. Migration + Seed + Integrationstests brauchen
-  laufende DB (lokal Docker down beim Bau) — laufen via `pnpm db:migrate && pnpm db:seed` bzw.
-  in prod automatisch (`prisma migrate deploy` beim API-Boot). **Noch offen (bewusst, „danach"):**
-  Block-Editor-UI, KI-Showcase-Generator, Creator-Listen, Kampagnen, Profil-Erstellungs-UI.
+- **Creator-Self-Service / Studio (2026-06-08, Teil 2)**: kompletter UI-Pfad zum Anlegen/Bearbeiten,
+  unter `/studio` (Einstieg via „Creator-Studio"-Link in `/me`):
+  - `/studio` — Hub: Onboarding-CTA (kein Profil) bzw. Profil-Status + eigene Showcases (Status-/
+    Disclosure-Badges). Backend dafür neu: `GET /me/showcases` (alle eigenen, inkl. DRAFT).
+  - `/studio/profil` — Profil anlegen/bearbeiten (Typ nur bei Anlage, Name, Bio, Website, Logo,
+    Social-Links, „bezahlte Kooperationen"-Selbsterklärung), Verifizierung anfragen.
+  - `/studio/neu` — Showcase erstellen: Produktsuche, Pflicht-Transparenzwahl (WUDLY_NATIVE
+    ausgeschlossen), optional Kategorie-Vorlage → legt DRAFT an.
+  - `/studio/showcases/[id]` — Block-Editor: 14 Blocktypen hinzufügen, typisierte Felder
+    (Chips/Titel-Listen/FAQ/Specs/…), per Pfeil sortieren, löschen, Live-Vorschau, publish/verbergen.
+  - Komponenten: `showcase/block-fields.ts` (Feld-Schema je Typ, im Gleichschritt mit dem Renderer),
+    `showcase/BlockFormFields.tsx` (generisches Formular). builds/typecheck/lint grün.
+- **Status**: builds/typecheck/lint/shared-Tests grün. Migration + Seed liefen in prod
+  (Tabellen live, 12 Templates/3 Profile/3 Demo-Showcases via `seed-showcase-only.ts`). **Noch offen
+  (bewusst, „danach"):** KI-Showcase-Generator, Creator-Listen, Kampagnen, Analytics,
+  Produktseiten-Tab-Struktur.
 
 **Neu (2026-06-03):**
 - **In-App-Benachrichtigungen / Q&A-Loop** — neues `Notification`-Modell (Migration `20260603130000_add_notifications`,
