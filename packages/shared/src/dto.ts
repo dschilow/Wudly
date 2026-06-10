@@ -22,6 +22,7 @@ import type {
   ShowcaseStatus,
   ShowcaseBlockType,
   DisclosureType,
+  ExternalRatingKind,
 } from './enums';
 import type { UsageDurationStats } from './scoring';
 
@@ -99,9 +100,34 @@ export interface ProductInsightsDto {
   generatedAt: string;
 }
 
+/**
+ * An aggregated rating FACT from another platform (average + count + link).
+ * Shown in a clearly-labelled "Bewertungen anderswo" section with its source —
+ * never copied texts, and never part of the Wudly Signal score.
+ */
+export interface ExternalRatingDto {
+  id: string;
+  /** Stable machine key, e.g. "amazon". */
+  source: string;
+  /** Display name, e.g. "Amazon". */
+  sourceLabel: string;
+  /** Attribution link to the source. */
+  url: string;
+  kind: ExternalRatingKind;
+  value: number;
+  maxValue: number;
+  /** Number of ratings behind the value (null when unknown). */
+  count: number | null;
+  /** Free-text context, e.g. "Heft 5/2024". */
+  note: string | null;
+  fetchedAt: string;
+}
+
 export interface ProductDetailDto extends ProductSummaryDto {
   description: string | null;
   insights: ProductInsightsDto;
+  /** Aggregated rating facts from other platforms (may be empty). */
+  externalRatings: ExternalRatingDto[];
 }
 
 export interface ExperienceAspectDto {

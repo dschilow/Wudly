@@ -5,6 +5,7 @@
 
 export * from './enums';
 export * from './scoring';
+export * from './external-ratings';
 export * from './insights';
 export * from './normalize';
 export * from './labels';

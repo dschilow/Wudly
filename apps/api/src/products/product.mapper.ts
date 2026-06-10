@@ -3,6 +3,7 @@ import {
   type ProductSummaryDto,
   type ProductDetailDto,
   type ProductInsightsDto,
+  type ExternalRatingDto,
   type CategoryDto,
   type AspectStatDto,
   type UsageDuration,
@@ -99,11 +100,13 @@ export function toProductInsightsDto(
 export function toProductDetailDto(
   product: ProductWithRelations,
   insights: ProductInsightsDto,
+  externalRatings: ExternalRatingDto[],
 ): ProductDetailDto {
   return {
     ...toProductSummaryDto(product),
     description: product.description,
     insights,
+    externalRatings,
   };
 }
 

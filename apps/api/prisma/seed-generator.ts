@@ -106,9 +106,12 @@ function keysByType(category: SeedCategory, type: AspectSentiment): string[] {
 
 function chooseKeys(keys: string[], count: number, seed: number): string[] {
   if (keys.length === 0 || count <= 0) return [];
+  // Step 1 (not 3): a stride sharing a factor with keys.length (e.g. 3 of 3)
+  // revisits the same index forever and the loop never fills the set.
+  const take = Math.min(count, keys.length);
   const picked = new Set<string>();
-  for (let i = 0; picked.size < Math.min(count, keys.length); i += 1) {
-    picked.add(keys[(seed + i * 3) % keys.length] ?? keys[0]);
+  for (let i = 0; picked.size < take && i < keys.length; i += 1) {
+    picked.add(keys[(seed + i) % keys.length] ?? keys[0]!);
   }
   return [...picked];
 }

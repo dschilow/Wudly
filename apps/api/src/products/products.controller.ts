@@ -8,6 +8,7 @@ import {
   Query,
   Body,
   UseGuards,
+  StreamableFile,
 } from '@nestjs/common';
 import {
   productSearchQuerySchema,
@@ -43,6 +44,7 @@ import {
 } from '@wudly/shared';
 import { ProductsService } from './products.service';
 import { ProductInsightsService } from './product-insights.service';
+import { ProductImageService } from './product-image.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalAuthGuard } from '../auth/optional-auth.guard';
@@ -59,6 +61,7 @@ export class ProductsController {
     private readonly insights: ProductInsightsService,
     private readonly experiences: ExperiencesService,
     private readonly questions: QuestionsService,
+    private readonly images: ProductImageService,
   ) {}
 
   @Get()
@@ -133,6 +136,14 @@ export class ProductsController {
   @Header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
   getPreviewImageById(@Param('id') id: string): Promise<string> {
     return this.products.getPreviewSvgById(id);
+  }
+
+  /** Cached real product photo (downloaded once from Icecat / EAN databases). */
+  @Get(':id/photo')
+  @Header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
+  async getPhoto(@Param('id') id: string): Promise<StreamableFile> {
+    const image = await this.images.getOrThrow(id);
+    return new StreamableFile(image.bytes, { type: image.mime });
   }
 
   @Get(':id/share.svg')

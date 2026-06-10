@@ -54,6 +54,8 @@ import type {
   CreateBlockInput,
   UpdateBlockInput,
   ReorderBlocksInput,
+  ExternalRatingDto,
+  UpsertExternalRatingInput,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -248,5 +250,16 @@ export const api = {
       }),
     reject: (id: string) =>
       apiFetch<{ success: true }>(`/admin/merge-candidates/${id}/reject`, { method: 'POST' }),
+
+    // External rating facts ("Bewertungen anderswo") — facts + source link only.
+    externalRatings: (productId: string, opts?: RequestOptions) =>
+      apiFetch<ExternalRatingDto[]>(`/admin/products/${productId}/external-ratings`, opts),
+    upsertExternalRating: (productId: string, input: UpsertExternalRatingInput) =>
+      apiFetch<ExternalRatingDto>(`/admin/products/${productId}/external-ratings`, {
+        method: 'POST',
+        json: input,
+      }),
+    deleteExternalRating: (id: string) =>
+      apiFetch<{ success: true }>(`/admin/external-ratings/${id}`, { method: 'DELETE' }),
   },
 };

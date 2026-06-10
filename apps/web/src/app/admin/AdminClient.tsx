@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Pill } from '@/components/ui/Pill';
 import { LoadingState, EmptyState } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
+import { ExternalRatingsAdmin } from './ExternalRatingsAdmin';
 
 export function AdminClient() {
   const router = useRouter();
@@ -147,6 +148,8 @@ export function AdminClient() {
           ))}
         </div>
       )}
+
+      <ExternalRatingsAdmin />
     </div>
   );
 }

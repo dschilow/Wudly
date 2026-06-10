@@ -7,6 +7,9 @@ import { AuthModule } from '../auth/auth.module';
 import { ExperiencesModule } from '../experiences/experiences.module';
 import { QuestionsModule } from '../questions/questions.module';
 import { CatalogSeedService } from './catalog-seed.service';
+import { IcecatService } from './icecat.service';
+import { ProductImageService } from './product-image.service';
+import { ExternalRatingsService } from './external-ratings.service';
 
 @Module({
   imports: [
@@ -20,7 +23,13 @@ import { CatalogSeedService } from './catalog-seed.service';
     QuestionsModule,
   ],
   controllers: [ProductsController],
-  providers: [ProductsService, CatalogSeedService],
-  exports: [ProductsService],
+  providers: [
+    ProductsService,
+    CatalogSeedService,
+    IcecatService,
+    ProductImageService,
+    ExternalRatingsService,
+  ],
+  exports: [ProductsService, ExternalRatingsService],
 })
 export class ProductsModule {}

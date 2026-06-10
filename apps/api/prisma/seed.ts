@@ -23,6 +23,7 @@ import {
 } from './seed-data';
 import { buildProductImageUrl, buildProducts } from './seed-generator';
 import { seedShowcase } from './seed-showcase';
+import { seedExternalRatings } from './seed-external-ratings';
 
 if (process.env.SEED_USE_PUBLIC_DATABASE_URL === 'true' && process.env.DATABASE_PUBLIC_URL) {
   process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
@@ -312,6 +313,9 @@ async function main() {
 
   // Wudly Showcase: professional profiles, templates, demo showcases.
   await seedShowcase(prisma);
+
+  // "Bewertungen anderswo": external rating facts for the curated products.
+  await seedExternalRatings(prisma);
 
   console.warn('Seed complete.');
 }

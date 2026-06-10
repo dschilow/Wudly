@@ -34,27 +34,30 @@ Projekt **`wudly`** auf Railway (Workspace „dschilow's Projects"), 3 Services:
 | `Postgres`     | Railway-managed PostgreSQL         | intern: `postgres-enfg.railway.internal` |
 
 - Health: `GET /api/health` → `{"status":"ok","db":"up"}`
-- Deploy erfolgt per **Railway CLI** (`railway up --service <name> --ci`). CLI ist auf der
-  Dev-Maschine eingeloggt (`d.schilow@gmx.net`). **Kein** GitHub-Repo nötig (direct upload).
+- Deploy erfolgt per **Railway CLI** (`railway up --service <name> --ci`, direct upload). CLI ist
+  auf der Dev-Maschine eingeloggt (`d.schilow@gmx.net`). Ein GitHub-Repo existiert inzwischen.
 - Builds nutzen die **Dockerfiles** (erzwungen via Service-Variable `RAILWAY_DOCKERFILE_PATH`).
 - Cross-Service-Variablen sind gesetzt:
   - api: `DATABASE_URL=${{Postgres-eNfg.DATABASE_URL}}`, `CORS_ORIGIN=<web-url>`, `JWT_SECRET`, `COOKIE_SECURE=true`, `NODE_ENV=production`, `AI_PROVIDER=openrouter`, `OPENROUTER_MODEL=google/gemini-3.1-flash-lite`, `OPENROUTER_SITE_URL`, `OPENROUTER_APP_TITLE=Wudly`
   - web: `NEXT_PUBLIC_API_URL=<api-url>/api`
 
-### ⚠️ KI aktivieren (einziger offener manueller Schritt)
+### KI-Status
 
-Die KI (OpenRouter / Gemini Flash 3.1 Lite) ist vollständig integriert, aber sie braucht den
-**`OPENROUTER_API_KEY`** als Variable auf `wudly-api`. Ohne Key fällt alles automatisch auf die
-deterministische Logik zurück (App bleibt voll funktionsfähig). Key setzen:
+Die KI (OpenRouter / Gemini Flash 3.1 Lite) ist integriert und **läuft live in prod**
+(bestätigt 2026-06-05, u. a. Foto-Erkennung beim Scan und KI-Frage-Vorschläge). Diagnose:
+`GET /api/health/ai?test=1`. Ohne Key fällt alles automatisch auf die deterministische
+Logik zurück (App bleibt voll funktionsfähig).
+
+### Open Icecat aktivieren (offener manueller Schritt)
+
+Für offizielle Hersteller-Produktbilder beim EAN-Scan: kostenlosen Open-Icecat-Account
+auf https://icecat.biz registrieren, dann:
 
 ```bash
-railway variables --service wudly-api --set "OPENROUTER_API_KEY=<dein-openrouter-key>"
-# danach neu deployen (oder Railway re-deployt automatisch beim Var-Change):
+railway variables --service wudly-api --set "ICECAT_USERNAME=<username>"
+# optional: ICECAT_API_TOKEN dazu. Ohne Username wird Icecat einfach übersprungen.
 railway up --service wudly-api --ci
 ```
-
-Der Key liegt z. B. im Curio/Ideen-Railway-Projekt. (Hinweis: `railway run` injiziert ENV in dieser
-Agent-Umgebung nicht in Subprozesse, daher konnte der Agent den Key nicht automatisch übertragen.)
 
 **Demo-Login (geseedet):** `admin@wudly.app` / `admin12345` (Admin) · Demo-User: `<handle>@demo.wudly.app` / `wudly12345`.
 
@@ -197,6 +200,28 @@ NIE in Score oder Rankings** — die bleiben rein aus Signal-Daten.
   (Tabellen live, 12 Templates/3 Profile/3 Demo-Showcases via `seed-showcase-only.ts`). **Noch offen
   (bewusst, „danach"):** KI-Showcase-Generator, Creator-Listen, Kampagnen, Analytics,
   Produktseiten-Tab-Struktur.
+
+**Neu (2026-06-10) — Icecat-Bilder, Bild-Cache & „Bewertungen anderswo":**
+- **Open-Icecat-Lookup** (`products/icecat.service.ts`): offizielle Herstellerdaten + Bilder
+  per GTIN, **vorne** in der EAN-Kette (Icecat → Open Food Facts → UPCitemdb). Aktiv sobald
+  `ICECAT_USERNAME` gesetzt ist (kostenloser Account auf icecat.biz), sonst übersprungen.
+- **Bild-Cache** (`ProductImage`-Tabelle + `product-image.service.ts`): externe Bilder (http
+  und Foto-data-URLs) werden einmalig heruntergeladen (max. 3 MB, nur image/*) und über
+  `GET /products/:id/photo` aus der eigenen DB serviert; `product.imageUrl` wird auf den
+  API-relativen Pfad umgestellt. Kein Hotlinking/Bild-Rot mehr; einheitliche Qualität,
+  kein User-Upload nötig. Fire-and-forget bei Anlage/Update — Fehler lassen die alte URL stehen.
+- **„Bewertungen anderswo"** (`ExternalRating`-Tabelle, Migration
+  `20260610090000_add_external_ratings_and_image_cache`): aggregierte FAKTEN externer
+  Plattformen (Durchschnitt + Anzahl + Pflicht-Quelllink; Arten STARS / PERCENT / GRADE_DE
+  inkl. Warentest-Schulnote). Produktregel wie Showcase: **fließt NIE ins Wudly Signal**.
+  - Shared: `external-ratings.ts` (Normalisierung/Formatierung, getestet), `ExternalRatingDto`,
+    `upsertExternalRatingSchema`.
+  - API: eingebettet in `GET /products/:id` (`externalRatings`), Admin-CRUD unter
+    `GET|POST /admin/products/:id/external-ratings` + `DELETE /admin/external-ratings/:id`.
+  - Web: Sektion „Bewertungen anderswo" auf der Produktseite (`ExternalRatingsCard`, neutral-grau,
+    mit Disclaimer) + Admin-Editor in `/admin` (Produktsuche, Quellen-Presets, Upsert/Delete).
+  - Seed: `seed-external-ratings.ts` (in Haupt-Seed) + `seed-external-ratings-only.ts` für prod
+    (append-only, kein Reset).
 
 **Neu (2026-06-03):**
 - **In-App-Benachrichtigungen / Q&A-Loop** — neues `Notification`-Modell (Migration `20260603130000_add_notifications`,

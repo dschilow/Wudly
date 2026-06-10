@@ -165,6 +165,13 @@ enum DisclosureType {
   WUDLY_NATIVE
 }
 
+/// How an external rating value is expressed (drives display + normalization).
+enum ExternalRatingKind {
+  STARS // e.g. 4.5 of maxValue 5
+  PERCENT // 0–100
+  GRADE_DE // German school grade 1.0 (best) – 6.0 (worst), e.g. Stiftung Warentest
+}
+
 /* ----------------------------------------------------------------- *
  * Identity
  * ----------------------------------------------------------------- */
@@ -251,6 +258,8 @@ model Product {
   mergeCandidatesA  AdminMergeCandidate[]   @relation("ProductA")
   mergeCandidatesB  AdminMergeCandidate[]   @relation("ProductB")
   showcases         ProductShowcase[]
+  externalRatings   ExternalRating[]
+  cachedImage       ProductImage?
 
   @@index([normalizedName])
   @@index([categoryId])
@@ -289,6 +298,55 @@ model ProductIdentifier {
 
   @@unique([type, value])
   @@index([productId])
+}
+
+/// Aggregated rating FACTS from other platforms (average + count + link), shown
+/// in a clearly-labelled "Bewertungen anderswo" section. Facts only — never
+/// copied review texts, and NEVER part of the Wudly Signal score or rankings.
+model ExternalRating {
+  id          String             @id @default(cuid())
+  productId   String
+  /// Stable machine key of the source, e.g. "amazon", "idealo", "warentest".
+  source      String
+  /// Display name, e.g. "Amazon".
+  sourceLabel String
+  /// Attribution link — an external fact is only shown with its source.
+  url         String
+  kind        ExternalRatingKind @default(STARS)
+  value       Float
+  /// Scale maximum (5 for stars, 100 for percent; ignored for GRADE_DE).
+  maxValue    Float              @default(5)
+  /// Number of ratings behind the value (null when the source doesn't say).
+  count       Int?
+  /// Free-text context, e.g. "Heft 5/2024".
+  note        String?
+  /// When the value was last read from the source.
+  fetchedAt   DateTime           @default(now())
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, source])
+  @@index([productId])
+}
+
+/// Cached product image bytes (downloaded once from Icecat / EAN databases /
+/// camera capture). Serving from our own DB keeps thumbnails stable and uniform
+/// instead of hotlinking external URLs that rot or vary in quality.
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String   @unique
+  mime      String
+  bytes     Bytes
+  /// Where the image was downloaded from (null for inline/manual uploads).
+  sourceUrl String?
+  /// Provider key: icecat | openfoodfacts | upcitemdb | photo | manual.
+  source    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model ProductSource {

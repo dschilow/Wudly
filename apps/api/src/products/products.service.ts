@@ -24,6 +24,9 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
 import { ProductInsightsService } from './product-insights.service';
+import { IcecatService, type EanLookupHit } from './icecat.service';
+import { ProductImageService } from './product-image.service';
+import { ExternalRatingsService } from './external-ratings.service';
 import { renderProductPreviewSvg } from './product-preview-svg';
 import { renderProductShareSvg } from './product-share-svg';
 import {
@@ -34,13 +37,6 @@ import {
 
 const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
 
-/** A hit from a free external EAN database (title + optional brand/photo). */
-interface EanLookupHit {
-  title: string;
-  brand: string | null;
-  image: string | null;
-}
-
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
@@ -49,6 +45,9 @@ export class ProductsService {
     private readonly prisma: PrismaService,
     private readonly matching: ProductMatchingService,
     private readonly insights: ProductInsightsService,
+    private readonly icecat: IcecatService,
+    private readonly images: ProductImageService,
+    private readonly externalRatings: ExternalRatingsService,
     @Inject(AI_SERVICE) private readonly ai: AiService,
   ) {}
 
@@ -78,8 +77,11 @@ export class ProductsService {
 
   async getDetail(id: string): Promise<ProductDetailDto> {
     const product = await this.findOrThrow(id);
-    const insights = await this.insights.getInsights(id);
-    return toProductDetailDto(product, insights);
+    const [insights, externalRatings] = await Promise.all([
+      this.insights.getInsights(id),
+      this.externalRatings.listForProduct(id),
+    ]);
+    return toProductDetailDto(product, insights, externalRatings);
   }
 
   /**
@@ -134,6 +136,7 @@ export class ProductsService {
         canonicalName: external.title,
         brand: external.brand,
         imageUrl: external.image,
+        imageSource: external.source,
         ean: normalized,
         userId,
       });
@@ -171,6 +174,7 @@ export class ProductsService {
       brand: input.brand ?? null,
       categorySlug,
       imageUrl: input.imageDataUrl ?? null,
+      imageSource: 'photo',
       userId,
     });
   }
@@ -191,6 +195,8 @@ export class ProductsService {
     categorySlug?: string | null;
     description?: string | null;
     imageUrl?: string | null;
+    /** Provider key of the image origin (for the cache attribution). */
+    imageSource?: string;
     ean?: string | null;
     userId?: string | null;
     research?: boolean;
@@ -230,6 +236,11 @@ export class ProductsService {
           data: { imageUrl: params.imageUrl },
           include: PRODUCT_INCLUDE,
         });
+        this.images.cacheInBackground(
+          strong.product.id,
+          params.imageUrl,
+          params.imageSource ?? 'manual',
+        );
         return { product: toProductSummaryDto(updated), created: false };
       }
       return { product: toProductSummaryDto(strong.product), created: false };
@@ -245,6 +256,7 @@ export class ProductsService {
         forceCreate: true,
       },
       params.userId ?? null,
+      params.imageSource,
     );
     if (!result.created || !result.product) return { product: null, created: false };
     if (params.ean) await this.attachIdentifier(result.product.id, params.ean);
@@ -264,9 +276,17 @@ export class ProductsService {
     }
   }
 
-  /** Free EAN database lookup: Open Food Facts first, then UPCitemdb trial. */
+  /**
+   * External EAN database chain, best source first: Open Icecat (official
+   * manufacturer data + press-quality images, when configured) → Open Food
+   * Facts → UPCitemdb trial.
+   */
   private async lookupEanExternal(ean: string): Promise<EanLookupHit | null> {
-    return (await this.lookupOpenFoodFacts(ean)) ?? (await this.lookupUpcItemDb(ean));
+    return (
+      (await this.icecat.lookupGtin(ean)) ??
+      (await this.lookupOpenFoodFacts(ean)) ??
+      (await this.lookupUpcItemDb(ean))
+    );
   }
 
   private async lookupOpenFoodFacts(ean: string): Promise<EanLookupHit | null> {
@@ -295,6 +315,7 @@ export class ProductsService {
         title,
         brand: data.product.brands?.split(',')[0]?.trim() || null,
         image: data.product.image_front_url?.trim() || data.product.image_url?.trim() || null,
+        source: 'openfoodfacts',
       };
     } catch {
       return null;
@@ -318,6 +339,7 @@ export class ProductsService {
         title,
         brand: item?.brand?.trim() || null,
         image: item?.images?.find((u) => typeof u === 'string' && u.startsWith('http')) ?? null,
+        source: 'upcitemdb',
       };
     } catch (err) {
       this.logger.warn(`EAN lookup failed: ${err instanceof Error ? err.message : err}`);
@@ -567,6 +589,7 @@ export class ProductsService {
   async create(
     input: CreateProductInput,
     createdByUserId: string | null = null,
+    imageSource = 'manual',
   ): Promise<CreateProductResultDto> {
     const canonicalName = input.canonicalName.trim();
     const normalizedName = normalizeProductName(canonicalName);
@@ -624,9 +647,14 @@ export class ProductsService {
       await this.maybeLogMergeCandidate(product, canonicalName);
     }
 
+    // Pull the external image into our own cache (uniform, permanent thumbnails).
+    if (product.imageUrl) {
+      this.images.cacheInBackground(product.id, product.imageUrl, imageSource);
+    }
+
     // Create an (empty) snapshot so the product reads consistently from the start.
     const insights = await this.insights.regenerate(product.id);
-    return { created: true, product: toProductDetailDto(product, insights) };
+    return { created: true, product: toProductDetailDto(product, insights, []) };
   }
 
   async update(id: string, input: UpdateProductInput): Promise<ProductDetailDto> {
@@ -651,8 +679,15 @@ export class ProductsService {
       data,
       include: PRODUCT_INCLUDE,
     });
-    const insights = await this.insights.getInsights(id);
-    return toProductDetailDto(product, insights);
+    // A newly-set external image gets pulled into our own cache.
+    if (typeof data.imageUrl === 'string' && !data.imageUrl.startsWith('/')) {
+      this.images.cacheInBackground(id, data.imageUrl, 'manual');
+    }
+    const [insights, externalRatings] = await Promise.all([
+      this.insights.getInsights(id),
+      this.externalRatings.listForProduct(id),
+    ]);
+    return toProductDetailDto(product, insights, externalRatings);
   }
 
   private async findOrThrow(id: string): Promise<ProductWithRelations> {

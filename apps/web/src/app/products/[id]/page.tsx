@@ -24,6 +24,7 @@ import { ScoreTrend } from '@/components/ScoreTrend';
 import { Thumb } from '@/components/Thumb';
 import { UsageDurationChart } from '@/components/UsageDurationChart';
 import { ExperienceCard } from '@/components/ExperienceCard';
+import { ExternalRatingsCard } from '@/components/ExternalRatingsCard';
 import { QuestionCard } from '@/components/QuestionCard';
 import { ShowcaseCard } from '@/components/showcase/ShowcaseCard';
 import { Pill } from '@/components/ui/Pill';
@@ -399,6 +400,20 @@ export default async function ProductPage({ params }: PageProps) {
             }
           />
         </div>
+      )}
+
+      {/* Bewertungen anderswo — aggregated facts from other platforms. Clearly
+          labelled, source-linked, and never part of the Wudly Signal. */}
+      {product.externalRatings.length > 0 && (
+        <section>
+          <SectionTitle>Bewertungen anderswo</SectionTitle>
+          <ExternalRatingsCard ratings={product.externalRatings} />
+          <p className="px-1 pt-2 text-[0.8125rem] leading-snug text-muted-foreground">
+            Durchschnittswerte externer Plattformen (mit Quelle verlinkt). Sie fließen{' '}
+            <span className="font-medium text-label">nicht</span> in das Wudly Signal ein — das
+            bleibt zu 100&nbsp;% echte Besitzer.
+          </p>
+        </section>
       )}
 
       {/* 7 · Nach Nutzungsdauer */}

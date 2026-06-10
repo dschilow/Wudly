@@ -28,6 +28,11 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default('mailto:hallo@wudly.app'),
+  // Open Icecat (official manufacturer product data/images by GTIN). Register a
+  // free account at icecat.biz; without ICECAT_USERNAME the lookup is skipped
+  // and the EAN chain continues with the other free databases.
+  ICECAT_USERNAME: z.string().optional(),
+  ICECAT_API_TOKEN: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

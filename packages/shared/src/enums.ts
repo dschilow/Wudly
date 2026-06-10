@@ -191,6 +191,21 @@ export const DisclosureType = {
 } as const;
 export type DisclosureType = (typeof DisclosureType)[keyof typeof DisclosureType];
 
+/**
+ * How an external rating value is expressed (drives display + normalization).
+ * External ratings are aggregated FACTS from other platforms — clearly labelled
+ * with their source and NEVER part of the Wudly Signal score or rankings.
+ */
+export const ExternalRatingKind = {
+  /** e.g. 4.5 out of maxValue 5 stars. */
+  STARS: 'STARS',
+  /** 0–100. */
+  PERCENT: 'PERCENT',
+  /** German school grade 1.0 (best) – 6.0 (worst), e.g. Stiftung Warentest. */
+  GRADE_DE: 'GRADE_DE',
+} as const;
+export type ExternalRatingKind = (typeof ExternalRatingKind)[keyof typeof ExternalRatingKind];
+
 /** Helper to turn a const-enum object into an array of its values. */
 export function enumValues<T extends Record<string, string>>(e: T): Array<T[keyof T]> {
   return Object.values(e) as Array<T[keyof T]>;

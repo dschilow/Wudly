@@ -17,6 +17,7 @@ import {
   ShowcaseStatus,
   ShowcaseBlockType,
   DisclosureType,
+  ExternalRatingKind,
   enumValues,
 } from './enums';
 
@@ -91,6 +92,47 @@ export type CreateProductInput = z.infer<typeof createProductSchema>;
 
 export const updateProductSchema = createProductSchema.partial().omit({ forceCreate: true });
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+const externalRatingKindSchema = z.enum(
+  enumValues(ExternalRatingKind) as [string, ...string[]],
+) as z.ZodType<(typeof ExternalRatingKind)[keyof typeof ExternalRatingKind]>;
+
+/**
+ * Admin upsert of an external rating fact (keyed per product+source). The value
+ * range depends on the kind, so it's checked cross-field below.
+ */
+export const upsertExternalRatingSchema = z
+  .object({
+    source: z
+      .string()
+      .trim()
+      .min(2)
+      .max(40)
+      .regex(/^[a-z0-9-]+$/, 'Nur Kleinbuchstaben, Ziffern und Bindestriche'),
+    sourceLabel: z.string().trim().min(2).max(60),
+    url: z.string().trim().url().max(500),
+    kind: externalRatingKindSchema.default(ExternalRatingKind.STARS),
+    value: z.number().finite(),
+    maxValue: z.number().finite().positive().max(100).default(5),
+    count: z.number().int().min(0).max(100_000_000).nullable().optional(),
+    note: z.string().trim().max(200).nullable().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const range =
+      data.kind === ExternalRatingKind.PERCENT
+        ? { min: 0, max: 100, what: '0–100' }
+        : data.kind === ExternalRatingKind.GRADE_DE
+          ? { min: 0.5, max: 6, what: 'Note 0,5–6,0' }
+          : { min: 0, max: data.maxValue, what: `0–${data.maxValue}` };
+    if (data.value < range.min || data.value > range.max) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['value'],
+        message: `Wert muss im Bereich ${range.what} liegen`,
+      });
+    }
+  });
+export type UpsertExternalRatingInput = z.infer<typeof upsertExternalRatingSchema>;
 
 /* ------------------------------------------------------------------ *
  * Ownership
