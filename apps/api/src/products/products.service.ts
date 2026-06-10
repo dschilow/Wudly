@@ -173,8 +173,7 @@ export class ProductsService {
       canonicalName: name,
       brand: input.brand ?? null,
       categorySlug,
-      imageUrl: input.imageDataUrl ?? null,
-      imageSource: 'photo',
+      // Camera photo is only for AI recognition — never store it as product image.
       userId,
     });
   }
