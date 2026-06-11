@@ -56,7 +56,7 @@ export function ExternalRatingsCard({ ratings }: { ratings: ExternalRatingDto[] 
                 </span>
               )}
             </div>
-            <span className="tnum shrink-0 text-[1.0625rem] font-bold text-label">
+            <span className="mono-data shrink-0 text-[1rem] font-semibold text-label">
               {formatExternalRating(rating)}
             </span>
             <ExternalLink className="h-4 w-4 shrink-0 text-label-3" strokeWidth={2.2} />

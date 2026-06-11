@@ -268,7 +268,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
       </AnimatePresence>
 
       {/* Fixed bottom action bar */}
-      <div className="safe-bottom fixed inset-x-0 bottom-[3.75rem] z-30 border-t border-separator bg-canvas/80 px-4 py-2.5 backdrop-blur-2xl md:bottom-0">
+      <div className="fixed inset-x-0 bottom-[4.6rem] z-30 px-5 pb-[max(env(safe-area-inset-bottom),0px)] md:bottom-4">
         <div className="mx-auto flex max-w-md items-center gap-2.5">
           {step > 1 && (
             <Button
@@ -278,6 +278,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
                 setStep((s) => s - 1);
               }}
               size="lg"
+              className="rounded-full bg-surface/95 shadow-[0_0_0_1px_var(--color-border-strong),var(--shadow-card)] backdrop-blur-xl"
             >
               Zurück
             </Button>
@@ -291,12 +292,17 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
               }}
               disabled={!canNext}
               size="lg"
-              className="flex-1"
+              className="flex-1 rounded-full shadow-[var(--shadow-glow)]"
             >
               Weiter
             </Button>
           ) : (
-            <Button onClick={submit} loading={submitting} size="lg" className="flex-1">
+            <Button
+              onClick={submit}
+              loading={submitting}
+              size="lg"
+              className="flex-1 rounded-full shadow-[var(--shadow-glow)]"
+            >
               Abschicken
             </Button>
           )}

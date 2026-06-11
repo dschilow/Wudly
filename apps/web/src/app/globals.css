@@ -1,131 +1,133 @@
 @import 'tailwindcss';
 
 /*
- * Wudly — premium design system (Tailwind v4 CSS-first theme).
+ * Wudly — "Kassenbon Editorial" design system (Tailwind v4 CSS-first theme).
  *
- * Built on authentic iOS bones (SF type, grouped lists, materials, restraint)
- * but elevated to feel like a flagship consumer app, not the Settings screen:
- * a signature brand gradient for hero/score moments, soft layered elevation so
- * cards lift off the canvas, a designed "verdict" color language, and generous
- * continuous-corner radii. Color is used with intent, not decoration.
+ * Identity: Wudly is about purchases you'd make again — so the UI borrows the
+ * one artifact every purchase produces: the receipt. Warm paper instead of
+ * sterile white, mono "data lines" with dotted leaders, perforated edges,
+ * rubber-stamp verdicts and barcodes — interpreted through modern editorial
+ * typography (Instrument Serif for the big moments, Instrument Sans for UI,
+ * Spline Sans Mono for data). Calm, graphic, unmistakably Wudly.
  */
 @theme {
-  /* ---- Labels (text) — iOS label hierarchy on light bg ---- */
-  --color-label: #0a0a0c; /* near-black, a touch warmer than pure #000 */
-  --color-label-2: #3c3c4399; /* secondaryLabel  (60%) */
-  --color-label-3: #3c3c434d; /* tertiaryLabel   (30%) */
-  --color-label-4: #3c3c432e; /* quaternaryLabel (18%) */
-  /* solid mirrors for places transparency reads poorly */
-  --color-ink: #0a0a0c;
-  --color-ink-soft: #3a3a3c;
-  --color-muted-foreground: #6c6c72; /* ≈ secondaryLabel solid */
-  --color-faint: #a0a0a8; /* systemGray3-ish */
+  /* ---- Ink (text) on paper ---- */
+  --color-label: #1a1a16; /* warm near-black ink */
+  --color-label-2: #1a1a1699;
+  --color-label-3: #1a1a164d;
+  --color-label-4: #1a1a162e;
+  --color-ink: #1a1a16;
+  --color-ink-soft: #44443d;
+  --color-muted-foreground: #6f6c61;
+  --color-faint: #a6a294;
 
-  /* ---- Backgrounds — layered, with a faint cool depth ---- */
-  --color-canvas: #fbfbfd; /* Apple-like off-white, never pure white */
-  --color-surface-muted: #f0f1f4; /* sunken wells / fills */
-  --color-surface: #ffffff; /* cards / rows */
-  --color-surface-soft: #ffffff;
-  --color-surface-2: #fbfbfd; /* nested surface on a card */
-  --color-surface-sunken: #eceef2; /* pressed row / fills */
-  --color-fill: #78788014; /* systemFill-ish (8%) */
-  --color-fill-2: #76768019; /* secondarySystemFill */
+  /* ---- Paper (backgrounds) ---- */
+  --color-canvas: #f7f5ef; /* warm paper, never pure white */
+  --color-surface: #fffefa; /* the receipt itself */
+  --color-surface-soft: #fffefa;
+  --color-surface-muted: #efece3;
+  --color-surface-2: #f7f5ef;
+  --color-surface-sunken: #e9e6db;
+  --color-fill: #1a1a160d;
+  --color-fill-2: #1a1a1614;
 
-  /* ---- Separators (hairlines) ---- */
-  --color-separator: #3c3c4326; /* hairline on light */
-  --color-border: #3c3c431a; /* subtle */
-  --color-border-strong: #3c3c4340;
+  /* ---- Rules (hairlines) ---- */
+  --color-separator: #1a1a1629;
+  --color-border: #1a1a161a;
+  --color-border-strong: #1a1a1647;
 
   /* ---- Brand / Tints ---- */
-  --color-accent: #063f2e; /* Wudly forest */
-  --color-accent-hover: #052f24;
-  --color-accent-soft: #0b6b4312;
-  --color-accent-ink: #063f2e;
-  /* Signature brand gradient stops (hero, score ring, key CTAs) */
-  --brand-from: #063f2e;
-  --brand-mid: #0b5a3d;
-  --brand-to: #02281f;
+  --color-accent: #0a5740; /* Wudly forest ink */
+  --color-accent-hover: #07432f;
+  --color-accent-soft: #0a574014;
+  --color-accent-ink: #0a5740;
+  --brand-from: #0a5740;
+  --brand-mid: #0e6b4b;
+  --brand-to: #06402e;
 
-  --color-primary: #0a0a0c; /* solid action (rare) */
-  --color-primary-hover: #1c1c1e;
-  --color-primary-foreground: #ffffff;
+  --color-primary: #1a1a16;
+  --color-primary-hover: #2c2c26;
+  --color-primary-foreground: #fffefa;
 
-  /* ---- Semantic scores (iOS system colors, lightly enriched) ---- */
-  --color-positive: #2f9f56; /* saturated, muted green */
-  --color-positive-soft: #34c75914;
-  --color-positive-ink: #1f8a40;
+  /* ---- Semantic verdict colors ---- */
+  --color-positive: #1f8a4d;
+  --color-positive-soft: #1f8a4d14;
+  --color-positive-ink: #176a3b;
 
-  --color-regret: #d84a3a; /* calm red, not neon */
-  --color-regret-soft: #ff3b3014;
-  --color-regret-ink: #c4271f;
+  --color-regret: #c2402a; /* stamp red */
+  --color-regret-soft: #c2402a12;
+  --color-regret-ink: #a33420;
 
-  --color-unsure: #c9892b; /* warm amber */
-  --color-unsure-soft: #ff950014;
-  --color-unsure-ink: #b56a00;
+  --color-unsure: #b9851f;
+  --color-unsure-soft: #b9851f17;
+  --color-unsure-ink: #93691a;
 
-  /* ---- Radii — generous continuous-corner feel ---- */
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1.125rem; /* card / list group radius (~18pt) */
-  --radius-xl: 1.375rem;
-  --radius-2xl: 1.625rem;
+  /* ---- Radii — crisp, editorial (a receipt isn't a bubble) ---- */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.125rem;
+  --radius-2xl: 1.375rem;
 
-  /* ---- Shadows — soft, layered elevation (premium lift, never heavy) ---- */
-  --shadow-xs: 0 1px 1px rgba(16, 24, 40, 0.03);
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px -6px rgba(16, 24, 40, 0.08);
+  /* ---- Shadows — flat, graphic lift; paper on a desk, not glass ---- */
+  --shadow-xs: 0 1px 1px rgba(26, 26, 22, 0.04);
+  --shadow-sm: 0 1px 2px rgba(26, 26, 22, 0.05);
+  --shadow-card: 0 1px 2px rgba(26, 26, 22, 0.04), 0 6px 16px -8px rgba(26, 26, 22, 0.1);
   --shadow-elevated:
-    0 2px 6px -2px rgba(16, 24, 40, 0.06), 0 12px 28px -10px rgba(16, 24, 40, 0.14);
-  --shadow-pop: 0 8px 28px -8px rgba(16, 24, 40, 0.22);
-  --shadow-hero: 0 18px 40px -14px rgba(58, 90, 255, 0.5);
-  --shadow-glow: 0 6px 20px -6px rgba(10, 116, 255, 0.45);
+    0 2px 4px rgba(26, 26, 22, 0.05), 0 18px 36px -16px rgba(26, 26, 22, 0.18);
+  --shadow-pop: 0 10px 30px -10px rgba(26, 26, 22, 0.25);
+  --shadow-hero: 0 18px 40px -14px rgba(10, 87, 64, 0.4);
+  --shadow-glow: 0 8px 22px -8px rgba(10, 87, 64, 0.5);
 
-  /* SF Pro via the system stack — this is what makes it feel native. */
+  /* ---- Type — the backbone of the identity ---- */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', system-ui,
-    Roboto, Helvetica, Arial, sans-serif;
-  --font-display: 'New York', 'Iowan Old Style', Georgia, ui-serif, serif;
+    var(--font-sans-app), 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    system-ui, sans-serif;
+  --font-display: var(--font-serif-app), 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-mono:
+    var(--font-mono-app), 'Spline Sans Mono', ui-monospace, 'SF Mono', 'Cascadia Mono',
+    monospace;
 
-  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1); /* iOS-like spring-out */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-soft: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-label: #f5f5f7;
-    --color-label-2: #ebebf599;
-    --color-label-3: #ebebf54d;
-    --color-label-4: #ebebf52e;
-    --color-ink: #f5f5f7;
-    --color-ink-soft: #d8d8dc;
-    --color-muted-foreground: #a6a6ad;
-    --color-faint: #6f7078;
+    --color-label: #f1efe6; /* cream ink on dark paper */
+    --color-label-2: #f1efe699;
+    --color-label-3: #f1efe64d;
+    --color-label-4: #f1efe62e;
+    --color-ink: #f1efe6;
+    --color-ink-soft: #d6d3c6;
+    --color-muted-foreground: #a4a193;
+    --color-faint: #6f6d61;
 
-    --color-canvas: #111114;
-    --color-surface-muted: #24252a;
-    --color-surface: #1b1c20;
-    --color-surface-soft: #202127;
-    --color-surface-2: #24252a;
-    --color-surface-sunken: #2b2c32;
-    --color-fill: #ffffff12;
-    --color-fill-2: #ffffff18;
+    --color-canvas: #141411;
+    --color-surface: #1c1c18;
+    --color-surface-soft: #21211c;
+    --color-surface-muted: #242420;
+    --color-surface-2: #242420;
+    --color-surface-sunken: #2b2b26;
+    --color-fill: #f1efe612;
+    --color-fill-2: #f1efe61a;
 
-    --color-separator: #ffffff1f;
-    --color-border: #ffffff14;
-    --color-border-strong: #ffffff2b;
+    --color-separator: #f1efe624;
+    --color-border: #f1efe614;
+    --color-border-strong: #f1efe63d;
 
-    --color-accent-soft: #30d15824;
-    --color-accent-ink: #9be7bd;
-    --color-positive-soft: #2f9f5624;
-    --color-positive-ink: #8edaa6;
-    --color-regret-soft: #d84a3a24;
-    --color-regret-ink: #ffaea6;
-    --color-unsure-soft: #c9892b24;
-    --color-unsure-ink: #f0c17a;
+    --color-accent-soft: #2fae7e21;
+    --color-accent-ink: #a9ddc0;
+    --color-positive-soft: #2f9f5621;
+    --color-positive-ink: #93d4ac;
+    --color-regret-soft: #d84a3a21;
+    --color-regret-ink: #f0a795;
+    --color-unsure-soft: #c9892b21;
+    --color-unsure-ink: #e3bc76;
 
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.24), 0 10px 24px -16px rgba(0, 0, 0, 0.55);
-    --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.32), 0 18px 34px -18px rgba(0, 0, 0, 0.72);
-    --shadow-pop: 0 10px 32px -14px rgba(0, 0, 0, 0.72);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 24px -16px rgba(0, 0, 0, 0.6);
+    --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.35), 0 18px 34px -18px rgba(0, 0, 0, 0.75);
+    --shadow-pop: 0 10px 32px -14px rgba(0, 0, 0, 0.75);
   }
 }
 
@@ -141,9 +143,20 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: 0;
+    letter-spacing: -0.01em;
     line-height: 1.5;
     overscroll-behavior-y: none;
+  }
+
+  /* Faint paper grain over the whole canvas — texture you feel, not see. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
   button,
@@ -157,7 +170,6 @@
     background: var(--color-accent-soft);
   }
 
-  /* Focus ring only for keyboard users (iOS has none for touch). */
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 1px;
@@ -205,7 +217,12 @@
     transform-origin: bottom;
   }
 
-  /* iOS tap feedback: dim, don't scale. Apply to list rows / plain buttons. */
+  /* Receipt divider — a dashed rule like the tear line on a Kassenbon. */
+  .rule-dashed {
+    border-top: 1px dashed var(--color-separator);
+  }
+
+  /* Tap feedback */
   .tap {
     transition: background-color 0.12s ease;
   }
@@ -220,7 +237,6 @@
   .tap-dim:active {
     opacity: 0.55;
   }
-  /* Springy press for prominent cards/CTAs */
   .press {
     transition:
       transform 0.18s var(--ease-ios),
@@ -230,36 +246,115 @@
     transform: scale(0.975);
   }
 
-  /* Elevated card surface — soft lift off the canvas (premium). */
+  /* The receipt card: warm white paper, hairline edge, flat graphic lift. */
   .card {
     background: var(--color-surface);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-card);
+    box-shadow:
+      0 0 0 1px var(--color-border),
+      var(--shadow-card);
   }
   .card-elevated {
     background: var(--color-surface);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-elevated);
+    box-shadow:
+      0 0 0 1px var(--color-border),
+      var(--shadow-elevated);
   }
 
-  /* Verdict hero panels — tinted, light-to-lighter gradients that flip to deep
-     ink-tinted surfaces in dark mode (hardcoding light hex here broke dark). */
+  /* Perforated receipt edges — canvas-colored punch holes over the card edge. */
+  .perf-bottom {
+    position: relative;
+  }
+  .perf-bottom::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -5px;
+    height: 10px;
+    background-image: radial-gradient(
+      circle 5px at center,
+      var(--color-canvas) 0 4px,
+      transparent 4.6px
+    );
+    background-size: 18px 10px;
+    background-position: 7px 0;
+    background-repeat: repeat-x;
+    pointer-events: none;
+  }
+  .perf-top {
+    position: relative;
+  }
+  .perf-top::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -5px;
+    height: 10px;
+    background-image: radial-gradient(
+      circle 5px at center,
+      var(--color-canvas) 0 4px,
+      transparent 4.6px
+    );
+    background-size: 18px 10px;
+    background-position: 7px 0;
+    background-repeat: repeat-x;
+    pointer-events: none;
+  }
+
+  /* Rubber-stamp verdict: bordered, tracked uppercase. Rotate via Tailwind. */
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 2px solid currentColor;
+    border-radius: 0.4rem;
+    padding: 0.3rem 0.65rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+
+  /* Receipt data line: label ····· value (dotted leader, mono value). */
+  .ledger-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.625rem;
+  }
+  .leader {
+    flex: 1;
+    min-width: 1.25rem;
+    border-bottom: 2px dotted var(--color-label-3);
+    transform: translateY(-0.3em);
+  }
+  .mono-data {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+
+  /* Verdict hero panels — paper tinted by the verdict, dark-mode aware. */
   .panel-positive {
-    background: linear-gradient(165deg, #f1f7f3, #e7f3eb);
+    background: linear-gradient(170deg, #eef4ec, #e4efe5);
   }
   .panel-regret {
-    background: linear-gradient(160deg, #fcf2f0, #fbeae7);
+    background: linear-gradient(165deg, #f9efe9, #f6e6df);
   }
   @media (prefers-color-scheme: dark) {
     .panel-positive {
-      background: linear-gradient(165deg, #17241c, #121b15);
+      background: linear-gradient(170deg, #18241c, #121b15);
     }
     .panel-regret {
-      background: linear-gradient(160deg, #261715, #1c110f);
+      background: linear-gradient(165deg, #271713, #1c110e);
     }
   }
 
-  /* Signature brand gradient (hero, key accents). */
+  /* Signature brand gradient (key CTAs). */
   .brand-gradient {
     background-image: linear-gradient(
       135deg,
@@ -277,37 +372,36 @@
   .font-display {
     font-family: var(--font-display);
     letter-spacing: 0;
+    font-weight: 400;
   }
   .premium-panel {
     background:
-      linear-gradient(135deg, rgba(54, 101, 255, 0.28), rgba(54, 101, 255, 0) 38%),
-      linear-gradient(225deg, rgba(47, 159, 86, 0.22), rgba(47, 159, 86, 0) 44%),
-      linear-gradient(180deg, #121826 0%, #0b0e15 100%);
-    color: #fff;
+      linear-gradient(135deg, rgba(14, 107, 75, 0.35), rgba(14, 107, 75, 0) 40%),
+      linear-gradient(180deg, #181814 0%, #100f0c 100%);
+    color: #f1efe6;
   }
   .premium-ink {
-    background: #0b0e15;
-    color: #fff;
+    background: #14130f;
+    color: #f1efe6;
   }
   .on-light {
-    color: #0a0a0c;
+    color: #1a1a16;
   }
 
-  /* Ambient brand light behind the whole app — depth without chrome. */
+  /* Ambient warmth behind the app — a faint green light from above. */
   .app-ambient {
     background-image:
-      radial-gradient(48rem 32rem at 50% -8%, rgba(43, 107, 255, 0.06), transparent 60%),
-      radial-gradient(34rem 26rem at 100% 2%, rgba(106, 92, 255, 0.05), transparent 55%);
+      radial-gradient(50rem 30rem at 50% -10%, rgba(14, 107, 75, 0.07), transparent 60%),
+      radial-gradient(30rem 22rem at 100% 0%, rgba(185, 133, 31, 0.05), transparent 55%);
   }
   @media (prefers-color-scheme: dark) {
     .app-ambient {
       background-image:
-        radial-gradient(48rem 32rem at 50% -8%, rgba(63, 123, 255, 0.13), transparent 60%),
-        radial-gradient(34rem 26rem at 100% 2%, rgba(106, 92, 255, 0.1), transparent 55%);
+        radial-gradient(50rem 30rem at 50% -10%, rgba(47, 174, 126, 0.1), transparent 60%),
+        radial-gradient(30rem 22rem at 100% 0%, rgba(201, 137, 43, 0.06), transparent 55%);
     }
   }
 
-  /* Subtle desktop hover lift for prominent pressables (no effect on touch). */
   @media (hover: hover) and (pointer: fine) {
     .press:hover {
       transform: translateY(-1px);
@@ -336,7 +430,6 @@
     );
   }
 
-  /* Hide scrollbars on horizontal scrollers (segmented/filters) */
   .no-scrollbar {
     scrollbar-width: none;
   }
@@ -356,18 +449,21 @@
   .animate-sheet {
     animation: ios-sheet 0.42s var(--ease-ios) both;
   }
-  /* Staggered list entrance — set --i on each child. */
   .animate-stagger > * {
     animation: ios-rise 0.5s var(--ease-ios) both;
     animation-delay: calc(var(--i, 0) * 55ms);
   }
 
-  /* Score "verdict" reveal — a one-shot number pop + an expanding glow bloom. */
   .animate-score-pop {
     animation: score-pop 0.5s var(--ease-ios) both;
   }
   .animate-score-bloom {
     animation: score-bloom 0.9s ease-out both;
+  }
+
+  /* The stamp slams in: drops, overshoots, settles — with a tiny rotation. */
+  .animate-stamp {
+    animation: stamp-in 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both;
   }
 
   .scanner-frame {
@@ -388,14 +484,11 @@
     animation: scanner-sweep 1.55s var(--ease-ios) infinite alternate;
   }
 
-  /* Heatmap/score bars grow from 0 to their target width on load. Set the target
-     as the inline width and the start via --bar-from (defaults to 0). */
   .animate-bar {
     animation: bar-grow 0.85s var(--ease-ios) both;
   }
 
-  /* A soft diagonal light sweep across a prominent CTA — runs rarely so it
-     reads as a glint, not a banner ad. Needs position: relative + overflow hidden. */
+  /* Light sweep across a prominent CTA — a glint, not a banner ad. */
   .sheen {
     position: relative;
     overflow: hidden;
@@ -405,17 +498,12 @@
     position: absolute;
     inset: -150% auto -150% -60%;
     width: 36%;
-    transform: rotate(18deg) translateX(-220%);
-    background: linear-gradient(
-      100deg,
-      transparent,
-      rgba(255, 255, 255, 0.22) 50%,
-      transparent
-    );
+    transform: rotate(18deg) translateX(-260%);
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.22) 50%, transparent);
     animation: sheen-sweep 5.5s ease-in-out infinite;
   }
 
-  /* Skeleton shimmer — a gentle traveling highlight instead of a flat pulse. */
+  /* Skeleton shimmer — a traveling highlight instead of a flat pulse. */
   .shimmer {
     position: relative;
     overflow: hidden;
@@ -426,12 +514,7 @@
     position: absolute;
     inset: 0;
     transform: translateX(-100%);
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--color-surface) 50%,
-      transparent
-    );
+    background: linear-gradient(90deg, transparent, var(--color-surface) 50%, transparent);
     opacity: 0.6;
     animation: shimmer-sweep 1.6s ease-in-out infinite;
   }
@@ -494,6 +577,20 @@
   100% {
     opacity: 0;
     transform: scale(1.35);
+  }
+}
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.6) rotate(-8deg);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.96) rotate(-2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-2deg);
   }
 }
 @keyframes scanner-sweep {

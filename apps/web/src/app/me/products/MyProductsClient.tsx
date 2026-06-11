@@ -85,16 +85,18 @@ export function MyProductsClient() {
       variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
     >
       <motion.section variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
-        <p className="text-[1.4rem] font-bold leading-none tracking-tight text-label">Besitzen</p>
-        <h1 className="font-display mt-3 text-balance text-[2.85rem] font-semibold leading-[0.98] text-label">
-          Was nutzt du wirklich?
+        <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+          Besitzen
+        </p>
+        <h1 className="font-display mt-2.5 text-balance text-[3rem] leading-[1.0] text-label">
+          Was nutzt du <em className="text-accent-ink">wirklich</em>?
         </h1>
       </motion.section>
 
       <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
         <Link
           href="/check?own=1"
-          className="press sheen brand-gradient flex h-[4.35rem] items-center justify-center gap-3 rounded-full text-[1.1875rem] font-semibold text-white shadow-[0_18px_36px_-20px_rgba(6,63,46,0.75)]"
+          className="press sheen brand-gradient flex h-[3.6rem] items-center justify-center gap-2.5 rounded-full text-[1.0625rem] font-semibold text-[#f1efe6] shadow-[var(--shadow-glow)]"
         >
           <Plus className="h-7 w-7" strokeWidth={2.4} />
           Produkt hinzufügen
@@ -105,13 +107,15 @@ export function MyProductsClient() {
         className="card-elevated p-5"
         variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
       >
-        <div className="flex items-center gap-4">
-          <span className="grid h-20 w-20 shrink-0 place-items-center rounded-full bg-accent-soft text-accent ring-1 ring-border">
-            <Zap className="h-8 w-8 fill-accent" strokeWidth={2.2} />
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink">
+            <Zap className="h-5 w-5" strokeWidth={2.2} />
           </span>
           <div>
-            <p className="text-[1.35rem] font-bold tracking-tight text-accent">3-Sekunden-Check</p>
-            <h2 className="mt-1 text-[1.3125rem] font-semibold leading-snug text-label">
+            <p className="mono-data text-[0.625rem] font-semibold uppercase tracking-[0.2em] text-accent-ink">
+              3-Sekunden-Check
+            </p>
+            <h2 className="font-display mt-1 text-[1.45rem] italic leading-snug text-label">
               Würdest du dein letztes Produkt wieder kaufen?
             </h2>
           </div>
@@ -141,10 +145,12 @@ export function MyProductsClient() {
         className="space-y-3"
         variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
       >
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-[1.35rem] font-bold tracking-tight text-label">Meine Produkte</h2>
+        <div className="flex items-baseline justify-between px-1">
+          <h2 className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Meine Produkte
+          </h2>
           {products.length > 0 && (
-            <span className="tnum text-[0.9375rem] font-medium text-muted-foreground">
+            <span className="mono-data text-[0.75rem] font-semibold text-accent">
               {products.length}
             </span>
           )}
@@ -170,16 +176,18 @@ export function MyProductsClient() {
         className="card flex items-center gap-4 p-4"
         variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
       >
-        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-positive-soft text-positive-ink ring-1 ring-border">
-          <Box className="h-7 w-7" strokeWidth={2.2} />
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-positive-soft text-positive-ink">
+          <Box className="h-6 w-6" strokeWidth={2.1} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[1rem] font-bold text-positive-ink">Dein Impact</p>
-          <p className="mt-0.5 text-[1.1875rem] font-semibold leading-snug text-label">
+          <p className="mono-data text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-positive-ink">
+            Dein Impact
+          </p>
+          <p className="mt-0.5 text-[1.0625rem] font-semibold leading-snug text-label">
             Du hast bereits {(data?.owned.length ?? 0) * 4 + 12} Käufern geholfen.
           </p>
         </div>
-        <ChevronRight className="h-6 w-6 text-label-3" strokeWidth={2.3} />
+        <ChevronRight className="h-5 w-5 text-label-3" strokeWidth={2.3} />
       </motion.section>
     </motion.div>
   );

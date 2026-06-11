@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion, useInView, useReducedMotion } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   ChevronRight,
   MessageCircle,
@@ -11,78 +11,20 @@ import {
   Share2,
   ShoppingBag,
   Star,
-  ThumbsDown,
   Users,
 } from 'lucide-react';
 import { WouldBuyAgain, type ExperienceDto, type ProfileSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { AnimatedNumber } from '@/components/motion/AnimatedNumber';
+import { WaveLines } from '@/components/motion/WaveLines';
+import { Barcode } from '@/components/receipt/Barcode';
+import { LedgerRow } from '@/components/receipt/LedgerRow';
+import { Stamp } from '@/components/receipt/Stamp';
 import { PageSkeleton } from '@/components/states/States';
 import { cn } from '@/lib/utils';
 
-function Stat({ value, label, divider }: { value: number; label: string; divider?: boolean }) {
-  return (
-    <div className={cn('px-1 py-4 text-center', divider && 'border-r border-separator')}>
-      <div className="tnum text-[1.75rem] font-semibold leading-none text-accent">
-        <AnimatedNumber value={value} duration={0.8} />
-      </div>
-      <div className="mt-1.5 text-[0.8125rem] leading-tight text-muted-foreground">{label}</div>
-    </div>
-  );
-}
-
-/** The personal rebuy gauge — a gradient arc that draws in, number counting up. */
-function RebuyRing({ value }: { value: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, amount: 0.5 });
-  const reduced = useReducedMotion();
-
-  const stroke = 10;
-  const radius = 50 - stroke / 2;
-  const circumference = 2 * Math.PI * radius;
-  const active = reduced || inView ? Math.max(0, Math.min(100, value)) : 0;
-  const dashOffset = circumference * (1 - active / 100);
-
-  return (
-    <div ref={ref} className="relative h-36 w-36 shrink-0">
-      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full -rotate-90">
-        <defs>
-          <linearGradient id="rebuy-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="var(--color-positive)" stopOpacity="0.6" />
-            <stop offset="100%" stopColor="var(--color-positive)" stopOpacity="1" />
-          </linearGradient>
-        </defs>
-        <circle
-          cx="50"
-          cy="50"
-          r={radius}
-          fill="none"
-          stroke="var(--color-fill-2)"
-          strokeWidth={stroke}
-        />
-        <circle
-          cx="50"
-          cy="50"
-          r={radius}
-          fill="none"
-          stroke="url(#rebuy-ring-grad)"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={dashOffset}
-          style={{ transition: 'stroke-dashoffset 1.2s var(--ease-ios) 0.1s' }}
-        />
-      </svg>
-      <div className="absolute inset-0 grid place-items-center">
-        <span className="tnum text-[2.35rem] font-semibold leading-none text-accent">
-          <AnimatedNumber value={value} duration={1.1} />
-          <span className="text-[0.55em]">%</span>
-        </span>
-      </div>
-    </div>
-  );
-}
+const rise = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 
 function ListItem({
   icon: Icon,
@@ -103,23 +45,23 @@ function ListItem({
     accent: 'bg-accent-soft text-accent-ink',
   };
   return (
-    <Link href={href} className="tap hairline flex items-center gap-4 px-4 py-4 last:after:hidden">
+    <Link href={href} className="tap hairline flex items-center gap-3.5 px-4 py-3.5 last:after:hidden">
       <span
-        className={cn('grid h-12 w-12 shrink-0 place-items-center rounded-[0.85rem]', colors[tone])}
+        className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-[0.7rem]', colors[tone])}
       >
-        <Icon className="h-6 w-6" strokeWidth={2.1} />
+        <Icon className="h-[1.35rem] w-[1.35rem]" strokeWidth={2.1} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[1.1875rem] font-semibold leading-tight text-label">
+        <span className="block text-[1.0625rem] font-semibold leading-tight text-label">
           {label}
         </span>
         {subtitle && (
-          <span className="mt-0.5 block truncate text-[0.9375rem] text-muted-foreground">
+          <span className="mt-0.5 block truncate text-[0.875rem] text-muted-foreground">
             {subtitle}
           </span>
         )}
       </span>
-      <ChevronRight className="h-6 w-6 shrink-0 text-label-3" strokeWidth={2.3} />
+      <ChevronRight className="h-5 w-5 shrink-0 text-label-3" strokeWidth={2.3} />
     </Link>
   );
 }
@@ -162,67 +104,83 @@ export function ProfileClient() {
 
   return (
     <motion.div
-      className="space-y-7 pt-2"
+      className="space-y-6 pt-4"
       initial="hidden"
       animate="show"
-      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
     >
-      <motion.section
-        className="flex items-start justify-between gap-4"
-        variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-      >
+      <motion.section className="flex items-end justify-between gap-4" variants={rise}>
         <div>
-          <h1 className="font-display text-[3rem] font-semibold leading-none text-label">Ich</h1>
-          <p className="mt-2.5 text-[1.3rem] leading-tight text-muted-foreground">
-            Dein Kaufprofil
+          <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            Ich
           </p>
+          <h1 className="font-display mt-2.5 text-[3rem] leading-[1.0] text-label">
+            Dein <em className="text-accent-ink">Kaufprofil</em>
+          </h1>
         </div>
         <Link
           href="/me/inbox"
-          className="grid h-12 w-12 place-items-center rounded-[1rem] bg-surface text-label shadow-[var(--shadow-card)] ring-1 ring-border"
+          className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface text-label shadow-[0_0_0_1px_var(--color-border),var(--shadow-card)]"
           aria-label="Einstellungen und Mitteilungen"
         >
-          <Settings className="h-6 w-6" strokeWidth={2.1} />
+          <Settings className="h-[1.3rem] w-[1.3rem]" strokeWidth={2.1} />
         </Link>
       </motion.section>
 
-      <motion.section
-        className="card-elevated grid grid-cols-[5.5rem_1fr] items-center gap-3 p-4"
-        variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-      >
-        <span className="grid h-20 w-20 place-items-center rounded-full bg-accent-soft ring-1 ring-border">
-          <span className="font-display text-[2.5rem] font-semibold text-accent">W</span>
-        </span>
-        <div className="grid grid-cols-4 overflow-hidden">
-          <Stat value={summary?.productCount ?? 0} label="Produkte" divider />
-          <Stat value={summary?.experienceCount ?? 0} label="Erfahrungen" divider />
-          <Stat value={summary?.answerCount ?? 0} label="Antworten" divider />
-          <Stat value={summary?.helpfulReceived ?? 0} label="Käufern geholfen" />
+      {/* The Kaufprofil as a Kassenbon — the shareable artifact. */}
+      <motion.section variants={rise}>
+        <div className="card perf-bottom relative">
+          <div className="relative overflow-hidden rounded-[var(--radius-lg)]">
+            <div aria-hidden className="absolute inset-x-0 top-0 h-[45%] text-accent">
+              <WaveLines opacity={0.09} />
+            </div>
+
+            <div className="relative px-5 pt-4">
+              <div className="flex items-center justify-between">
+                <span className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Rebuy-Profil
+                </span>
+                <span className="mono-data text-[0.6875rem] uppercase tracking-[0.14em] text-faint">
+                  Seit {new Date(user.createdAt).getFullYear()}
+                </span>
+              </div>
+
+              <div className="mt-1 flex items-end justify-between gap-3">
+                <p className="font-display text-[4.6rem] leading-[0.95] text-label">
+                  <AnimatedNumber value={rebuyRate} duration={1.1} />
+                  <span className="text-[2.3rem]">%</span>
+                </p>
+                <div className="pb-3">
+                  <Stamp tone={rebuyRate >= 70 ? 'positive' : 'unsure'}>
+                    {rebuyRate >= 70 ? 'Gute Käufe' : 'Gemischt'}
+                  </Stamp>
+                </div>
+              </div>
+              <p className="font-display mt-1 text-[1.2rem] italic leading-snug text-ink-soft">
+                deiner Produkte würdest du wieder kaufen.
+              </p>
+            </div>
+
+            <div className="rule-dashed relative mx-5 mt-4" aria-hidden />
+
+            <div className="relative space-y-2 px-5 pb-4 pt-4">
+              <LedgerRow label="Produkte" value={summary?.productCount ?? 0} />
+              <LedgerRow label="Erfahrungen" value={summary?.experienceCount ?? 0} />
+              <LedgerRow label="Antworten" value={summary?.answerCount ?? 0} />
+              <LedgerRow label="Käufern geholfen" value={summary?.helpfulReceived ?? 0} strong />
+            </div>
+
+            <div className="relative px-5 pb-5">
+              <Barcode seed={user.id} className="h-6 text-label/70" />
+              <p className="mono-data mt-1.5 text-center text-[0.625rem] uppercase tracking-[0.3em] text-faint">
+                Wudly Kaufprofil
+              </p>
+            </div>
+          </div>
         </div>
       </motion.section>
 
-      <motion.section
-        className="card-elevated flex items-center gap-5 p-5"
-        variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-      >
-        <RebuyRing value={rebuyRate} />
-        <div className="min-w-0 flex-1">
-          <h2 className="text-[1.65rem] font-bold leading-tight tracking-tight text-accent">
-            Dein Rebuy-Profil
-          </h2>
-          <p className="mt-3 text-[1.3125rem] leading-snug text-label">
-            deiner Produkte würdest du wieder kaufen.
-          </p>
-          <span className="mt-4 inline-flex rounded-full bg-surface px-3 py-1.5 text-[0.9375rem] font-medium text-accent shadow-[var(--shadow-xs)] ring-1 ring-border">
-            Überdurchschnittlich
-          </span>
-        </div>
-      </motion.section>
-
-      <motion.section
-        className="card overflow-hidden"
-        variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-      >
+      <motion.section className="card overflow-hidden" variants={rise}>
         <ListItem
           icon={Star}
           label="Meine Top-Käufe"
@@ -252,20 +210,18 @@ export function ProfileClient() {
         />
       </motion.section>
 
-      <motion.section
-        className="card flex items-center gap-4 p-4"
-        variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-      >
-        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-accent-soft text-accent ring-1 ring-border">
-          <Users className="h-7 w-7" strokeWidth={2.2} />
+      <motion.section className="card flex items-center gap-4 p-4" variants={rise}>
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink">
+          <Users className="h-6 w-6" strokeWidth={2.1} />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[1.35rem] font-bold text-accent">Mein Einfluss</h2>
-          <p className="mt-0.5 text-[1.0625rem] leading-snug text-muted-foreground">
+          <p className="mono-data text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-accent-ink">
+            Dein Einfluss
+          </p>
+          <p className="mt-0.5 text-[1rem] leading-snug text-label">
             Deine Antworten helfen anderen, bessere Käufe zu machen.
           </p>
         </div>
-        <ChevronRight className="h-6 w-6 text-label-3" strokeWidth={2.3} />
       </motion.section>
     </motion.div>
   );

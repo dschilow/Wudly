@@ -64,7 +64,7 @@ export function UsageDurationChart({ stats }: UsageDurationChartProps) {
             </div>
             <span
               className={cn(
-                'tnum w-10 shrink-0 text-right text-[0.8125rem]',
+                'mono-data w-10 shrink-0 text-right text-[0.8125rem]',
                 dominant ? 'font-semibold text-label' : 'text-faint',
               )}
             >

@@ -9,7 +9,6 @@ import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/ui/Toast';
-import { Card } from './ui/Card';
 import { Pill } from './ui/Pill';
 import { Button } from './ui/Button';
 import { formatDate } from '@/lib/utils';
@@ -45,9 +44,9 @@ function AnswerRow({ answer }: { answer: AnswerDto }) {
   };
 
   return (
-    <div className="rounded-[var(--radius-md)] bg-fill px-3.5 py-3">
+    <div className="border-l-2 border-accent/25 pl-3.5">
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-[0.875rem] font-semibold text-label">
+        <span className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-label">
           {answer.authorName ?? 'Besitzer'}
         </span>
         {answer.quickAnswer && (
@@ -55,15 +54,15 @@ function AnswerRow({ answer }: { answer: AnswerDto }) {
         )}
       </div>
       <p className="text-[0.9375rem] leading-snug text-label">{answer.answerText}</p>
-      <div className="mt-2 flex items-center gap-3">
+      <div className="mt-1.5 flex items-center gap-3">
         <button
           onClick={markHelpful}
           disabled={busy}
-          className="tap-dim inline-flex items-center gap-1.5 text-[0.8125rem] font-medium text-accent disabled:opacity-50"
+          className="tap-dim mono-data inline-flex items-center gap-1.5 text-[0.75rem] font-medium text-accent disabled:opacity-50"
         >
-          <ThumbsUp className="h-[0.9rem] w-[0.9rem]" strokeWidth={2.2} /> Hilfreich · {count}
+          <ThumbsUp className="h-[0.85rem] w-[0.85rem]" strokeWidth={2.2} /> Hilfreich · {count}
         </button>
-        <span className="text-[0.75rem] text-faint">{formatDate(answer.createdAt)}</span>
+        <span className="mono-data text-[0.6875rem] text-faint">{formatDate(answer.createdAt)}</span>
       </div>
     </div>
   );
@@ -108,17 +107,21 @@ export function QuestionCard({
   };
 
   return (
-    <Card padded className="space-y-3">
+    <article className="card space-y-3.5 p-4">
       <div>
-        <p className="text-[1.0625rem] leading-snug text-label">{question.questionText}</p>
-        <p className="mt-0.5 text-[0.8125rem] text-faint">
+        <p className="text-[1.0625rem] font-semibold leading-snug text-label">
+          {question.questionText}
+        </p>
+        <p className="mono-data mt-1 text-[0.6875rem] uppercase tracking-[0.1em] text-faint">
           {question.authorName ? `${question.authorName} · ` : ''}
           {formatDate(question.createdAt)}
+          {answers.length > 0 &&
+            ` · ${answers.length} ${answers.length === 1 ? 'Antwort' : 'Antworten'}`}
         </p>
       </div>
 
       {answers.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {answers.map((a) => (
             <AnswerRow key={a.id} answer={a} />
           ))}
@@ -146,7 +149,7 @@ export function QuestionCard({
                 key={opt.value}
                 onClick={() => setQuick((q) => (q === opt.value ? '' : opt.value))}
                 className={`tap-dim rounded-full px-3 py-1 text-[0.8125rem] font-medium transition-colors ${
-                  quick === opt.value ? 'bg-accent text-white' : 'bg-surface text-label'
+                  quick === opt.value ? 'bg-accent text-[#f1efe6]' : 'bg-surface text-label'
                 }`}
               >
                 {opt.label}
@@ -176,6 +179,6 @@ export function QuestionCard({
           Besitzt du es? Melde dich an und hilf weiter.
         </Link>
       )}
-    </Card>
+    </article>
   );
 }

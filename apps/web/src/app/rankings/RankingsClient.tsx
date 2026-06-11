@@ -4,17 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
-import {
-  AlertTriangle,
-  ChevronRight,
-  MessageCircle,
-  Sparkles,
-  Trophy,
-  XCircle,
-} from 'lucide-react';
+import { ChevronRight, Sparkles } from 'lucide-react';
 import type { CategoryDto, ProductSummaryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
-import { SegmentedControl } from '@/components/ios/SegmentedControl';
+import { Stamp } from '@/components/receipt/Stamp';
 import { Thumb } from '@/components/Thumb';
 import { Skeleton, EmptyState } from '@/components/states/States';
 import { plural } from '@/lib/format';
@@ -55,50 +48,77 @@ function regretLine(product: ProductSummaryDto) {
   return `${no} von ${product.ownerCount} würden es nicht wieder kaufen`;
 }
 
-/* ── Hero: Langzeit-Helden (#1 rebuy) ───────────────────────────────────── */
+/* ── Mono ink tabs (same language as the product page) ─────────────────── */
+function InkTabs({
+  value,
+  onChange,
+}: {
+  value: Tab;
+  onChange: (tab: Tab) => void;
+}) {
+  return (
+    <div role="tablist" className="hairline flex gap-5 overflow-x-auto no-scrollbar">
+      {SEGMENTS.map((seg) => {
+        const active = seg.value === value;
+        return (
+          <button
+            key={seg.value}
+            role="tab"
+            aria-selected={active}
+            onClick={() => {
+              navigator.vibrate?.(5);
+              onChange(seg.value);
+            }}
+            className={cn(
+              'relative shrink-0 whitespace-nowrap pb-2.5 pt-1 transition-colors duration-200',
+              active ? 'text-label' : 'text-muted-foreground active:opacity-60',
+            )}
+          >
+            <span className="mono-data text-[0.75rem] font-semibold uppercase tracking-[0.14em]">
+              {seg.label}
+            </span>
+            {active && (
+              <motion.span
+                layoutId="rankings-tab-ink"
+                aria-hidden
+                className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-accent"
+                transition={{ type: 'spring', stiffness: 480, damping: 40 }}
+              />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Hero: Langzeit-Held (#1 rebuy) ─────────────────────────────────────── */
 function HeroCard({ entry }: { entry: RankingEntryDto }) {
   const product = entry.product;
   return (
     <Link
       href={`/products/${product.id}`}
-      className="press panel-positive block rounded-[1.5rem] p-4 ring-1 ring-positive/12"
+      className="press panel-positive relative block overflow-hidden rounded-[var(--radius-lg)] p-4 shadow-[0_0_0_1px_var(--color-border)]"
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-positive-soft text-positive-ink">
-            <Trophy className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.2} />
-          </span>
-          <h2 className="text-[1.15rem] font-bold tracking-tight text-label">Langzeit-Helden</h2>
-        </div>
-        <ChevronRight className="h-5 w-5 text-label-3" strokeWidth={2.4} />
+      <div className="flex items-start justify-between gap-2">
+        <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-positive-ink">
+          Langzeit-Held
+        </p>
+        <Stamp tone="positive" animate={false} className="!text-[0.625rem]">
+          Wieder kaufen
+        </Stamp>
       </div>
 
-      <div className="mt-4 grid grid-cols-[6.5rem_1fr] items-center gap-4">
-        <Thumb product={product} className="h-[6.5rem] w-[6.5rem]" rounded="rounded-[1.1rem]" />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex rounded-[0.6rem] bg-positive-soft px-2 py-0.5 text-[0.875rem] font-bold text-positive-ink">
-              #{entry.rank}
-            </span>
-            <h3 className="truncate text-[1.15rem] font-bold leading-tight text-label">
-              {product.canonicalName}
-            </h3>
-          </div>
-          <p className="mt-2 flex items-start gap-1.5 text-[0.9375rem] font-medium leading-snug text-positive-ink">
-            <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-positive text-white">
-              <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none">
-                <path
-                  d="M5 13l4 4L19 7"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
+      <div className="mt-3 flex items-center gap-4">
+        <Thumb product={product} className="h-24 w-24" rounded="rounded-[0.9rem]" />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display text-[1.5rem] leading-[1.05] text-label">
+            {product.canonicalName}
+          </h3>
+          <p className="mt-1.5 text-[0.9375rem] font-medium leading-snug text-positive-ink">
             {rebuyLine(product)}
           </p>
-          <p className="mt-3 text-[0.875rem] text-muted-foreground">
+          <p className="mono-data mt-2 text-[0.6875rem] uppercase tracking-[0.12em] text-muted-foreground">
             {product.experienceCount} {plural(product.experienceCount, 'Erfahrung', 'Erfahrungen')}{' '}
             · {signalStrength(product)}
           </p>
@@ -111,69 +131,33 @@ function HeroCard({ entry }: { entry: RankingEntryDto }) {
 /* ── Regret-Radar (#1 regret) ───────────────────────────────────────────── */
 function RegretCard({ entry }: { entry: RankingEntryDto }) {
   const product = entry.product;
-  const reasons = [
-    ...(product.category ? [product.category.name] : []),
-    'Akkulaufzeit',
-    'Lautstärke',
-  ].slice(0, 2);
   return (
     <Link
       href={`/products/${product.id}`}
-      className="press panel-regret block rounded-[1.5rem] p-4 ring-1 ring-regret/12"
+      className="press panel-regret relative block overflow-hidden rounded-[var(--radius-lg)] p-4 shadow-[0_0_0_1px_var(--color-border)]"
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-regret-soft text-regret-ink">
-            <AlertTriangle className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.2} />
-          </span>
-          <h2 className="text-[1.15rem] font-bold tracking-tight text-label">Regret-Radar</h2>
-        </div>
-        <ChevronRight className="h-5 w-5 text-label-3" strokeWidth={2.4} />
+      <div className="flex items-start justify-between gap-2">
+        <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-regret-ink">
+          Regret-Radar
+        </p>
+        <Stamp tone="regret" animate={false} className="!text-[0.625rem]">
+          Lieber nicht
+        </Stamp>
       </div>
 
-      <div className="mt-4 grid grid-cols-[6.5rem_1fr] items-center gap-4">
-        <Thumb product={product} className="h-[6.5rem] w-[6.5rem]" rounded="rounded-[1.1rem]" />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex rounded-[0.6rem] bg-regret-soft px-2 py-0.5 text-[0.875rem] font-bold text-regret-ink">
-              #{entry.rank}
-            </span>
-            <h3 className="truncate text-[1.15rem] font-bold leading-tight text-label">
-              {product.canonicalName}
-            </h3>
-          </div>
-          <p className="mt-2 flex items-start gap-1.5 text-[0.9375rem] font-medium leading-snug text-regret-ink">
-            <XCircle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.4} />
+      <div className="mt-3 flex items-center gap-4">
+        <Thumb product={product} className="h-24 w-24" rounded="rounded-[0.9rem]" />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display text-[1.5rem] leading-[1.05] text-label">
+            {product.canonicalName}
+          </h3>
+          <p className="mt-1.5 text-[0.9375rem] font-medium leading-snug text-regret-ink">
             {regretLine(product)}
           </p>
-          {reasons.length > 0 && (
-            <p className="mt-3 text-[0.875rem] text-muted-foreground">
-              Gründe: {reasons.join(', ')}
-            </p>
-          )}
+          <p className="mono-data mt-2 text-[0.6875rem] uppercase tracking-[0.12em] text-muted-foreground">
+            {product.experienceCount} {plural(product.experienceCount, 'Erfahrung', 'Erfahrungen')}
+          </p>
         </div>
-      </div>
-    </Link>
-  );
-}
-
-/* ── Most-discussed grid tile ───────────────────────────────────────────── */
-function DiscussedTile({ entry }: { entry: RankingEntryDto }) {
-  const product = entry.product;
-  return (
-    <Link href={`/products/${product.id}`} className="card press flex flex-col gap-2.5 p-3.5">
-      <Thumb product={product} className="h-[5.5rem] w-full" rounded="rounded-[0.95rem]" />
-      <div className="min-w-0">
-        <h3 className="text-balance text-[1.0625rem] font-semibold leading-tight text-label">
-          {product.canonicalName}
-        </h3>
-        <p className="mt-1.5 flex items-center gap-1.5 text-[0.875rem] font-medium text-positive-ink">
-          <span className="h-2 w-2 rounded-full bg-positive" />
-          Sehr beliebt
-        </p>
-        <p className="mt-1 text-[0.8125rem] text-muted-foreground">
-          {entry.metricValue} {plural(entry.metricValue, 'Frage', 'Fragen')}
-        </p>
       </div>
     </Link>
   );
@@ -183,65 +167,74 @@ function DiscussedTile({ entry }: { entry: RankingEntryDto }) {
 function SurpriseCard({ entry }: { entry: RankingEntryDto }) {
   const product = entry.product;
   return (
-    <Link href={`/products/${product.id}`} className="card press flex items-center gap-2 px-1 py-1">
-      <div className="flex flex-1 items-center gap-3 p-2.5">
-        <Thumb product={product} className="h-[4.75rem] w-[4.75rem]" rounded="rounded-[1rem]" />
-        <div className="min-w-0">
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className="grid h-7 w-7 place-items-center rounded-full bg-positive-soft text-positive-ink">
-              <Sparkles className="h-4 w-4" strokeWidth={2.2} />
-            </span>
-            <p className="text-[1.0625rem] font-bold tracking-tight text-label">Überraschend gut</p>
-          </div>
-          <h3 className="truncate text-[1.0625rem] font-semibold leading-tight text-label">
-            {product.canonicalName}
-          </h3>
-          <p className="mt-1 text-[0.9375rem] leading-snug text-positive-ink">
-            Mehr als erwartet — {product.experienceCount}{' '}
-            {plural(product.experienceCount, 'Erfahrung', 'Erfahrungen')}.
-          </p>
-        </div>
+    <Link href={`/products/${product.id}`} className="card press flex items-center gap-3.5 p-3.5">
+      <Thumb product={product} className="h-[4.5rem] w-[4.5rem]" rounded="rounded-[0.9rem]" />
+      <div className="min-w-0 flex-1">
+        <p className="mono-data flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-accent-ink">
+          <Sparkles className="h-3.5 w-3.5" strokeWidth={2.2} />
+          Überraschend gut
+        </p>
+        <h3 className="mt-1 truncate text-[1.0625rem] font-semibold leading-tight text-label">
+          {product.canonicalName}
+        </h3>
+        <p className="mt-0.5 truncate text-[0.875rem] text-muted-foreground">
+          Mehr als erwartet — {product.experienceCount}{' '}
+          {plural(product.experienceCount, 'Erfahrung', 'Erfahrungen')}.
+        </p>
       </div>
-      <ChevronRight className="mr-2 h-5 w-5 shrink-0 text-label-3" strokeWidth={2.4} />
+      <ChevronRight className="h-5 w-5 shrink-0 text-label-3" strokeWidth={2.4} />
     </Link>
   );
 }
 
-/* ── Generic ranked row (used for the per-tab list views) ───────────────── */
+/* ── Ledger row: rank · name ········ score (a receipt line) ────────────── */
 function RankedRow({ entry, tab }: { entry: RankingEntryDto; tab: Tab }) {
   const product = entry.product;
   const negative = tab === 'regret';
-  const line =
+  const score =
+    tab === 'discussed'
+      ? `${entry.metricValue}`
+      : negative
+        ? product.regretScore === null
+          ? '–'
+          : `${product.regretScore}%`
+        : product.rebuyScore === null
+          ? '–'
+          : `${product.rebuyScore}%`;
+  const sub =
     tab === 'regret'
       ? regretLine(product)
       : tab === 'discussed'
         ? `${entry.metricValue} ${plural(entry.metricValue, 'Frage', 'Fragen')}`
         : rebuyLine(product);
+
   return (
-    <Link href={`/products/${product.id}`} className="card press flex items-center gap-3 p-3">
-      <span
-        className={cn(
-          'tnum grid h-8 w-8 shrink-0 place-items-center rounded-[0.65rem] text-[0.9375rem] font-bold',
-          negative ? 'bg-regret-soft text-regret-ink' : 'bg-positive-soft text-positive-ink',
-        )}
-      >
-        {entry.rank}
+    <Link href={`/products/${product.id}`} className="tap hairline flex items-center gap-3 px-1 py-3">
+      <span className="mono-data w-7 shrink-0 text-right text-[0.875rem] font-semibold text-faint">
+        {String(entry.rank).padStart(2, '0')}
       </span>
-      <Thumb product={product} className="h-[3.75rem] w-[3.75rem]" rounded="rounded-[0.85rem]" />
+      <Thumb product={product} className="h-[3.4rem] w-[3.4rem]" rounded="rounded-[0.7rem]" />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-[1.0625rem] font-semibold leading-tight text-label">
           {product.canonicalName}
         </h3>
         <p
           className={cn(
-            'mt-1 truncate text-[0.9375rem] leading-snug',
+            'mt-0.5 truncate text-[0.8125rem] leading-snug',
             negative ? 'text-regret-ink' : 'text-muted-foreground',
           )}
         >
-          {line}
+          {sub}
         </p>
       </div>
-      <ChevronRight className="h-5 w-5 shrink-0 text-label-3" strokeWidth={2.4} />
+      <span
+        className={cn(
+          'font-display shrink-0 text-[1.6rem] leading-none',
+          negative ? 'text-regret-ink' : 'text-accent-ink',
+        )}
+      >
+        {score}
+      </span>
     </Link>
   );
 }
@@ -296,27 +289,27 @@ export function RankingsClient({
 
   return (
     <motion.div
-      className="space-y-5 pt-1"
+      className="space-y-5 pt-4"
       initial="hidden"
       animate="show"
       variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
     >
       <motion.section variants={rise}>
-        <p className="text-[1.4rem] font-bold leading-none tracking-tight text-label">Entdecken</p>
-        <h1 className="font-display mt-3 text-balance text-[2.85rem] font-semibold leading-[0.98] text-label">
-          Was lohnt sich wirklich?
+        <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+          Entdecken
+        </p>
+        <h1 className="font-display mt-2.5 text-balance text-[3rem] leading-[1.0] text-label">
+          Was lohnt sich <em className="text-accent-ink">wirklich</em>?
         </h1>
       </motion.section>
 
       <motion.div variants={rise}>
-        <SegmentedControl
-          segments={SEGMENTS}
+        <InkTabs
           value={tab}
           onChange={(v) => {
             setTab(v);
             setCategory('');
           }}
-          className="rounded-full p-1 [&>button]:py-2.5 [&>div]:rounded-full"
         />
       </motion.div>
 
@@ -370,37 +363,34 @@ export function RankingsClient({
                   <RegretCard entry={topRegret} />
                 </motion.section>
               )}
-              {discussed.length > 0 && (
-                <motion.section variants={rise} className="space-y-3">
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-2">
-                      <MessageCircle
-                        className="h-[1.15rem] w-[1.15rem] text-positive-ink"
-                        strokeWidth={2.2}
-                      />
-                      <h2 className="text-[1.15rem] font-bold tracking-tight text-label">
-                        Am meisten gefragt
-                      </h2>
-                    </div>
-                    <button
-                      onClick={() => setTab('discussed')}
-                      className="tap-dim flex items-center text-[0.9375rem] text-muted-foreground"
-                      type="button"
-                    >
-                      Alle anzeigen
-                      <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {discussed.slice(0, 2).map((entry) => (
-                      <DiscussedTile key={entry.product.id} entry={entry} />
-                    ))}
-                  </div>
-                </motion.section>
-              )}
               {surprise && (
                 <motion.section variants={rise}>
                   <SurpriseCard entry={surprise} />
+                </motion.section>
+              )}
+              {discussed.length > 0 && (
+                <motion.section variants={rise} className="space-y-1">
+                  <div className="flex items-baseline justify-between px-1 pb-2">
+                    <h2 className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Am meisten gefragt
+                    </h2>
+                    <button
+                      onClick={() => setTab('discussed')}
+                      className="tap-dim mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-accent"
+                      type="button"
+                    >
+                      Alle
+                    </button>
+                  </div>
+                  <div className="card px-3">
+                    {discussed.slice(0, 3).map((entry, i) => (
+                      <RankedRow
+                        key={entry.product.id}
+                        entry={{ ...entry, rank: i + 1 }}
+                        tab="discussed"
+                      />
+                    ))}
+                  </div>
                 </motion.section>
               )}
               {!hero && !topRegret && <NoSignal />}
@@ -426,7 +416,7 @@ export function RankingsClient({
   );
 }
 
-/** Ranked rows that cascade in — each row rises with a short per-index delay. */
+/** Ranked ledger inside one card — rows cascade in with a short stagger. */
 function StaggeredRows({
   entries,
   tab,
@@ -438,14 +428,14 @@ function StaggeredRows({
 }) {
   return (
     <motion.div
-      className="space-y-2.5"
-      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.035 } } }}
+      className="card px-3 [&>a:last-child]:after:hidden"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.03 } } }}
     >
       {entries.map((entry, i) => (
         <motion.div
           key={entry.product.id}
           variants={rise}
-          transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
         >
           <RankedRow entry={renumber ? { ...entry, rank: i + 1 } : entry} tab={tab} />
         </motion.div>
@@ -467,10 +457,10 @@ function Chip({
     <button
       onClick={onClick}
       className={cn(
-        'tap-dim shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[0.8125rem] font-medium',
+        'tap-dim mono-data shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.1em]',
         active
-          ? 'bg-accent text-white'
-          : 'bg-surface text-muted-foreground shadow-[var(--shadow-xs)] ring-1 ring-border',
+          ? 'bg-label text-canvas'
+          : 'bg-surface text-muted-foreground shadow-[0_0_0_1px_var(--color-border)]',
       )}
       type="button"
     >
@@ -481,11 +471,9 @@ function Chip({
 
 function ListSkeleton() {
   return (
-    <div className="space-y-2.5">
+    <div className="card space-y-3 p-3">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="card p-3">
-          <Skeleton className="h-14" />
-        </div>
+        <Skeleton key={i} className="h-14" />
       ))}
     </div>
   );

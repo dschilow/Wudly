@@ -4,23 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'motion/react';
-import {
-  CalendarDays,
-  Camera,
-  CheckCircle2,
-  ChevronRight,
-  Loader2,
-  PackageCheck,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  Users,
-  X,
-} from 'lucide-react';
+import { Camera, Loader2, ScanLine, Search, ShieldCheck, Sparkles, X } from 'lucide-react';
 import type { CategoryDto, IdentifiedProductDto, ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
-import { categoryTile } from '@/lib/categories';
 import { ProductList } from '@/components/ProductList';
 import { Thumb } from '@/components/Thumb';
 import { WaveLines } from '@/components/motion/WaveLines';
@@ -29,35 +16,9 @@ import { AddProductForm } from './AddProductForm';
 import { CameraScanner } from './CameraScanner';
 
 const rise = {
-  hidden: { opacity: 0, y: 12 },
+  hidden: { opacity: 0, y: 14 },
   show: { opacity: 1, y: 0 },
 };
-
-/** The hero question, revealed word by word — calm, typographic, Apple-like. */
-function HeroTitle({ text }: { text: string }) {
-  return (
-    <motion.h1
-      className="font-display mt-3 text-balance text-[2.85rem] font-semibold leading-[0.99] text-label"
-      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.045 } } }}
-    >
-      {text.split(' ').map((word, i) => (
-        <span key={i} className="inline-block overflow-hidden pb-[0.12em] -mb-[0.12em] align-top">
-          <motion.span
-            className="inline-block"
-            variants={{
-              hidden: { y: '105%', opacity: 0 },
-              show: { y: 0, opacity: 1 },
-            }}
-            transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-          >
-            {word}
-          </motion.span>
-          {' '}
-        </span>
-      ))}
-    </motion.h1>
-  );
-}
 
 function signalLabel(product: ProductSummaryDto) {
   if (product.experienceCount < 20) return 'Frühes Signal';
@@ -66,36 +27,33 @@ function signalLabel(product: ProductSummaryDto) {
   return 'Starkes Langzeitsignal';
 }
 
-function signalText(product: ProductSummaryDto) {
+/** A recently-checked product as a compact receipt line: name · signal ····· score. */
+function RecentProduct({ product }: { product: ProductSummaryDto }) {
   const yes =
     product.rebuyScore === null
       ? null
       : Math.round((product.rebuyScore / 100) * product.ownerCount);
-  if (product.experienceCount < 20 && yes !== null) {
-    return `${signalLabel(product)} · ${yes} von ${product.ownerCount} würden es wieder kaufen`;
-  }
-  if (product.rebuyScore !== null) {
-    return `${signalLabel(product)} · ${product.rebuyScore}% würden es wieder kaufen`;
-  }
-  return 'Noch kein belastbares Signal';
-}
+  const scoreText =
+    product.rebuyScore === null
+      ? '–'
+      : product.experienceCount < 20 && yes !== null
+        ? `${yes}/${product.ownerCount}`
+        : `${product.rebuyScore}%`;
 
-function RecentProduct({ product }: { product: ProductSummaryDto }) {
   return (
-    <Link href={`/products/${product.id}`} className="card press flex items-center gap-3 p-3">
-      <Thumb product={product} className="h-[4.25rem] w-[4.25rem]" rounded="rounded-[1rem]" />
+    <Link href={`/products/${product.id}`} className="card press flex items-center gap-3.5 p-3">
+      <Thumb product={product} className="h-16 w-16" rounded="rounded-[0.8rem]" />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-[1.0625rem] font-semibold leading-tight text-label">
           {product.canonicalName}
         </h3>
-        <p className="mt-1 text-[0.875rem] leading-snug text-muted-foreground">
-          {signalText(product)}
+        <p className="mono-data mt-1 truncate text-[0.6875rem] uppercase tracking-[0.12em] text-muted-foreground">
+          {signalLabel(product)}
         </p>
       </div>
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-positive text-white shadow-[var(--shadow-card)]">
-        <CheckCircle2 className="h-5 w-5" strokeWidth={2.4} />
+      <span className="font-display shrink-0 text-[1.75rem] leading-none text-accent-ink">
+        {scoreText}
       </span>
-      <ChevronRight className="h-5 w-5 shrink-0 text-label-3" strokeWidth={2.4} />
     </Link>
   );
 }
@@ -228,8 +186,8 @@ export function CheckClient({
 
   return (
     <motion.div
-      className="space-y-6 pt-2"
-      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
+      className="space-y-7 pt-4"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
       initial="hidden"
       animate="show"
     >
@@ -240,14 +198,23 @@ export function CheckClient({
         onIdentified={handleIdentified}
       />
 
-      <motion.section variants={rise} transition={{ type: 'spring', stiffness: 360, damping: 34 }}>
-        <p className="text-[1.4rem] font-bold leading-none tracking-tight text-label">Prüfen</p>
-        <HeroTitle text="Welches Produkt möchtest du prüfen?" />
+      {/* Editorial hero — the brand question, serif with an italic accent. */}
+      <motion.section variants={rise} transition={{ type: 'spring', stiffness: 340, damping: 34 }}>
+        <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+          Prüfen
+        </p>
+        <h1 className="font-display mt-2.5 text-balance text-[3rem] leading-[1.0] text-label">
+          Würdest du es <em className="text-accent-ink">wieder</em> kaufen?
+        </h1>
+        <p className="mt-3 max-w-[28rem] text-[1.0625rem] leading-snug text-muted-foreground">
+          Suche oder scanne ein Produkt — und sieh, was echte Besitzer nach echter Nutzung sagen.
+        </p>
       </motion.section>
 
-      <motion.div variants={rise} className="space-y-3">
-        <div className="flex h-[4.35rem] items-center gap-3 rounded-[1.65rem] bg-surface px-5 shadow-[var(--shadow-card)] ring-1 ring-border transition-shadow duration-300 focus-within:shadow-[var(--shadow-elevated)] focus-within:ring-2 focus-within:ring-accent/25">
-          <Search className="h-7 w-7 shrink-0 text-faint" strokeWidth={2.1} />
+      {/* Search with embedded scan action — one control, no extra scroll. */}
+      <motion.div variants={rise}>
+        <div className="flex h-[4rem] items-center gap-3 rounded-full bg-surface pl-5 pr-2 shadow-[0_0_0_1px_var(--color-border),var(--shadow-card)] transition-shadow duration-300 focus-within:shadow-[0_0_0_2px_var(--color-accent),var(--shadow-elevated)]">
+          <Search className="h-[1.4rem] w-[1.4rem] shrink-0 text-faint" strokeWidth={2.1} />
           <input
             autoFocus={!scanIntent && !ownIntent}
             value={query}
@@ -256,8 +223,8 @@ export function CheckClient({
               setShowAdd(false);
               setScanNotice(null);
             }}
-            placeholder="Produktname, Marke oder Link"
-            className="h-full min-w-0 flex-1 bg-transparent text-[1.1875rem] text-label outline-none placeholder:text-faint"
+            placeholder="Produkt, Marke oder Link"
+            className="h-full min-w-0 flex-1 bg-transparent text-[1.125rem] text-label outline-none placeholder:text-faint"
             inputMode="search"
             aria-label="Produktname, Marke oder Link"
           />
@@ -274,21 +241,28 @@ export function CheckClient({
               <X className="h-4 w-4" strokeWidth={2.6} />
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              navigator.vibrate?.(8);
+              setScannerOpen(true);
+            }}
+            className="press brand-gradient grid h-[3rem] w-[3rem] shrink-0 place-items-center rounded-full text-[#f1efe6] shadow-[var(--shadow-glow)]"
+            aria-label="Produkt scannen"
+          >
+            <Camera className="h-[1.45rem] w-[1.45rem]" strokeWidth={2.2} />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setScannerOpen(true)}
-          className="press sheen brand-gradient flex h-[4.35rem] w-full items-center justify-center gap-3 rounded-full text-[1.1875rem] font-semibold text-white shadow-[0_18px_36px_-20px_rgba(6,63,46,0.75)]"
-        >
-          <Camera className="h-6 w-6" strokeWidth={2.4} />
-          Scannen
-        </button>
+        <p className="mono-data mt-2.5 flex items-center justify-center gap-2 text-[0.625rem] uppercase tracking-[0.26em] text-faint">
+          <ScanLine className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+          Scannen · Signal sehen · Entscheiden
+        </p>
       </motion.div>
 
       {scanNotice && (
         <motion.div
           variants={rise}
-          className="flex items-center gap-2 rounded-[1rem] bg-accent-soft px-3 py-2 text-[0.9375rem] font-medium text-accent-ink"
+          className="flex items-center gap-2 rounded-[var(--radius-md)] bg-accent-soft px-3 py-2 text-[0.9375rem] font-medium text-accent-ink"
         >
           <ShieldCheck className="h-5 w-5 shrink-0" strokeWidth={2.3} />
           {scanNotice}
@@ -316,14 +290,14 @@ export function CheckClient({
                 <button
                   onClick={handleResearch}
                   disabled={researching}
-                  className="press inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-accent px-5 text-[1.0625rem] font-semibold text-white disabled:opacity-70"
+                  className="press inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-6 text-[1rem] font-semibold text-[#f1efe6] disabled:opacity-70"
                 >
                   {researching ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
                     <Sparkles className="h-5 w-5" />
                   )}
-                  Finden & anlegen
+                  Finden &amp; anlegen
                 </button>
               }
             />
@@ -334,59 +308,21 @@ export function CheckClient({
 
       {idle && (
         <>
-          <motion.section variants={rise} className="card-elevated relative overflow-hidden p-5">
-            <div aria-hidden className="absolute inset-0 text-accent">
-              <WaveLines opacity={0.08} />
-            </div>
-            <div className="relative flex items-center gap-4">
-              <span className="grid h-20 w-20 shrink-0 place-items-center rounded-full bg-accent-soft text-accent ring-1 ring-border">
-                <span className="font-display text-[2.25rem] font-semibold leading-none">W</span>
-              </span>
-              <div>
-                <h2 className="text-[1.3125rem] font-bold tracking-tight text-accent">
-                  Wudly Signal
-                </h2>
-                <p className="mt-1 text-[1rem] leading-snug text-muted-foreground">
-                  Echte Besitzer. Nach Nutzung. Keine Sterne-Show.
-                </p>
-              </div>
-            </div>
-            <div className="relative mt-4 flex flex-wrap gap-2">
-              {[
-                { icon: Users, label: 'Echte Besitzer' },
-                { icon: CalendarDays, label: 'Nach Nutzung' },
-                { icon: Sparkles, label: 'Keine Sterne-Show' },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <span
-                    key={item.label}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[0.8125rem] font-medium text-label shadow-[var(--shadow-xs)] ring-1 ring-border"
-                  >
-                    <Icon className="h-4 w-4 text-accent" strokeWidth={2.2} />
-                    {item.label}
-                  </span>
-                );
-              })}
-            </div>
-          </motion.section>
-
           {featured.length > 0 && (
             <motion.section variants={rise} className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <h2 className="text-[1.35rem] font-bold tracking-tight text-label">
+              <div className="flex items-baseline justify-between px-1">
+                <h2 className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                   Zuletzt geprüft
                 </h2>
                 <Link
                   href="/rankings"
-                  className="tap-dim flex items-center text-[0.9375rem] text-muted-foreground"
+                  className="tap-dim mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-accent"
                 >
-                  Alle anzeigen
-                  <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
+                  Alle
                 </Link>
               </div>
-              <div className="space-y-3">
-                {featured.slice(0, 2).map((product) => (
+              <div className="space-y-2.5">
+                {featured.slice(0, 3).map((product) => (
                   <RecentProduct key={product.id} product={product} />
                 ))}
               </div>
@@ -395,22 +331,16 @@ export function CheckClient({
 
           {categories.length > 0 && (
             <motion.section variants={rise} className="space-y-3">
-              <h2 className="px-1 text-[1.35rem] font-bold tracking-tight text-label">
-                Beliebte Kategorien
+              <h2 className="mono-data px-1 text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Kategorien
               </h2>
               <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
                 {categories.slice(0, 8).map((category) => (
                   <Link
                     key={category.id}
                     href={`/rankings?cat=${category.slug}`}
-                    className="press inline-flex shrink-0 items-center gap-2 rounded-full bg-surface px-3.5 py-2 text-[0.9375rem] font-medium text-label shadow-[var(--shadow-card)] ring-1 ring-border"
+                    className="press mono-data inline-flex shrink-0 items-center rounded-full bg-surface px-4 py-2.5 text-[0.75rem] font-semibold uppercase tracking-[0.1em] text-label shadow-[0_0_0_1px_var(--color-border),var(--shadow-xs)]"
                   >
-                    <span
-                      className="grid h-7 w-7 place-items-center rounded-full text-accent"
-                      style={{ backgroundImage: categoryTile(category.slug) }}
-                    >
-                      <PackageCheck className="h-4 w-4" strokeWidth={2.2} />
-                    </span>
                     {category.name}
                   </Link>
                 ))}
@@ -418,20 +348,40 @@ export function CheckClient({
             </motion.section>
           )}
 
-          <motion.section variants={rise} className="card p-5">
-            <div className="grid gap-4">
-              {[
-                ['1', 'Scannen oder suchen'],
-                ['2', 'Signal sehen'],
-                ['3', 'Entscheiden'],
-              ].map(([number, label]) => (
-                <div key={number} className="flex items-center gap-3">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-[0.875rem] font-bold text-white">
-                    {number}
-                  </span>
-                  <span className="text-[1.0625rem] font-semibold text-label">{label}</span>
-                </div>
-              ))}
+          {/* The manifest — what makes the Wudly Signal different. */}
+          <motion.section
+            variants={rise}
+            className="card-elevated relative overflow-hidden p-5"
+          >
+            <div aria-hidden className="absolute inset-0 text-accent">
+              <WaveLines opacity={0.09} />
+            </div>
+            <p className="mono-data relative text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-accent-ink">
+              Das Wudly Signal
+            </p>
+            <p className="font-display relative mt-2.5 text-[1.6rem] italic leading-snug text-label">
+              Echte Besitzer. Nach echter Nutzung. Keine Sterne-Show.
+            </p>
+            <div className="relative mt-4 space-y-2">
+              <p className="ledger-row">
+                <span className="text-[0.875rem] text-muted-foreground">Bewertungen</span>
+                <span className="leader" aria-hidden />
+                <span className="mono-data text-[0.875rem] font-semibold text-label">
+                  nur von Besitzern
+                </span>
+              </p>
+              <p className="ledger-row">
+                <span className="text-[0.875rem] text-muted-foreground">Gezählt wird</span>
+                <span className="leader" aria-hidden />
+                <span className="mono-data text-[0.875rem] font-semibold text-label">
+                  Wiederkauf, keine Sterne
+                </span>
+              </p>
+              <p className="ledger-row">
+                <span className="text-[0.875rem] text-muted-foreground">Werbung im Score</span>
+                <span className="leader" aria-hidden />
+                <span className="mono-data text-[0.875rem] font-semibold text-label">0&nbsp;%</span>
+              </p>
             </div>
           </motion.section>
         </>
