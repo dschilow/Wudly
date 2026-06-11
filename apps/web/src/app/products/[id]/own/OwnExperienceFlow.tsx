@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { AnimatePresence, motion } from 'motion/react';
 import { Check } from 'lucide-react';
 import type {
   CategoryAspectDto,
@@ -36,6 +37,8 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   const { user, loading: authLoading } = useAuth();
 
   const [step, setStep] = useState(1);
+  /** +1 when moving forward, -1 backward — drives the slide direction. */
+  const [dir, setDir] = useState(1);
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +147,21 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
         ))}
       </div>
 
-      <div key={step} className="animate-rise space-y-5">
+      <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+      <motion.div
+        key={step}
+        custom={dir}
+        variants={{
+          enter: (d: number) => ({ x: d * 42, opacity: 0 }),
+          center: { x: 0, opacity: 1 },
+          exit: (d: number) => ({ x: d * -42, opacity: 0 }),
+        }}
+        initial="enter"
+        animate="center"
+        exit="exit"
+        transition={{ type: 'spring', stiffness: 400, damping: 38 }}
+        className="space-y-5"
+      >
         <div className="px-1">
           <p className="text-[0.8125rem] text-faint">
             Schritt {step} von {TOTAL_STEPS}
@@ -247,19 +264,31 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
         )}
 
         {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
-      </div>
+      </motion.div>
+      </AnimatePresence>
 
       {/* Fixed bottom action bar */}
       <div className="safe-bottom fixed inset-x-0 bottom-[3.75rem] z-30 border-t border-separator bg-canvas/80 px-4 py-2.5 backdrop-blur-2xl md:bottom-0">
         <div className="mx-auto flex max-w-md items-center gap-2.5">
           {step > 1 && (
-            <Button variant="gray" onClick={() => setStep((s) => s - 1)} size="lg">
+            <Button
+              variant="gray"
+              onClick={() => {
+                setDir(-1);
+                setStep((s) => s - 1);
+              }}
+              size="lg"
+            >
               Zurück
             </Button>
           )}
           {step < TOTAL_STEPS ? (
             <Button
-              onClick={() => setStep((s) => s + 1)}
+              onClick={() => {
+                setDir(1);
+                navigator.vibrate?.(6);
+                setStep((s) => s + 1);
+              }}
               disabled={!canNext}
               size="lg"
               className="flex-1"

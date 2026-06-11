@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef } from 'react';
-import { useInView } from 'motion/react';
+import { motion, useInView, useReducedMotion } from 'motion/react';
 import { computeScores, type ExperienceDto } from '@wudly/shared';
 import { scoreColor } from '@/lib/utils';
 
@@ -38,6 +38,7 @@ const r = (n: number) => Math.round(n * 100) / 100;
 export function ScoreTrend({ experiences }: { experiences: ExperienceDto[] }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, amount: 0.4 });
+  const reduced = useReducedMotion();
 
   const points = useMemo(() => {
     const sorted = [...experiences]
@@ -113,6 +114,21 @@ export function ScoreTrend({ experiences }: { experiences: ExperienceDto[] }) {
             style={{ transition: 'stroke-dashoffset 1.1s var(--ease-ios)' }}
           />
         </svg>
+        {/* End-of-line dot with a soft "live" pulse halo. */}
+        {!reduced && (
+          <motion.span
+            aria-hidden
+            className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+            style={{ left: dotLeft, top: dotTop, backgroundColor: color }}
+            initial={{ opacity: 0 }}
+            animate={
+              inView
+                ? { opacity: [0, 0.45, 0], scale: [1, 2.6, 1] }
+                : undefined
+            }
+            transition={{ delay: 1.1, duration: 2.4, repeat: Infinity, repeatDelay: 1.2 }}
+          />
+        )}
         <span
           className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-surface"
           style={{ left: dotLeft, top: dotTop, backgroundColor: color, opacity: inView ? 1 : 0, transition: 'opacity 0.3s ease 1s' }}

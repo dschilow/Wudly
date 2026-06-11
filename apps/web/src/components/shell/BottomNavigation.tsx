@@ -47,17 +47,28 @@ function Tab({ item, active }: { item: NavItem; active: boolean }) {
       <Link
         href={item.href}
         aria-current={active ? 'page' : undefined}
+        onClick={() => navigator.vibrate?.(6)}
         className={cn(
           'tap-dim relative flex flex-col items-center gap-1 pb-1 pt-2.5 text-[0.6875rem] font-medium tracking-tight transition-colors duration-200',
           active ? 'text-accent' : 'text-faint',
         )}
       >
         <motion.span
+          className="relative grid place-items-center"
           animate={{ scale: active ? 1.06 : 1, y: active ? -1 : 0 }}
           transition={{ type: 'spring', stiffness: 520, damping: 32 }}
         >
+          {/* Shared "platter" glides between tabs (iOS-style active indicator). */}
+          {active && (
+            <motion.span
+              layoutId="tab-platter"
+              aria-hidden
+              className="absolute -inset-x-3.5 -inset-y-1 rounded-full bg-accent-soft"
+              transition={{ type: 'spring', stiffness: 480, damping: 38 }}
+            />
+          )}
           <Icon
-            className="h-[1.55rem] w-[1.55rem]"
+            className="relative h-[1.55rem] w-[1.55rem]"
             strokeWidth={active ? 2.4 : 1.9}
             fill={filled ? 'currentColor' : 'none'}
             aria-hidden

@@ -1,8 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useMotionValueEvent, useScroll } from 'motion/react';
 import { ChevronLeft, ShieldCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const ROOT_ROUTES = new Set(['/', '/check', '/rankings', '/me/products', '/me']);
 
@@ -13,16 +16,28 @@ const ROOT_ROUTES = new Set(['/', '/check', '/rankings', '/me/products', '/me'])
  * "Wudly" wordmark with a single trust affordance on the right — calm, premium,
  * brand-forward, matching the product mockups. Each page provides its own large
  * title below this bar. Deep routes swap to a plain back affordance.
+ *
+ * The bar is scroll-aware: flat while at the top, gaining its hairline and a
+ * denser material once content scrolls beneath it (iOS large-title behavior).
  */
 export function MobileHeader() {
   const pathname = usePathname();
   const router = useRouter();
+  const { scrollY } = useScroll();
+  const [scrolled, setScrolled] = useState(false);
+
+  useMotionValueEvent(scrollY, 'change', (y) => setScrolled(y > 12));
 
   const isRoot = ROOT_ROUTES.has(pathname);
 
+  const chrome = cn(
+    'safe-top sticky top-0 z-30 backdrop-blur-2xl backdrop-saturate-150 transition-[background-color,box-shadow] duration-300',
+    scrolled ? 'bg-canvas/88 shadow-[0_1px_0_var(--color-separator)]' : 'bg-canvas/60',
+  );
+
   if (!isRoot) {
     return (
-      <header className="safe-top sticky top-0 z-30 bg-canvas/80 backdrop-blur-2xl backdrop-saturate-150">
+      <header className={chrome}>
         <div className="mx-auto flex h-12 max-w-2xl items-center px-2">
           <button
             onClick={() => router.back()}
@@ -38,7 +53,7 @@ export function MobileHeader() {
   }
 
   return (
-    <header className="safe-top sticky top-0 z-30 bg-canvas/80 backdrop-blur-2xl backdrop-saturate-150">
+    <header className={chrome}>
       <div className="relative mx-auto flex h-14 max-w-2xl items-center justify-center px-4">
         <Link href="/check" className="tap-dim" aria-label="Wudly — Startseite">
           <span className="font-display text-[1.6rem] font-semibold leading-none text-accent">

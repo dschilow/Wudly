@@ -242,6 +242,23 @@
     box-shadow: var(--shadow-elevated);
   }
 
+  /* Verdict hero panels — tinted, light-to-lighter gradients that flip to deep
+     ink-tinted surfaces in dark mode (hardcoding light hex here broke dark). */
+  .panel-positive {
+    background: linear-gradient(165deg, #f1f7f3, #e7f3eb);
+  }
+  .panel-regret {
+    background: linear-gradient(160deg, #fcf2f0, #fbeae7);
+  }
+  @media (prefers-color-scheme: dark) {
+    .panel-positive {
+      background: linear-gradient(165deg, #17241c, #121b15);
+    }
+    .panel-regret {
+      background: linear-gradient(160deg, #261715, #1c110f);
+    }
+  }
+
   /* Signature brand gradient (hero, key accents). */
   .brand-gradient {
     background-image: linear-gradient(
@@ -376,6 +393,48 @@
   .animate-bar {
     animation: bar-grow 0.85s var(--ease-ios) both;
   }
+
+  /* A soft diagonal light sweep across a prominent CTA — runs rarely so it
+     reads as a glint, not a banner ad. Needs position: relative + overflow hidden. */
+  .sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .sheen::after {
+    content: '';
+    position: absolute;
+    inset: -150% auto -150% -60%;
+    width: 36%;
+    transform: rotate(18deg) translateX(-220%);
+    background: linear-gradient(
+      100deg,
+      transparent,
+      rgba(255, 255, 255, 0.22) 50%,
+      transparent
+    );
+    animation: sheen-sweep 5.5s ease-in-out infinite;
+  }
+
+  /* Skeleton shimmer — a gentle traveling highlight instead of a flat pulse. */
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-fill-2);
+  }
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-surface) 50%,
+      transparent
+    );
+    opacity: 0.6;
+    animation: shimmer-sweep 1.6s ease-in-out infinite;
+  }
 }
 
 @keyframes ios-rise {
@@ -453,6 +512,20 @@
   }
   to {
     transform: scaleX(1);
+  }
+}
+@keyframes sheen-sweep {
+  0%,
+  58% {
+    transform: rotate(18deg) translateX(-260%);
+  }
+  100% {
+    transform: rotate(18deg) translateX(460%);
+  }
+}
+@keyframes shimmer-sweep {
+  to {
+    transform: translateX(100%);
   }
 }
 

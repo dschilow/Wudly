@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertTriangle,
   ChevronRight,
@@ -61,8 +61,7 @@ function HeroCard({ entry }: { entry: RankingEntryDto }) {
   return (
     <Link
       href={`/products/${product.id}`}
-      className="press block rounded-[1.5rem] p-4 ring-1 ring-positive/12"
-      style={{ background: 'linear-gradient(160deg,#f1f7f3,#e9f4ec)' }}
+      className="press panel-positive block rounded-[1.5rem] p-4 ring-1 ring-positive/12"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -120,8 +119,7 @@ function RegretCard({ entry }: { entry: RankingEntryDto }) {
   return (
     <Link
       href={`/products/${product.id}`}
-      className="press block rounded-[1.5rem] p-4 ring-1 ring-regret/12"
-      style={{ background: 'linear-gradient(160deg,#fcf2f0,#fbeae7)' }}
+      className="press panel-regret block rounded-[1.5rem] p-4 ring-1 ring-regret/12"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -338,88 +336,120 @@ export function RankingsClient({
         </motion.div>
       )}
 
-      {/* ── Category filter view ── */}
-      {category ? (
-        catLoading ? (
-          <ListSkeleton />
-        ) : catEntries && catEntries.length > 0 ? (
-          <motion.div variants={rise} className="space-y-2.5">
-            {catEntries.slice(0, 20).map((entry) => (
-              <RankedRow key={entry.product.id} entry={entry} tab="rebuy" />
-            ))}
-          </motion.div>
-        ) : (
-          <NoSignal />
-        )
-      ) : isOverview ? (
-        /* ── Curated overview (default "Wieder kaufen") ── */
-        <>
-          {hero && (
-            <motion.section variants={rise}>
-              <HeroCard entry={hero} />
-            </motion.section>
+      {/* ── Content area — cross-faded + staggered on every tab/filter switch ── */}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={category ? `cat-${category}-${catLoading ? 'loading' : 'ready'}` : `tab-${tab}`}
+          className="space-y-5"
+          variants={{
+            hidden: { opacity: 0, y: 10 },
+            show: { opacity: 1, y: 0, transition: { staggerChildren: 0.05 } },
+          }}
+          initial="hidden"
+          animate="show"
+          exit={{ opacity: 0, y: -6, transition: { duration: 0.14, ease: 'easeIn' } }}
+        >
+          {category ? (
+            catLoading ? (
+              <ListSkeleton />
+            ) : catEntries && catEntries.length > 0 ? (
+              <StaggeredRows entries={catEntries.slice(0, 20)} tab="rebuy" renumber={false} />
+            ) : (
+              <NoSignal />
+            )
+          ) : isOverview ? (
+            /* ── Curated overview (default "Wieder kaufen") ── */
+            <>
+              {hero && (
+                <motion.section variants={rise}>
+                  <HeroCard entry={hero} />
+                </motion.section>
+              )}
+              {topRegret && (
+                <motion.section variants={rise}>
+                  <RegretCard entry={topRegret} />
+                </motion.section>
+              )}
+              {discussed.length > 0 && (
+                <motion.section variants={rise} className="space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle
+                        className="h-[1.15rem] w-[1.15rem] text-positive-ink"
+                        strokeWidth={2.2}
+                      />
+                      <h2 className="text-[1.15rem] font-bold tracking-tight text-label">
+                        Am meisten gefragt
+                      </h2>
+                    </div>
+                    <button
+                      onClick={() => setTab('discussed')}
+                      className="tap-dim flex items-center text-[0.9375rem] text-muted-foreground"
+                      type="button"
+                    >
+                      Alle anzeigen
+                      <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {discussed.slice(0, 2).map((entry) => (
+                      <DiscussedTile key={entry.product.id} entry={entry} />
+                    ))}
+                  </div>
+                </motion.section>
+              )}
+              {surprise && (
+                <motion.section variants={rise}>
+                  <SurpriseCard entry={surprise} />
+                </motion.section>
+              )}
+              {!hero && !topRegret && <NoSignal />}
+            </>
+          ) : (
+            /* ── Per-tab ranked list (Bereuen / Diskutiert / Langzeit) ── */
+            (() => {
+              const source =
+                tab === 'regret'
+                  ? regret
+                  : tab === 'discussed'
+                    ? discussed
+                    : [...rebuy].sort(
+                        (a, b) => b.product.experienceCount - a.product.experienceCount,
+                      );
+              if (source.length === 0) return <NoSignal />;
+              return <StaggeredRows entries={source.slice(0, 20)} tab={tab} renumber />;
+            })()
           )}
-          {topRegret && (
-            <motion.section variants={rise}>
-              <RegretCard entry={topRegret} />
-            </motion.section>
-          )}
-          {discussed.length > 0 && (
-            <motion.section variants={rise} className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                  <MessageCircle
-                    className="h-[1.15rem] w-[1.15rem] text-positive-ink"
-                    strokeWidth={2.2}
-                  />
-                  <h2 className="text-[1.15rem] font-bold tracking-tight text-label">
-                    Am meisten gefragt
-                  </h2>
-                </div>
-                <button
-                  onClick={() => setTab('discussed')}
-                  className="tap-dim flex items-center text-[0.9375rem] text-muted-foreground"
-                  type="button"
-                >
-                  Alle anzeigen
-                  <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {discussed.slice(0, 2).map((entry) => (
-                  <DiscussedTile key={entry.product.id} entry={entry} />
-                ))}
-              </div>
-            </motion.section>
-          )}
-          {surprise && (
-            <motion.section variants={rise}>
-              <SurpriseCard entry={surprise} />
-            </motion.section>
-          )}
-          {!hero && !topRegret && <NoSignal />}
-        </>
-      ) : (
-        /* ── Per-tab ranked list (Bereuen / Diskutiert / Langzeit) ── */
-        <motion.div variants={rise} className="space-y-2.5">
-          {(() => {
-            const source =
-              tab === 'regret'
-                ? regret
-                : tab === 'discussed'
-                  ? discussed
-                  : [...rebuy].sort(
-                      (a, b) => b.product.experienceCount - a.product.experienceCount,
-                    );
-            if (source.length === 0) return <NoSignal />;
-            return source
-              .slice(0, 20)
-              .map((entry, i) => (
-                <RankedRow key={entry.product.id} entry={{ ...entry, rank: i + 1 }} tab={tab} />
-              ));
-          })()}
         </motion.div>
-      )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+/** Ranked rows that cascade in — each row rises with a short per-index delay. */
+function StaggeredRows({
+  entries,
+  tab,
+  renumber,
+}: {
+  entries: RankingEntryDto[];
+  tab: Tab;
+  renumber: boolean;
+}) {
+  return (
+    <motion.div
+      className="space-y-2.5"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.035 } } }}
+    >
+      {entries.map((entry, i) => (
+        <motion.div
+          key={entry.product.id}
+          variants={rise}
+          transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+        >
+          <RankedRow entry={renumber ? { ...entry, rank: i + 1 } : entry} tab={tab} />
+        </motion.div>
+      ))}
     </motion.div>
   );
 }

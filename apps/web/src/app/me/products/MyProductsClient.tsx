@@ -94,7 +94,7 @@ export function MyProductsClient() {
       <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
         <Link
           href="/check?own=1"
-          className="press brand-gradient flex h-[4.35rem] items-center justify-center gap-3 rounded-full text-[1.1875rem] font-semibold text-white shadow-[0_18px_36px_-20px_rgba(6,63,46,0.75)]"
+          className="press sheen brand-gradient flex h-[4.35rem] items-center justify-center gap-3 rounded-full text-[1.1875rem] font-semibold text-white shadow-[0_18px_36px_-20px_rgba(6,63,46,0.75)]"
         >
           <Plus className="h-7 w-7" strokeWidth={2.4} />
           Produkt hinzufügen

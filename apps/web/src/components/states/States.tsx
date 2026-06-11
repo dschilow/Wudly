@@ -73,14 +73,9 @@ export function ErrorState({
   );
 }
 
-/** Lightweight skeleton block for loading placeholders. */
+/** Lightweight skeleton block — a soft traveling shimmer, not a flat pulse. */
 export function Skeleton({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn('animate-pulse rounded-[0.5rem] bg-fill-2', className)}
-      style={{ animationDuration: '1.4s' }}
-    />
-  );
+  return <div className={cn('shimmer rounded-[0.5rem]', className)} />;
 }
 
 /** A grouped-list skeleton — one card with N hairline-divided thumbnail rows. */

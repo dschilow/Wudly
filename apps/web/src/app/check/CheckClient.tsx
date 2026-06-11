@@ -23,6 +23,7 @@ import { ApiError } from '@/lib/api-client';
 import { categoryTile } from '@/lib/categories';
 import { ProductList } from '@/components/ProductList';
 import { Thumb } from '@/components/Thumb';
+import { WaveLines } from '@/components/motion/WaveLines';
 import { EmptyState, Skeleton } from '@/components/states/States';
 import { AddProductForm } from './AddProductForm';
 import { CameraScanner } from './CameraScanner';
@@ -31,6 +32,32 @@ const rise = {
   hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0 },
 };
+
+/** The hero question, revealed word by word — calm, typographic, Apple-like. */
+function HeroTitle({ text }: { text: string }) {
+  return (
+    <motion.h1
+      className="font-display mt-3 text-balance text-[2.85rem] font-semibold leading-[0.99] text-label"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.045 } } }}
+    >
+      {text.split(' ').map((word, i) => (
+        <span key={i} className="inline-block overflow-hidden pb-[0.12em] -mb-[0.12em] align-top">
+          <motion.span
+            className="inline-block"
+            variants={{
+              hidden: { y: '105%', opacity: 0 },
+              show: { y: 0, opacity: 1 },
+            }}
+            transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+          >
+            {word}
+          </motion.span>
+          {' '}
+        </span>
+      ))}
+    </motion.h1>
+  );
+}
 
 function signalLabel(product: ProductSummaryDto) {
   if (product.experienceCount < 20) return 'Frühes Signal';
@@ -215,13 +242,11 @@ export function CheckClient({
 
       <motion.section variants={rise} transition={{ type: 'spring', stiffness: 360, damping: 34 }}>
         <p className="text-[1.4rem] font-bold leading-none tracking-tight text-label">Prüfen</p>
-        <h1 className="font-display mt-3 text-balance text-[2.85rem] font-semibold leading-[0.99] text-label">
-          Welches Produkt möchtest du prüfen?
-        </h1>
+        <HeroTitle text="Welches Produkt möchtest du prüfen?" />
       </motion.section>
 
       <motion.div variants={rise} className="space-y-3">
-        <div className="flex h-[4.35rem] items-center gap-3 rounded-[1.65rem] bg-surface px-5 shadow-[var(--shadow-card)] ring-1 ring-border">
+        <div className="flex h-[4.35rem] items-center gap-3 rounded-[1.65rem] bg-surface px-5 shadow-[var(--shadow-card)] ring-1 ring-border transition-shadow duration-300 focus-within:shadow-[var(--shadow-elevated)] focus-within:ring-2 focus-within:ring-accent/25">
           <Search className="h-7 w-7 shrink-0 text-faint" strokeWidth={2.1} />
           <input
             autoFocus={!scanIntent && !ownIntent}
@@ -253,7 +278,7 @@ export function CheckClient({
         <button
           type="button"
           onClick={() => setScannerOpen(true)}
-          className="press brand-gradient flex h-[4.35rem] w-full items-center justify-center gap-3 rounded-full text-[1.1875rem] font-semibold text-white shadow-[0_18px_36px_-20px_rgba(6,63,46,0.75)]"
+          className="press sheen brand-gradient flex h-[4.35rem] w-full items-center justify-center gap-3 rounded-full text-[1.1875rem] font-semibold text-white shadow-[0_18px_36px_-20px_rgba(6,63,46,0.75)]"
         >
           <Camera className="h-6 w-6" strokeWidth={2.4} />
           Scannen
@@ -309,8 +334,11 @@ export function CheckClient({
 
       {idle && (
         <>
-          <motion.section variants={rise} className="card-elevated p-5">
-            <div className="flex items-center gap-4">
+          <motion.section variants={rise} className="card-elevated relative overflow-hidden p-5">
+            <div aria-hidden className="absolute inset-0 text-accent">
+              <WaveLines opacity={0.08} />
+            </div>
+            <div className="relative flex items-center gap-4">
               <span className="grid h-20 w-20 shrink-0 place-items-center rounded-full bg-accent-soft text-accent ring-1 ring-border">
                 <span className="font-display text-[2.25rem] font-semibold leading-none">W</span>
               </span>
@@ -323,7 +351,7 @@ export function CheckClient({
                 </p>
               </div>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="relative mt-4 flex flex-wrap gap-2">
               {[
                 { icon: Users, label: 'Echte Besitzer' },
                 { icon: CalendarDays, label: 'Nach Nutzung' },

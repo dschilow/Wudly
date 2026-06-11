@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion } from 'motion/react';
+import { motion, useInView, useReducedMotion } from 'motion/react';
 import {
   ChevronRight,
   MessageCircle,
@@ -17,29 +17,66 @@ import {
 import { WouldBuyAgain, type ExperienceDto, type ProfileSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { AnimatedNumber } from '@/components/motion/AnimatedNumber';
 import { PageSkeleton } from '@/components/states/States';
 import { cn } from '@/lib/utils';
 
 function Stat({ value, label, divider }: { value: number; label: string; divider?: boolean }) {
   return (
     <div className={cn('px-1 py-4 text-center', divider && 'border-r border-separator')}>
-      <div className="tnum text-[1.75rem] font-semibold leading-none text-accent">{value}</div>
+      <div className="tnum text-[1.75rem] font-semibold leading-none text-accent">
+        <AnimatedNumber value={value} duration={0.8} />
+      </div>
       <div className="mt-1.5 text-[0.8125rem] leading-tight text-muted-foreground">{label}</div>
     </div>
   );
 }
 
+/** The personal rebuy gauge — a gradient arc that draws in, number counting up. */
 function RebuyRing({ value }: { value: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.5 });
+  const reduced = useReducedMotion();
+
+  const stroke = 10;
+  const radius = 50 - stroke / 2;
+  const circumference = 2 * Math.PI * radius;
+  const active = reduced || inView ? Math.max(0, Math.min(100, value)) : 0;
+  const dashOffset = circumference * (1 - active / 100);
+
   return (
-    <div
-      className="grid h-36 w-36 shrink-0 place-items-center rounded-full"
-      style={{
-        background: `conic-gradient(var(--color-positive) ${value}%, var(--color-fill-2) 0)`,
-      }}
-    >
-      <div className="grid h-[6.6rem] w-[6.6rem] place-items-center rounded-full bg-surface shadow-[inset_0_1px_1px_rgba(255,255,255,0.7)]">
+    <div ref={ref} className="relative h-36 w-36 shrink-0">
+      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full -rotate-90">
+        <defs>
+          <linearGradient id="rebuy-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="var(--color-positive)" stopOpacity="0.6" />
+            <stop offset="100%" stopColor="var(--color-positive)" stopOpacity="1" />
+          </linearGradient>
+        </defs>
+        <circle
+          cx="50"
+          cy="50"
+          r={radius}
+          fill="none"
+          stroke="var(--color-fill-2)"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx="50"
+          cy="50"
+          r={radius}
+          fill="none"
+          stroke="url(#rebuy-ring-grad)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          style={{ transition: 'stroke-dashoffset 1.2s var(--ease-ios) 0.1s' }}
+        />
+      </svg>
+      <div className="absolute inset-0 grid place-items-center">
         <span className="tnum text-[2.35rem] font-semibold leading-none text-accent">
-          {value}
+          <AnimatedNumber value={value} duration={1.1} />
           <span className="text-[0.55em]">%</span>
         </span>
       </div>
