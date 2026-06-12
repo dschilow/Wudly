@@ -350,17 +350,32 @@ export interface EanResolutionDto {
 }
 
 /**
- * A real-market product suggestion from an external catalog (no AI involved).
- * Found by free-text search (UPCitemdb); selecting one resolves its EAN through
- * the regular chain (Icecat first), so the created product gets official data.
+ * A creatable product suggestion from outside the catalog — either a market
+ * database hit (with EAN) or an AI-identified candidate (EAN optional).
+ * Selecting one creates the product through the enrichment chain (Icecat →
+ * EAN DBs → AI), so it arrives with official data, photo and specs.
  */
 export interface ExternalProductSuggestionDto {
   title: string;
   brand: string | null;
-  ean: string;
+  /** EAN/GTIN when the source knows it — enables the Icecat-quality path. */
+  ean: string | null;
   image: string | null;
-  /** Provider key for attribution, e.g. "upcitemdb". */
+  /** Provider key for attribution, e.g. "upcitemdb" | "ai". */
   source: string;
+}
+
+/**
+ * Unified search result — the server runs the whole cascade (catalog →
+ * market DBs) and the client renders ONE consistent list from it.
+ */
+export interface ProductFindResultDto {
+  /** Relevant catalog hits only (display cutoff, not the loose recall search). */
+  catalog: ProductSummaryDto[];
+  /** Creatable market suggestions (empty when a strong catalog match exists). */
+  market: ExternalProductSuggestionDto[];
+  /** True when the catalog already contains what the user is looking for. */
+  hasStrongMatch: boolean;
 }
 
 /** Find-or-create result for photo / research product entry points. */

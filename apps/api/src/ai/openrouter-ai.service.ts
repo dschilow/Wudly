@@ -9,6 +9,8 @@ import {
   type IdentifiedProduct,
   type RegretAssessment,
   type ResearchedProduct,
+  type SuggestedProductCandidate,
+  type ResearchedExternalRating,
   AspectSentiment,
   guessBrand,
   EXPERIENCE_MOOD_LABEL,
@@ -61,6 +63,41 @@ const regretSchema = z.object({
   rebuyProbability: z.coerce.number().min(0).max(100).nullable().optional(),
   topConcern: z.string().trim().max(80).nullable().optional(),
   summary: z.string().trim().min(1).max(240),
+});
+
+const suggestProductsSchema = z.object({
+  candidates: z
+    .array(
+      z.object({
+        name: z.string().trim().min(2).max(160),
+        brand: z.string().trim().max(80).nullable().optional(),
+        ean: z
+          .string()
+          .trim()
+          .regex(/^\d{8,14}$/)
+          .nullable()
+          .optional(),
+      }),
+    )
+    .max(3)
+    .default([]),
+});
+
+const externalRatingsSchema = z.object({
+  ratings: z
+    .array(
+      z.object({
+        source: z.string().trim().min(2).max(40),
+        sourceLabel: z.string().trim().min(2).max(60),
+        url: z.string().trim().url().max(600),
+        kind: z.enum(['STARS', 'PERCENT', 'GRADE_DE']),
+        value: z.number(),
+        maxValue: z.number(),
+        count: z.number().int().positive().nullable().optional(),
+      }),
+    )
+    .max(4)
+    .default([]),
 });
 
 const researchSchema = z.object({
@@ -388,5 +425,83 @@ export class OpenRouterAiService implements AiService {
       imageUrl: parsed.data.imageUrl ?? null,
       found: parsed.data.found ?? false,
     };
+  }
+
+  async suggestProducts(query: string): Promise<SuggestedProductCandidate[]> {
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content:
+          'Du bist die Produktsuche von Wudly. Der Nutzer sucht ein Konsumprodukt per Freitext. ' +
+          'Nenne bis zu 3 real existierende, konkrete Produkte (offizielle Modellnamen mit Marke), ' +
+          'die der Nutzer höchstwahrscheinlich meint — über die Websuche verifiziert. ' +
+          'Keine Erfindungen, keine Zubehörartikel. "ean" (8–14 Ziffern) nur angeben, wenn du die ' +
+          'GTIN sicher kennst, sonst null. Findest du nichts Eindeutiges, liefere eine leere Liste. ' +
+          'Antworte ausschließlich als valides JSON ohne Markdown: ' +
+          '{"candidates":[{"name":string,"brand":string|null,"ean":string|null}]}.',
+      },
+      { role: 'user', content: `Suchanfrage: ${query}` },
+    ];
+
+    const parsed = suggestProductsSchema.safeParse(
+      parseJsonObject(
+        await this.client.completeJson(messages, { temperature: 0.2, maxTokens: 400, online: true }),
+      ),
+    );
+    if (!parsed.success) return [];
+
+    return parsed.data.candidates.map((c) => ({
+      name: c.name,
+      brand: c.brand ?? guessBrand(c.name) ?? null,
+      ean: c.ean ?? null,
+    }));
+  }
+
+  async researchExternalRatings(
+    name: string,
+    brand: string | null,
+  ): Promise<ResearchedExternalRating[]> {
+    const label = [brand, name].filter(Boolean).join(' ');
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content:
+          'Du recherchierst aggregierte Bewertungs-FAKTEN zu einem Produkt auf großen Plattformen ' +
+          '(z. B. Amazon.de, Idealo, MediaMarkt, Otto, Galaxus). Liefere NUR Werte, die du über die ' +
+          'Websuche tatsächlich findest — Durchschnittswert, Anzahl der Bewertungen und den Link zur ' +
+          'konkreten Produktseite. Niemals Zahlen schätzen oder erfinden; im Zweifel die Plattform ' +
+          'weglassen. Keine Review-Texte. kind: STARS (maxValue 5), PERCENT (maxValue 100) oder ' +
+          'GRADE_DE (Schulnote, maxValue 6). "source" ist ein kleingeschriebener Schlüssel wie ' +
+          '"amazon". Antworte ausschließlich als valides JSON ohne Markdown: ' +
+          '{"ratings":[{"source":string,"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,"maxValue":number,"count":number|null}]}.',
+      },
+      { role: 'user', content: `Produkt: ${label}` },
+    ];
+
+    const parsed = externalRatingsSchema.safeParse(
+      parseJsonObject(
+        await this.client.completeJson(messages, { temperature: 0.1, maxTokens: 600, online: true }),
+      ),
+    );
+    if (!parsed.success) return [];
+
+    // Plausibility gate — drop anything that doesn't add up instead of trusting it.
+    return parsed.data.ratings
+      .filter((r) => {
+        if (!/^https?:\/\//i.test(r.url)) return false;
+        if (r.kind === 'STARS') return r.maxValue === 5 && r.value > 0 && r.value <= 5;
+        if (r.kind === 'PERCENT') return r.maxValue === 100 && r.value > 0 && r.value <= 100;
+        return r.maxValue === 6 && r.value >= 1 && r.value <= 6;
+      })
+      .map((r) => ({
+        source: r.source.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+        sourceLabel: r.sourceLabel,
+        url: r.url,
+        kind: r.kind,
+        value: r.value,
+        maxValue: r.maxValue,
+        count: r.count ?? null,
+      }))
+      .filter((r) => r.source.length >= 2);
   }
 }

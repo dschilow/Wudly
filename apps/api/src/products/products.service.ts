@@ -21,6 +21,7 @@ import {
   type QuickVoteInput,
   type QuickVoteResultDto,
   type ExternalProductSuggestionDto,
+  type ProductFindResultDto,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
@@ -195,6 +196,76 @@ export class ProductsService {
     const candidates = await this.matching.search(query, take);
     return candidates.map((c) => toProductSummaryDto(c.product));
   }
+
+  /**
+   * Unified search used by the check screen — the server decides the cascade,
+   * the client renders ONE consistent list:
+   *
+   *   1. catalog hits with a DISPLAY cutoff (the recall search is intentionally
+   *      loose at 0.18 similarity, which surfaced "Bosch Eco…" for "Ecoflow" —
+   *      here only genuinely relevant hits survive)
+   *   2. `deep` only (the settled query, not every keystroke): market DBs with
+   *      spelling variants + accessory filter — protects the daily quota
+   *
+   * `hasStrongMatch` is the single source of truth for "does the catalog already
+   * have this?" — the client uses it to decide whether to go deep / ask the AI.
+   */
+  async findProducts(query: string, deep = false): Promise<ProductFindResultDto> {
+    const candidates = await this.matching.search(query, 12);
+
+    // Display cutoff: relevant-only. 0.45 keeps typo matches ("roborok") but
+    // drops prefix noise ("eco…" for "ecoflow" scores ≈ 0.25).
+    const relevant = candidates.filter((c) => c.similarity >= 0.45).slice(0, 8);
+    const hasStrongMatch = candidates.some((c) => c.similarity >= 0.8);
+
+    const market =
+      deep && !hasStrongMatch && query.trim().length >= 3
+        ? await this.externalSuggestions(query)
+        : [];
+
+    return {
+      catalog: relevant.map((c) => toProductSummaryDto(c.product)),
+      market,
+      hasStrongMatch,
+    };
+  }
+
+  /**
+   * AI product candidates for a query nothing else could resolve — the model
+   * names up to 3 real products (web-verified) the user most likely means.
+   * Presented in the SAME list style as market hits; the user never sees which
+   * path resolved their search. Cached like the market search.
+   */
+  async aiCandidates(query: string): Promise<ExternalProductSuggestionDto[]> {
+    const q = query.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (q.length < 3) return [];
+
+    const cached = this.aiCandidateCache.get(q);
+    if (cached && Date.now() - cached.at < SUGGESTION_CACHE_TTL_MS) return cached.items;
+
+    let items: ExternalProductSuggestionDto[] = [];
+    try {
+      const candidates = await this.ai.suggestProducts(query.trim());
+      items = candidates.map((c) => ({
+        title: c.name,
+        brand: c.brand,
+        ean: c.ean,
+        image: null,
+        source: 'ai',
+      }));
+    } catch (err) {
+      this.logger.warn(`AI candidates failed: ${err instanceof Error ? err.message : err}`);
+    }
+
+    if (this.aiCandidateCache.size > 300) this.aiCandidateCache.clear();
+    this.aiCandidateCache.set(q, { at: Date.now(), items });
+    return items;
+  }
+
+  private readonly aiCandidateCache = new Map<
+    string,
+    { at: number; items: ExternalProductSuggestionDto[] }
+  >();
 
   async getDetail(id: string): Promise<ProductDetailDto> {
     const product = await this.findOrThrow(id);
@@ -409,8 +480,48 @@ export class ProductsService {
         data: { specs },
       });
     }
+    // Fire-and-forget: research external rating FACTS (Amazon/Idealo/…) so the
+    // fresh product page shows "Bewertungen anderswo" without admin work.
+    this.researchRatingsInBackground(result.product.id, canonicalName, brand);
     const product = await this.getSummaryOrThrow(result.product.id);
     return { product, created: true };
+  }
+
+  /**
+   * Background enrichment: aggregated rating facts from other platforms via AI
+   * web research (average + count + product link — never review texts, per the
+   * transparency rules). No-op with the dummy provider; failures are silent.
+   */
+  private researchRatingsInBackground(
+    productId: string,
+    name: string,
+    brand: string | null,
+  ): void {
+    void (async () => {
+      try {
+        const ratings = await this.ai.researchExternalRatings(name, brand);
+        for (const rating of ratings) {
+          if (rating.url.length > 500) continue;
+          await this.externalRatings.upsert(productId, {
+            source: rating.source,
+            sourceLabel: rating.sourceLabel,
+            url: rating.url,
+            kind: rating.kind,
+            value: rating.value,
+            maxValue: rating.maxValue,
+            count: rating.count,
+            note: null,
+          });
+        }
+        if (ratings.length > 0) {
+          this.logger.log(`External ratings researched for ${productId}: ${ratings.length}`);
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Ratings research failed for ${productId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    })();
   }
 
   private async attachIdentifier(productId: string, ean: string): Promise<void> {

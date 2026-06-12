@@ -4,11 +4,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'motion/react';
-import { Camera, Loader2, Plus, ScanLine, Search, ShieldCheck, Sparkles, X } from 'lucide-react';
+import {
+  Camera,
+  Loader2,
+  PackageSearch,
+  Plus,
+  ScanLine,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import type {
   CategoryDto,
   ExternalProductSuggestionDto,
   IdentifiedProductDto,
+  ProductFindResultDto,
   ProductSummaryDto,
 } from '@wudly/shared';
 import { api } from '@/lib/api';
@@ -16,7 +27,7 @@ import { ApiError } from '@/lib/api-client';
 import { ProductList } from '@/components/ProductList';
 import { Thumb } from '@/components/Thumb';
 import { WaveLines } from '@/components/motion/WaveLines';
-import { EmptyState, Skeleton } from '@/components/states/States';
+import { Skeleton } from '@/components/states/States';
 import { AddProductForm } from './AddProductForm';
 import { CameraScanner } from './CameraScanner';
 
@@ -24,23 +35,6 @@ const rise = {
   hidden: { opacity: 0, y: 14 },
   show: { opacity: 1, y: 0 },
 };
-
-/**
- * Does any catalog hit actually contain every word of the query? The fuzzy
- * search returns near-misses by design; only a token-complete hit counts as
- * "found" — everything else should additionally trigger the market lookup.
- */
-function hasStrongLocalMatch(q: string, found: ProductSummaryDto[]): boolean {
-  const tokens = q
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((t) => t.length >= 2);
-  if (tokens.length === 0) return found.length > 0;
-  return found.some((p) => {
-    const name = `${p.brand ?? ''} ${p.canonicalName}`.toLowerCase();
-    return tokens.every((t) => name.includes(t));
-  });
-}
 
 function signalLabel(product: ProductSummaryDto) {
   if (product.experienceCount < 20) return 'Frühes Signal';
@@ -92,86 +86,112 @@ export function CheckClient({
   const ownIntent = searchParams.get('own') === '1';
   const scanIntent = searchParams.get('scan') === '1';
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
-  const [results, setResults] = useState<ProductSummaryDto[] | null>(null);
+  const [found, setFound] = useState<ProductFindResultDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanNotice, setScanNotice] = useState<string | null>(null);
   const [researching, setResearching] = useState(false);
-  // Real-market suggestions (no AI) when the catalog has no strong match.
-  const [extSuggestions, setExtSuggestions] = useState<ExternalProductSuggestionDto[] | null>(null);
-  const [extLoading, setExtLoading] = useState(false);
-  const [creatingEan, setCreatingEan] = useState<string | null>(null);
+  /** Creatable suggestions (market DBs or AI — one list, the user never sees which). */
+  const [suggestions, setSuggestions] = useState<ExternalProductSuggestionDto[] | null>(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [creating, setCreating] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const extDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deepDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Monotonic id so stale responses can never overwrite a newer query. */
+  const seqRef = useRef(0);
 
+  /**
+   * The search cascade. Phase 1 (every keystroke): `find` — relevant catalog
+   * hits + the server's verdict whether the catalog already covers the query.
+   * Phase 2 (settled query only): market DBs, then AI candidates — both feed
+   * the same "Noch nicht auf Wudly" list, so the path is invisible to the user.
+   */
   const runSearch = useCallback(async (q: string) => {
-    if (extDebounceRef.current) clearTimeout(extDebounceRef.current);
+    const seq = ++seqRef.current;
+    if (deepDebounceRef.current) clearTimeout(deepDebounceRef.current);
     if (q.trim().length < 2) {
-      setResults(null);
-      setExtSuggestions(null);
-      setExtLoading(false);
+      setFound(null);
+      setSuggestions(null);
+      setSuggestLoading(false);
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const found = await api.products.search(q, 12, { cache: 'no-store' });
-      setResults(found);
+      const res = await api.products.find(q, false, { cache: 'no-store' });
+      if (seq !== seqRef.current) return;
+      setFound(res);
+      setSuggestions(null);
 
-      // The fuzzy catalog search almost always returns *something* — market
-      // suggestions must also appear when none of the hits really matches the
-      // query (e.g. "iPhone 17" finding only an old iPhone 14 entry).
-      if (q.trim().length >= 3 && !hasStrongLocalMatch(q, found)) {
-        // Extra debounce: the trial quota (~100/day) shouldn't burn while typing.
-        setExtLoading(true);
-        extDebounceRef.current = setTimeout(async () => {
+      if (!res.hasStrongMatch && q.trim().length >= 3) {
+        setSuggestLoading(true);
+        // Extra debounce: external quotas + AI calls only for settled queries.
+        deepDebounceRef.current = setTimeout(async () => {
           try {
-            const ext = await api.products.externalSuggestions(q, { cache: 'no-store' });
-            setExtSuggestions(ext);
+            const deep = await api.products.find(q, true, { cache: 'no-store' });
+            if (seq !== seqRef.current) return;
+            if (deep.market.length > 0) {
+              setSuggestions(deep.market);
+              return;
+            }
+            // Market DBs empty → the AI names the product (same list, same look).
+            const ai = await api.products.aiCandidates(q, { cache: 'no-store' });
+            if (seq !== seqRef.current) return;
+            setSuggestions(ai);
           } catch {
-            setExtSuggestions([]);
+            if (seq === seqRef.current) setSuggestions([]);
           } finally {
-            setExtLoading(false);
+            if (seq === seqRef.current) setSuggestLoading(false);
           }
-        }, 550);
+        }, 600);
       } else {
-        setExtSuggestions(null);
-        setExtLoading(false);
+        setSuggestLoading(false);
       }
     } catch (err) {
+      if (seq !== seqRef.current) return;
       setError(err instanceof ApiError ? err.displayMessage : 'Suche fehlgeschlagen.');
-      setResults([]);
+      setFound(null);
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current) setLoading(false);
     }
   }, []);
 
-  /** A market suggestion was tapped: resolve its EAN (Icecat first) → product page. */
+  /** A suggestion was tapped: EAN → Icecat-quality chain; otherwise AI research. */
   const handlePickSuggestion = useCallback(
     async (suggestion: ExternalProductSuggestionDto) => {
-      if (creatingEan) return;
+      if (creating) return;
       navigator.vibrate?.(10);
-      setCreatingEan(suggestion.ean);
+      const key = suggestion.ean ?? suggestion.title;
+      setCreating(key);
       try {
-        const res = await api.products.resolveEan(suggestion.ean, { cache: 'no-store' });
-        if (res.product) {
-          router.push(`/products/${res.product.id}`);
+        const product = suggestion.ean
+          ? (await api.products.resolveEan(suggestion.ean, { cache: 'no-store' })).product
+          : (
+              await api.products.research(
+                suggestion.brand &&
+                  !suggestion.title.toLowerCase().includes(suggestion.brand.toLowerCase())
+                  ? `${suggestion.brand} ${suggestion.title}`.slice(0, 160)
+                  : suggestion.title.slice(0, 160),
+              )
+            ).product;
+        if (product) {
+          router.push(`/products/${product.id}`);
           return;
         }
-        // EAN chain failed → prefill the manual add form with the real name.
+        // Chain failed → prefill the manual add form with the real name.
         setQuery(suggestion.title);
         setShowAdd(true);
       } catch {
         setQuery(suggestion.title);
         setShowAdd(true);
       } finally {
-        setCreatingEan(null);
+        setCreating(null);
       }
     },
-    [creatingEan, router],
+    [creating, router],
   );
 
   useEffect(() => {
@@ -258,7 +278,6 @@ export function CheckClient({
   );
 
   const idle = query.trim().length === 0;
-  const hasNoResults = results !== null && results.length === 0 && !loading;
 
   return (
     <motion.div
@@ -346,7 +365,7 @@ export function CheckClient({
       )}
 
       {!idle && (
-        <motion.section variants={rise}>
+        <motion.section variants={rise} className="space-y-4">
           {loading && (
             <div className="card overflow-hidden">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -357,123 +376,119 @@ export function CheckClient({
             </div>
           )}
           {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
-          {!loading && results && results.length > 0 && <ProductList products={results} />}
 
-          {/* Real-market hits by name (no AI) — shown whenever the catalog has
-              no strong match, ALSO underneath near-miss local results. */}
-          {!showAdd && (extLoading || (extSuggestions && extSuggestions.length > 0)) && (
-            <div className="mt-4 space-y-4">
-              {extLoading && (
-                <div className="space-y-2">
-                  <p className="mono-data px-1 text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    Im Markt suchen …
-                  </p>
-                  <div className="card overflow-hidden">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className={i < 2 ? 'hairline px-4 py-3' : 'px-4 py-3'}>
-                        <Skeleton className="h-11" />
-                      </div>
-                    ))}
-                  </div>
+          {/* 1 · Relevant catalog hits (server-side display cutoff — no noise). */}
+          {!loading && found && found.catalog.length > 0 && (
+            <ProductList products={found.catalog} />
+          )}
+
+          {/* 2 · Creatable suggestions — market DBs or AI, one list, one look. */}
+          {!showAdd && (suggestLoading || (suggestions && suggestions.length > 0)) && (
+            <section className="space-y-2">
+              <p className="mono-data flex items-center gap-2 px-1 text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Noch nicht auf Wudly
+                {suggestLoading && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+              </p>
+              {suggestLoading ? (
+                <div className="card overflow-hidden">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className={i < 2 ? 'hairline px-4 py-3' : 'px-4 py-3'}>
+                      <Skeleton className="h-11" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="card overflow-hidden">
+                  {suggestions!.map((s, i) => {
+                    const key = s.ean ?? s.title;
+                    const busy = creating === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => void handlePickSuggestion(s)}
+                        disabled={creating !== null}
+                        className={
+                          'tap flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-60 ' +
+                          (i < suggestions!.length - 1 ? 'hairline' : '')
+                        }
+                        style={{ ['--hairline-inset' as string]: '4.4rem' }}
+                      >
+                        <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[0.7rem] bg-surface-muted text-faint">
+                          {s.image ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={s.image}
+                              alt=""
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <PackageSearch className="h-5 w-5" strokeWidth={1.9} />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="line-clamp-2 text-[0.9375rem] font-medium leading-snug text-label">
+                            {s.title}
+                          </span>
+                          <span className="mono-data mt-0.5 block truncate text-[0.625rem] uppercase tracking-[0.12em] text-faint">
+                            {s.brand ?? 'Produkt'}
+                            {s.ean ? ` · EAN ${s.ean}` : ''}
+                          </span>
+                        </span>
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink">
+                          {busy ? (
+                            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.4} />
+                          ) : (
+                            <Plus className="h-4 w-4" strokeWidth={2.6} />
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
-
-              {!extLoading && extSuggestions && extSuggestions.length > 0 && (
-                <section className="space-y-2">
-                  <p className="mono-data px-1 text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    Im Markt gefunden
-                  </p>
-                  <div className="card overflow-hidden">
-                    {extSuggestions.map((s, i) => {
-                      const busy = creatingEan === s.ean;
-                      return (
-                        <button
-                          key={s.ean}
-                          type="button"
-                          onClick={() => void handlePickSuggestion(s)}
-                          disabled={creatingEan !== null}
-                          className={
-                            'tap flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-60 ' +
-                            (i < extSuggestions.length - 1 ? 'hairline' : '')
-                          }
-                          style={{ ['--hairline-inset' as string]: '4.4rem' }}
-                        >
-                          <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[0.7rem] bg-surface-muted">
-                            {s.image ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={s.image}
-                                alt=""
-                                loading="lazy"
-                                referrerPolicy="no-referrer"
-                                className="h-full w-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <Search className="h-5 w-5 text-faint" strokeWidth={2} />
-                            )}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="line-clamp-2 text-[0.9375rem] font-medium leading-snug text-label">
-                              {s.title}
-                            </span>
-                            <span className="mono-data mt-0.5 block text-[0.625rem] uppercase tracking-[0.12em] text-faint">
-                              {s.brand ?? 'Markt-Treffer'} · EAN {s.ean}
-                            </span>
-                          </span>
-                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink">
-                            {busy ? (
-                              <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.4} />
-                            ) : (
-                              <Plus className="h-4 w-4" strokeWidth={2.6} />
-                            )}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="px-1 text-[0.8125rem] leading-snug text-muted-foreground">
-                    Echte Marktprodukte aus offenen EAN-Datenbanken. Tippen legt das Produkt mit
-                    offiziellen Daten an.
-                  </p>
-                </section>
+              {!suggestLoading && (
+                <p className="px-1 text-[0.8125rem] leading-snug text-muted-foreground">
+                  Tippen legt das Produkt mit offiziellen Daten, Foto und Eckdaten an.
+                </p>
               )}
-            </div>
+            </section>
           )}
 
-          {/* Nothing at all in the catalog → AI research as the last resort. */}
-          {hasNoResults && !showAdd && !extLoading && (
-            <EmptyState
-              className="py-8"
-              title={
-                extSuggestions && extSuggestions.length > 0
-                  ? 'Nicht dabei?'
-                  : 'Kein Produkt gefunden'
-              }
-              description={
-                extSuggestions && extSuggestions.length > 0
-                  ? 'Lass die KI nach genau deinem Produkt suchen.'
-                  : `Für "${query}" gibt es noch keinen Eintrag.`
-              }
-              action={
-                <button
-                  onClick={handleResearch}
-                  disabled={researching}
-                  className="press inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-6 text-[1rem] font-semibold text-[#f1efe6] disabled:opacity-70"
-                >
-                  {researching ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-5 w-5" />
-                  )}
-                  Finden &amp; anlegen
-                </button>
-              }
-            />
+          {/* 3 · The guaranteed exit — ALWAYS there, never a dead end. */}
+          {!loading && found && !showAdd && (
+            <button
+              type="button"
+              onClick={handleResearch}
+              disabled={researching}
+              className="tap card flex w-full items-center gap-3 px-4 py-3.5 text-left disabled:opacity-60"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent text-[#f1efe6]">
+                {researching ? (
+                  <Loader2 className="h-5 w-5 animate-spin" strokeWidth={2.2} />
+                ) : (
+                  <Sparkles className="h-5 w-5" strokeWidth={2.1} />
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[0.9375rem] font-semibold text-label">
+                  »{query.trim()}« neu anlegen
+                </span>
+                <span className="block text-[0.8125rem] text-muted-foreground">
+                  {researching
+                    ? 'Produkt wird recherchiert und angelegt …'
+                    : 'Wir finden Daten, Foto und Eckdaten automatisch.'}
+                </span>
+              </span>
+            </button>
           )}
-          {hasNoResults && showAdd && <AddProductForm initialName={query} ownIntent={ownIntent} />}
+
+          {showAdd && <AddProductForm initialName={query} ownIntent={ownIntent} />}
         </motion.section>
       )}
 

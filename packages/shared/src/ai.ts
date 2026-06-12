@@ -71,6 +71,28 @@ export interface ResearchedProduct {
   found: boolean;
 }
 
+/** A concrete real-world product the AI believes the user is searching for. */
+export interface SuggestedProductCandidate {
+  name: string;
+  brand: string | null;
+  /** EAN/GTIN only when the model is confident — never guessed. */
+  ean: string | null;
+}
+
+/** An aggregated rating FACT researched from another platform (avg + count + link). */
+export interface ResearchedExternalRating {
+  /** Stable machine key, e.g. "amazon". */
+  source: string;
+  /** Display name, e.g. "Amazon". */
+  sourceLabel: string;
+  /** Link to the concrete product page on the source platform. */
+  url: string;
+  kind: 'STARS' | 'PERCENT' | 'GRADE_DE';
+  value: number;
+  maxValue: number;
+  count: number | null;
+}
+
 export interface AiService {
   summarizeProductInsights(productId: string): Promise<ProductInsightSummary>;
   extractProductCandidate(input: ProductInput): Promise<ProductCandidate>;
@@ -97,6 +119,16 @@ export interface AiService {
    * Returns `found: false` when nothing trustworthy could be established.
    */
   researchProduct(name: string, categorySlugs: string[]): Promise<ResearchedProduct>;
+  /**
+   * Name up to 3 real, concrete products the user most likely means by a free-text
+   * search query (used when catalog + market DBs come up empty). Empty when unsure.
+   */
+  suggestProducts(query: string): Promise<SuggestedProductCandidate[]>;
+  /**
+   * Research aggregated rating FACTS (average + count + product-page link) for a
+   * product on major platforms. Facts only — never review texts. Empty when unsure.
+   */
+  researchExternalRatings(name: string, brand: string | null): Promise<ResearchedExternalRating[]>;
 }
 
 /** DI token string for the AiService binding in the backend. */

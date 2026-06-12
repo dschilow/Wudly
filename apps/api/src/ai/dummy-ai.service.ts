@@ -8,6 +8,8 @@ import {
   type IdentifiedProduct,
   type RegretAssessment,
   type ResearchedProduct,
+  type SuggestedProductCandidate,
+  type ResearchedExternalRating,
   normalizeProductName,
   guessBrand,
   AspectSentiment,
@@ -102,5 +104,18 @@ export class DummyAiService implements AiService {
       description: null,
       found: false,
     };
+  }
+
+  async suggestProducts(_query: string): Promise<SuggestedProductCandidate[]> {
+    // No model → no candidates; the search UI falls back to manual create.
+    return [];
+  }
+
+  async researchExternalRatings(
+    _name: string,
+    _brand: string | null,
+  ): Promise<ResearchedExternalRating[]> {
+    // No web access → never invent rating facts.
+    return [];
   }
 }

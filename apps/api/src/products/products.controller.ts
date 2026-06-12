@@ -36,6 +36,7 @@ import {
   type EanResolutionDto,
   type EnsuredProductDto,
   type ExternalProductSuggestionDto,
+  type ProductFindResultDto,
   type MyProductsDto,
   type RegretCheckDto,
   type QuickVoteResultDto,
@@ -87,6 +88,27 @@ export class ProductsController {
     @Query(new ZodValidationPipe(productSearchQuerySchema)) query: { q: string; take: number },
   ): Promise<ExternalProductSuggestionDto[]> {
     return this.products.externalSuggestions(query.q);
+  }
+
+  /** Unified search: catalog (display cutoff) + market suggestions (deep=1). */
+  @Get('find')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 40, windowMs: 60_000 })
+  find(
+    @Query(new ZodValidationPipe(productSearchQuerySchema)) query: { q: string; take: number },
+    @Query('deep') deep?: string,
+  ): Promise<ProductFindResultDto> {
+    return this.products.findProducts(query.q, deep === '1');
+  }
+
+  /** AI-identified product candidates — the last step of the search cascade. */
+  @Get('ai-candidates')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 8, windowMs: 60_000 })
+  aiCandidates(
+    @Query(new ZodValidationPipe(productSearchQuerySchema)) query: { q: string; take: number },
+  ): Promise<ExternalProductSuggestionDto[]> {
+    return this.products.aiCandidates(query.q);
   }
 
   @Get('resolve-ean')

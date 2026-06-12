@@ -33,6 +33,7 @@ import type {
   EanResolutionDto,
   EnsuredProductDto,
   ExternalProductSuggestionDto,
+  ProductFindResultDto,
   MyProductsDto,
   FromPhotoInput,
   RegretCheckDto,
@@ -91,6 +92,12 @@ export const api = {
     /** Real-market name suggestions (no AI) when the catalog has no hits. */
     externalSuggestions: (q: string, opts?: RequestOptions) =>
       apiFetch<ExternalProductSuggestionDto[]>(`/products/external-suggestions${qs({ q })}`, opts),
+    /** Unified search: relevant catalog hits (+ market suggestions when deep). */
+    find: (q: string, deep = false, opts?: RequestOptions) =>
+      apiFetch<ProductFindResultDto>(`/products/find${qs(deep ? { q, deep: 1 } : { q })}`, opts),
+    /** AI-identified product candidates (last step of the search cascade). */
+    aiCandidates: (q: string, opts?: RequestOptions) =>
+      apiFetch<ExternalProductSuggestionDto[]>(`/products/ai-candidates${qs({ q })}`, opts),
     get: (id: string, opts?: RequestOptions) => apiFetch<ProductDetailDto>(`/products/${id}`, opts),
     insights: (id: string, opts?: RequestOptions) =>
       apiFetch<ProductInsightsDto>(`/products/${id}/insights`, opts),
