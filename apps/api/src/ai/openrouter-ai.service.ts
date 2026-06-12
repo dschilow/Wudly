@@ -110,6 +110,7 @@ const researchSchema = z.object({
     .max(14)
     .optional(),
   imageUrl: z.string().trim().url().max(600).nullable().optional(),
+  productUrl: z.string().trim().url().max(600).nullable().optional(),
   found: z.coerce.boolean().optional().default(false),
 });
 
@@ -395,12 +396,13 @@ export class OpenRouterAiService implements AiService {
           '"canonicalName" ist der saubere offizielle Produktname (mit Marke), "description" ein ' +
           'sachlicher deutscher Satz. "specs" sind bis zu 8 zentrale technische Fakten als ' +
           '{label,value}-Paare auf Deutsch (z. B. {"label":"Display","value":"6,8\\" OLED"}); nur ' +
-          'sichere Fakten, sonst leer. "imageUrl" ist die URL eines offiziellen Produktfotos ' +
-          '(Hersteller/Händler), nur wenn du sehr sicher bist, sonst null. ' +
-          'Antworte ausschließlich als valides JSON ohne Markdown: ' +
+          'sichere Fakten, sonst leer. "productUrl" ist die URL der offiziellen Produktseite ' +
+          '(Hersteller bevorzugt, sonst großer Händler) — wichtig, bitte angeben wenn bekannt. ' +
+          '"imageUrl" ist die direkte URL eines offiziellen Produktfotos, nur wenn du sehr ' +
+          'sicher bist, sonst null. Antworte ausschließlich als valides JSON ohne Markdown: ' +
           '{"canonicalName": string, "brand": string|null, "categorySlug": string|null, ' +
           '"description": string|null, "specs": [{"label":string,"value":string}], ' +
-          '"imageUrl": string|null, "found": boolean}.',
+          '"imageUrl": string|null, "productUrl": string|null, "found": boolean}.',
       },
       { role: 'user', content: `Produkt: ${name}` },
     ];
@@ -423,6 +425,7 @@ export class OpenRouterAiService implements AiService {
       description: parsed.data.description ?? null,
       specs: parsed.data.specs ?? [],
       imageUrl: parsed.data.imageUrl ?? null,
+      productUrl: parsed.data.productUrl ?? null,
       found: parsed.data.found ?? false,
     };
   }

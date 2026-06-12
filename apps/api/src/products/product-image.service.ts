@@ -1,9 +1,13 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import type { AppConfig } from '../config/configuration';
 
 /** Hard cap so a hostile/huge source can't bloat the DB (per image). */
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const ALLOWED_MIME = /^image\/(jpeg|png|webp|gif|avif)$/i;
+/** Cap for HTML downloads when extracting og:image from a product page. */
+const MAX_HTML_BYTES = 400 * 1024;
 
 /**
  * Downloads external product images ONCE and serves them from our own DB,
@@ -17,8 +21,16 @@ const ALLOWED_MIME = /^image\/(jpeg|png|webp|gif|avif)$/i;
 @Injectable()
 export class ProductImageService {
   private readonly logger = new Logger(ProductImageService.name);
+  private readonly cseKey: string | null;
+  private readonly cseId: string | null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    config: ConfigService<AppConfig, true>,
+  ) {
+    this.cseKey = config.get('GOOGLE_CSE_KEY', { infer: true })?.trim() || null;
+    this.cseId = config.get('GOOGLE_CSE_ID', { infer: true })?.trim() || null;
+  }
 
   /** Cached bytes for serving, or throw 404. */
   async getOrThrow(productId: string): Promise<{ mime: string; bytes: Buffer }> {
@@ -55,28 +67,9 @@ export class ProductImageService {
       return;
     }
 
-    await this.prisma.productImage.upsert({
-      where: { productId },
-      create: {
-        productId,
-        mime: fetched.mime,
-        bytes: fetched.bytes,
-        sourceUrl: url.startsWith('data:') ? null : url,
-        source,
-      },
-      update: {
-        mime: fetched.mime,
-        bytes: fetched.bytes,
-        sourceUrl: url.startsWith('data:') ? null : url,
-        source,
-      },
-    });
     // Convention: stored API-relative paths include the global "/api" prefix and
     // resolve against the API origin (same as the seed's preview-SVG URLs).
-    await this.prisma.product.update({
-      where: { id: productId },
-      data: { imageUrl: `/api/products/${productId}/photo` },
-    });
+    await this.store(productId, url.startsWith('data:') ? null : url, source, fetched);
   }
 
   private async download(url: string): Promise<{ mime: string; bytes: Uint8Array<ArrayBuffer> } | null> {
@@ -91,6 +84,139 @@ export class ProductImageService {
     const bytes = new Uint8Array(await res.arrayBuffer());
     if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_BYTES) return null;
     return { mime, bytes };
+  }
+
+  /**
+   * The product-photo hunt for products no EAN database covered. Tries every
+   * candidate in order and caches the FIRST one that actually downloads as a
+   * real image — `product.imageUrl` is only ever set after validation, so the
+   * UI never renders a broken photo:
+   *
+   *   1. direct candidate URLs (e.g. an AI-suggested image link)
+   *   2. og:image of the official product page (very reliable when known)
+   *   3. Google image search (when GOOGLE_CSE_KEY/ID are configured — 100/day free)
+   *
+   * Fire-and-forget; on total failure the generated placeholder remains.
+   */
+  findAndCacheInBackground(
+    productId: string,
+    query: string,
+    options: { candidateUrls?: Array<string | null | undefined>; pageUrl?: string | null },
+  ): void {
+    void (async () => {
+      try {
+        const candidates: Array<{ url: string; source: string }> = [];
+        for (const url of options.candidateUrls ?? []) {
+          if (url && /^https?:\/\//i.test(url)) candidates.push({ url, source: 'ai' });
+        }
+        if (options.pageUrl) {
+          const og = await this.findOgImage(options.pageUrl);
+          if (og) candidates.push({ url: og, source: 'og-image' });
+        }
+        if (candidates.length < 3) {
+          for (const url of await this.searchGoogleImages(query)) {
+            candidates.push({ url, source: 'google-images' });
+          }
+        }
+
+        for (const candidate of candidates) {
+          const fetched = await this.download(candidate.url).catch(() => null);
+          if (!fetched) continue;
+          await this.store(productId, candidate.url, candidate.source, fetched);
+          this.logger.log(`Image found for ${productId} via ${candidate.source}`);
+          return;
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Image hunt failed for ${productId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    })();
+  }
+
+  /** Extract og:image / twitter:image from a product page (capped download). */
+  private async findOgImage(pageUrl: string): Promise<string | null> {
+    if (!/^https?:\/\//i.test(pageUrl)) return null;
+    try {
+      // Browser UA on purpose: manufacturer pages (mi.com & co) 403 anything
+      // bot-labelled, and we only read the og:image meta — the tag that exists
+      // precisely so third parties can render a share preview.
+      const res = await fetch(pageUrl, {
+        headers: {
+          Accept: 'text/html,application/xhtml+xml',
+          'Accept-Language': 'de-DE,de;q=0.9',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        },
+        signal: AbortSignal.timeout(8_000),
+        redirect: 'follow',
+      });
+      if (!res.ok) return null;
+      const reader = res.body?.getReader();
+      if (!reader) return null;
+      let html = '';
+      const decoder = new TextDecoder();
+      while (html.length < MAX_HTML_BYTES) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        html += decoder.decode(value, { stream: true });
+      }
+      void reader.cancel().catch(() => undefined);
+
+      const match =
+        /<meta[^>]+(?:property|name)=["'](?:og:image|og:image:url|twitter:image)["'][^>]+content=["']([^"']+)["']/i.exec(
+          html,
+        ) ??
+        /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|og:image:url|twitter:image)["']/i.exec(
+          html,
+        );
+      if (!match?.[1]) return null;
+      const raw = match[1].replace(/&amp;/g, '&').trim();
+      return new URL(raw, pageUrl).toString();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Top image-search hits for "<query>" (empty when CSE isn't configured). */
+  private async searchGoogleImages(query: string): Promise<string[]> {
+    if (!this.cseKey || !this.cseId || query.trim().length < 2) return [];
+    try {
+      const url =
+        `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(this.cseKey)}` +
+        `&cx=${encodeURIComponent(this.cseId)}&searchType=image&num=4&safe=active` +
+        `&q=${encodeURIComponent(query.trim())}`;
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) return [];
+      const data = (await res.json()) as { items?: Array<{ link?: string }> };
+      return (data.items ?? [])
+        .map((i) => i.link?.trim() ?? '')
+        .filter((u) => /^https?:\/\//i.test(u));
+    } catch (err) {
+      this.logger.warn(`Google image search failed: ${err instanceof Error ? err.message : err}`);
+      return [];
+    }
+  }
+
+  /** Persist validated bytes + flip the product's imageUrl to our cached photo. */
+  private async store(
+    productId: string,
+    sourceUrl: string | null,
+    source: string,
+    fetched: { mime: string; bytes: Uint8Array<ArrayBuffer> },
+  ): Promise<void> {
+    await this.prisma.productImage.upsert({
+      where: { productId },
+      create: { productId, mime: fetched.mime, bytes: fetched.bytes, sourceUrl, source },
+      update: { mime: fetched.mime, bytes: fetched.bytes, sourceUrl, source },
+    });
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { imageUrl: `/api/products/${productId}/photo` },
+    });
   }
 
   private decodeDataUrl(url: string): { mime: string; bytes: Uint8Array<ArrayBuffer> } | null {

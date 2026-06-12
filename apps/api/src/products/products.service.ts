@@ -369,8 +369,10 @@ export class ProductsService {
       canonicalName: name,
       brand: input.brand ?? null,
       categorySlug,
-      // Camera photo is only for AI recognition — never store it as product image.
+      // Camera photo is only for AI recognition — never store it as product
+      // image. Research fills description/specs and hunts an official photo.
       userId,
+      research: true,
     });
   }
 
@@ -404,9 +406,14 @@ export class ProductsService {
     let brand = params.brand ?? null;
     let categorySlug = params.categorySlug ?? null;
     let description = params.description ?? null;
-    let imageUrl = params.imageUrl ?? null;
-    let imageSource = params.imageSource ?? 'manual';
     let specs = normalizeSpecs(params.specs);
+    // A photo from an EAN database is trustworthy and can be set directly; AI
+    // hints (direct image url / product page) are only LEADS for the validated
+    // background hunt — never stored unverified.
+    const dbImageUrl = params.imageUrl ?? null;
+    const dbImageSource = params.imageSource ?? 'manual';
+    let aiImageUrl: string | null = null;
+    let aiPageUrl: string | null = null;
 
     // Enrichment cascade — only ask the AI to fill what the catalogs couldn't
     // (description, an image, a couple of specs). DB facts always win.
@@ -427,15 +434,20 @@ export class ProductsService {
           if (specs.length === 0 && researched.specs?.length) {
             specs = normalizeSpecs(researched.specs);
           }
-          if (!imageUrl && researched.imageUrl) {
-            imageUrl = researched.imageUrl.trim() || null;
-            if (imageUrl) imageSource = 'ai';
-          }
+          aiImageUrl = researched.imageUrl?.trim() || null;
+          aiPageUrl = researched.productUrl?.trim() || null;
         }
       } catch (err) {
         this.logger.warn(`Product research failed: ${err instanceof Error ? err.message : err}`);
       }
     }
+
+    const imageQuery = [brand, canonicalName].filter(Boolean).join(' ');
+    const huntImage = (productId: string) =>
+      this.images.findAndCacheInBackground(productId, imageQuery, {
+        candidateUrls: [aiImageUrl],
+        pageUrl: aiPageUrl,
+      });
 
     // Strong duplicate? Return the existing product, topping up missing data.
     const candidates = await this.matching.findDuplicateCandidates(canonicalName, 3);
@@ -443,9 +455,13 @@ export class ProductsService {
     if (strong) {
       if (params.ean) await this.attachIdentifier(strong.product.id, params.ean);
       const data: Record<string, unknown> = {};
-      if (imageUrl && !strong.product.imageUrl) data.imageUrl = imageUrl;
+      if (dbImageUrl && !strong.product.imageUrl) data.imageUrl = dbImageUrl;
       if (description && !strong.product.description) data.description = description;
       if (specs.length > 0 && asSpecArray(strong.product.specs).length === 0) data.specs = specs;
+
+      // Backfill: an existing product without any photo gets the image hunt.
+      if (!strong.product.imageUrl && !dbImageUrl) huntImage(strong.product.id);
+
       if (Object.keys(data).length > 0) {
         const updated = await this.prisma.product.update({
           where: { id: strong.product.id },
@@ -453,7 +469,7 @@ export class ProductsService {
           include: PRODUCT_INCLUDE,
         });
         if (data.imageUrl) {
-          this.images.cacheInBackground(strong.product.id, imageUrl!, imageSource);
+          this.images.cacheInBackground(strong.product.id, dbImageUrl!, dbImageSource);
         }
         return { product: toProductSummaryDto(updated), created: false };
       }
@@ -466,11 +482,11 @@ export class ProductsService {
         brand: brand ?? undefined,
         categorySlug: categorySlug ?? undefined,
         description: description ?? undefined,
-        imageUrl: imageUrl ?? undefined,
+        imageUrl: dbImageUrl ?? undefined,
         forceCreate: true,
       },
       params.userId ?? null,
-      imageSource,
+      dbImageSource,
     );
     if (!result.created || !result.product) return { product: null, created: false };
     if (params.ean) await this.attachIdentifier(result.product.id, params.ean);
@@ -480,6 +496,8 @@ export class ProductsService {
         data: { specs },
       });
     }
+    // No trustworthy DB photo? Hunt one in the background (validated first).
+    if (!dbImageUrl) huntImage(result.product.id);
     // Fire-and-forget: research external rating FACTS (Amazon/Idealo/…) so the
     // fresh product page shows "Bewertungen anderswo" without admin work.
     this.researchRatingsInBackground(result.product.id, canonicalName, brand);

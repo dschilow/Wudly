@@ -67,6 +67,9 @@ export interface ResearchedProduct {
   specs?: Array<{ label: string; value: string }>;
   /** Official product image URL the model found, when confident (else null). */
   imageUrl?: string | null;
+  /** Official product PAGE url (manufacturer/retailer) — its og:image is a far
+      more reliable photo source than model-guessed direct image URLs. */
+  productUrl?: string | null;
   /** True when the model is confident this is a real, identifiable product. */
   found: boolean;
 }
