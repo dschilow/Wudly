@@ -4,8 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'motion/react';
-import { Camera, Loader2, ScanLine, Search, ShieldCheck, Sparkles, X } from 'lucide-react';
-import type { CategoryDto, IdentifiedProductDto, ProductSummaryDto } from '@wudly/shared';
+import { Camera, Loader2, Plus, ScanLine, Search, ShieldCheck, Sparkles, X } from 'lucide-react';
+import type {
+  CategoryDto,
+  ExternalProductSuggestionDto,
+  IdentifiedProductDto,
+  ProductSummaryDto,
+} from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { ProductList } from '@/components/ProductList';
@@ -77,11 +82,16 @@ export function CheckClient({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanNotice, setScanNotice] = useState<string | null>(null);
   const [researching, setResearching] = useState(false);
+  // Real-market suggestions (no AI) when the catalog comes up empty.
+  const [extSuggestions, setExtSuggestions] = useState<ExternalProductSuggestionDto[] | null>(null);
+  const [extLoading, setExtLoading] = useState(false);
+  const [creatingEan, setCreatingEan] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const runSearch = useCallback(async (q: string) => {
     if (q.trim().length < 2) {
       setResults(null);
+      setExtSuggestions(null);
       setLoading(false);
       return;
     }
@@ -90,6 +100,21 @@ export function CheckClient({
     try {
       const found = await api.products.search(q, 12, { cache: 'no-store' });
       setResults(found);
+      if (found.length === 0 && q.trim().length >= 3) {
+        // Not in the catalog → look the name up on the real market (EAN DBs).
+        setExtLoading(true);
+        setExtSuggestions(null);
+        try {
+          const ext = await api.products.externalSuggestions(q, { cache: 'no-store' });
+          setExtSuggestions(ext);
+        } catch {
+          setExtSuggestions([]);
+        } finally {
+          setExtLoading(false);
+        }
+      } else {
+        setExtSuggestions(null);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.displayMessage : 'Suche fehlgeschlagen.');
       setResults([]);
@@ -97,6 +122,31 @@ export function CheckClient({
       setLoading(false);
     }
   }, []);
+
+  /** A market suggestion was tapped: resolve its EAN (Icecat first) → product page. */
+  const handlePickSuggestion = useCallback(
+    async (suggestion: ExternalProductSuggestionDto) => {
+      if (creatingEan) return;
+      navigator.vibrate?.(10);
+      setCreatingEan(suggestion.ean);
+      try {
+        const res = await api.products.resolveEan(suggestion.ean, { cache: 'no-store' });
+        if (res.product) {
+          router.push(`/products/${res.product.id}`);
+          return;
+        }
+        // EAN chain failed → prefill the manual add form with the real name.
+        setQuery(suggestion.title);
+        setShowAdd(true);
+      } catch {
+        setQuery(suggestion.title);
+        setShowAdd(true);
+      } finally {
+        setCreatingEan(null);
+      }
+    },
+    [creatingEan, router],
+  );
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -282,25 +332,111 @@ export function CheckClient({
           )}
           {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
           {!loading && results && results.length > 0 && <ProductList products={results} />}
+
+          {/* Catalog empty → real-market hits by name (no AI), tap to add. */}
           {hasNoResults && !showAdd && (
-            <EmptyState
-              title="Kein Produkt gefunden"
-              description={`Für "${query}" gibt es noch keinen Eintrag.`}
-              action={
-                <button
-                  onClick={handleResearch}
-                  disabled={researching}
-                  className="press inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-6 text-[1rem] font-semibold text-[#f1efe6] disabled:opacity-70"
-                >
-                  {researching ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-5 w-5" />
-                  )}
-                  Finden &amp; anlegen
-                </button>
-              }
-            />
+            <div className="space-y-4">
+              {extLoading && (
+                <div className="card overflow-hidden">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className={i < 2 ? 'hairline px-4 py-3' : 'px-4 py-3'}>
+                      <Skeleton className="h-11" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!extLoading && extSuggestions && extSuggestions.length > 0 && (
+                <section className="space-y-2">
+                  <p className="mono-data px-1 text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Im Markt gefunden
+                  </p>
+                  <div className="card overflow-hidden">
+                    {extSuggestions.map((s, i) => {
+                      const busy = creatingEan === s.ean;
+                      return (
+                        <button
+                          key={s.ean}
+                          type="button"
+                          onClick={() => void handlePickSuggestion(s)}
+                          disabled={creatingEan !== null}
+                          className={
+                            'tap flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-60 ' +
+                            (i < extSuggestions.length - 1 ? 'hairline' : '')
+                          }
+                          style={{ ['--hairline-inset' as string]: '4.4rem' }}
+                        >
+                          <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[0.7rem] bg-surface-muted">
+                            {s.image ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={s.image}
+                                alt=""
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <Search className="h-5 w-5 text-faint" strokeWidth={2} />
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="line-clamp-2 text-[0.9375rem] font-medium leading-snug text-label">
+                              {s.title}
+                            </span>
+                            <span className="mono-data mt-0.5 block text-[0.625rem] uppercase tracking-[0.12em] text-faint">
+                              {s.brand ?? 'Markt-Treffer'} · EAN {s.ean}
+                            </span>
+                          </span>
+                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink">
+                            {busy ? (
+                              <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.4} />
+                            ) : (
+                              <Plus className="h-4 w-4" strokeWidth={2.6} />
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="px-1 text-[0.8125rem] leading-snug text-muted-foreground">
+                    Echte Marktprodukte aus offenen EAN-Datenbanken. Tippen legt das Produkt mit
+                    offiziellen Daten an.
+                  </p>
+                </section>
+              )}
+
+              <EmptyState
+                className="py-8"
+                title={
+                  extSuggestions && extSuggestions.length > 0
+                    ? 'Nicht dabei?'
+                    : 'Kein Produkt gefunden'
+                }
+                description={
+                  extSuggestions && extSuggestions.length > 0
+                    ? 'Lass die KI nach genau deinem Produkt suchen.'
+                    : `Für "${query}" gibt es noch keinen Eintrag.`
+                }
+                action={
+                  <button
+                    onClick={handleResearch}
+                    disabled={researching}
+                    className="press inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-6 text-[1rem] font-semibold text-[#f1efe6] disabled:opacity-70"
+                  >
+                    {researching ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-5 w-5" />
+                    )}
+                    Finden &amp; anlegen
+                  </button>
+                }
+              />
+            </div>
           )}
           {hasNoResults && showAdd && <AddProductForm initialName={query} ownIntent={ownIntent} />}
         </motion.section>

@@ -6,7 +6,6 @@ import { InsightsModule } from './insights.module';
 import { AuthModule } from '../auth/auth.module';
 import { ExperiencesModule } from '../experiences/experiences.module';
 import { QuestionsModule } from '../questions/questions.module';
-import { CatalogSeedService } from './catalog-seed.service';
 import { IcecatService } from './icecat.service';
 import { ProductImageService } from './product-image.service';
 import { ExternalRatingsService } from './external-ratings.service';
@@ -25,7 +24,6 @@ import { ExternalRatingsService } from './external-ratings.service';
   controllers: [ProductsController],
   providers: [
     ProductsService,
-    CatalogSeedService,
     IcecatService,
     ProductImageService,
     ExternalRatingsService,

@@ -20,6 +20,7 @@ import {
   type RegretCheckInput,
   type QuickVoteInput,
   type QuickVoteResultDto,
+  type ExternalProductSuggestionDto,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
@@ -36,6 +37,9 @@ import {
 } from './product.mapper';
 
 const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
+
+/** Market-search results barely change — cache generously to respect quotas. */
+const SUGGESTION_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 
 @Injectable()
 export class ProductsService {
@@ -320,6 +324,90 @@ export class ProductsService {
       return null;
     }
   }
+
+  /**
+   * Free-text search against the real product market — NO AI involved. Used
+   * when the local catalog has no hits: UPCitemdb's trial search returns real
+   * products with EANs; selecting one goes through `resolveEan`, where Icecat
+   * (official manufacturer titles + images) enriches the created product.
+   *
+   * The trial tier allows ~100 requests/day, so results are memo-cached and
+   * the endpoint is rate-limited. Failures degrade to an empty list.
+   */
+  async externalSuggestions(query: string): Promise<ExternalProductSuggestionDto[]> {
+    const q = query.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (q.length < 3) return [];
+
+    const cached = this.suggestionCache.get(q);
+    if (cached && Date.now() - cached.at < SUGGESTION_CACHE_TTL_MS) return cached.items;
+
+    let items: ExternalProductSuggestionDto[] = [];
+    try {
+      const res = await fetch(
+        `https://api.upcitemdb.com/prod/trial/search?s=${encodeURIComponent(q)}&type=product&match_mode=0`,
+        { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8_000) },
+      );
+      if (res.ok) {
+        const data = (await res.json()) as {
+          items?: Array<{
+            title?: string;
+            brand?: string;
+            ean?: string;
+            upc?: string;
+            images?: string[];
+          }>;
+        };
+        items = this.cleanSuggestions(data.items ?? []);
+      }
+    } catch (err) {
+      this.logger.warn(`External search failed: ${err instanceof Error ? err.message : err}`);
+    }
+
+    // Cache even empty results — repeating a miss would burn the daily quota.
+    if (this.suggestionCache.size > 300) this.suggestionCache.clear();
+    this.suggestionCache.set(q, { at: Date.now(), items });
+    return items;
+  }
+
+  /** Dedupe + de-noise raw market hits: new products first, refurbished
+      listings only as filler, twins and EAN-less rows dropped. */
+  private cleanSuggestions(
+    raw: Array<{ title?: string; brand?: string; ean?: string; upc?: string; images?: string[] }>,
+  ): ExternalProductSuggestionDto[] {
+    const seenTitles = new Set<string>();
+    const seenEans = new Set<string>();
+    const clean: ExternalProductSuggestionDto[] = [];
+    const secondHand: ExternalProductSuggestionDto[] = [];
+
+    for (const item of raw) {
+      const title = item.title?.trim();
+      const ean = item.ean?.trim() || item.upc?.trim();
+      if (!title || !ean || seenEans.has(ean)) continue;
+      const norm = title.toLowerCase().replace(/[^a-z0-9äöüß]+/g, ' ').trim();
+      if (seenTitles.has(norm)) continue;
+      seenTitles.add(norm);
+      seenEans.add(ean);
+
+      const suggestion: ExternalProductSuggestionDto = {
+        title,
+        brand: item.brand?.trim() || null,
+        ean,
+        image: item.images?.find((u) => typeof u === 'string' && u.startsWith('https://')) ?? null,
+        source: 'upcitemdb',
+      };
+      if (/\b(refurbished|renewed|restored|used|gebraucht)\b/i.test(title)) {
+        secondHand.push(suggestion);
+      } else {
+        clean.push(suggestion);
+      }
+    }
+    return [...clean, ...secondHand].slice(0, 6);
+  }
+
+  private readonly suggestionCache = new Map<
+    string,
+    { at: number; items: ExternalProductSuggestionDto[] }
+  >();
 
   private async lookupUpcItemDb(ean: string): Promise<EanLookupHit | null> {
     try {

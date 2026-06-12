@@ -1,7 +1,6 @@
 {
   "extends": "@wudly/config/tsconfig/next.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"

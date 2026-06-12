@@ -2,7 +2,6 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import {
-  BadgeCheck,
   Battery,
   Lightbulb,
   MessagesSquare,
@@ -18,6 +17,7 @@ import { JsonLd } from '@/components/JsonLd';
 import { productJsonLd, breadcrumbJsonLd, absoluteUrl } from '@/lib/seo';
 import { ShareButton } from '@/components/ShareButton';
 import { SignalPanel } from '@/components/SignalPanel';
+import { ProductActionBar } from '@/components/ProductActionBar';
 import { ProductTabs } from '@/components/ProductTabs';
 import { Reveal } from '@/components/motion/Reveal';
 import { ScoreTrend } from '@/components/ScoreTrend';
@@ -379,6 +379,7 @@ export default async function ProductPage({ params }: PageProps) {
       {/* 2 · The Kassenbon — Wudly's verdict artifact */}
       <SignalPanel
         productId={product.id}
+        productName={product.canonicalName}
         score={ins.rebuyScore}
         earlySignal={earlySignal}
         earlyYesCount={earlyYesCount}
@@ -423,25 +424,8 @@ export default async function ProductPage({ params }: PageProps) {
         </Reveal>
       )}
 
-      {/* 4 · Sticky action bar */}
-      <div className="fixed inset-x-0 bottom-[4.6rem] z-30 px-5 pb-[max(env(safe-area-inset-bottom),0px)] md:bottom-4">
-        <div className="mx-auto flex max-w-2xl gap-2.5">
-          <Link
-            href={`/products/${id}/own`}
-            className="press sheen flex h-[3rem] flex-[1.4] items-center justify-center gap-2 rounded-full bg-accent text-[1rem] font-semibold text-[#f1efe6] shadow-[var(--shadow-glow)]"
-          >
-            <BadgeCheck className="h-5 w-5" strokeWidth={2.2} />
-            Ich besitze es
-          </Link>
-          <Link
-            href={`/products/${id}/ask`}
-            className="press flex h-[3rem] flex-1 items-center justify-center gap-2 rounded-full bg-surface/95 text-[1rem] font-semibold text-label shadow-[0_0_0_1px_var(--color-border-strong),var(--shadow-card)] backdrop-blur-xl"
-          >
-            <MessagesSquare className="h-5 w-5" strokeWidth={2.1} />
-            Fragen
-          </Link>
-        </div>
-      </div>
+      {/* 4 · Sticky action bar — "Fragen" opens the composer as a bottom sheet */}
+      <ProductActionBar productId={id} productName={product.canonicalName} />
       <div className="h-20" aria-hidden />
     </div>
   );

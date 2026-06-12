@@ -35,6 +35,7 @@ import {
   type IdentifiedProductDto,
   type EanResolutionDto,
   type EnsuredProductDto,
+  type ExternalProductSuggestionDto,
   type MyProductsDto,
   type RegretCheckDto,
   type QuickVoteResultDto,
@@ -76,6 +77,16 @@ export class ProductsController {
     @Query(new ZodValidationPipe(productSearchQuerySchema)) query: { q: string; take: number },
   ): Promise<ProductSummaryDto[]> {
     return this.products.search(query.q, query.take);
+  }
+
+  /** Real-market name search (no AI) for queries the catalog doesn't know yet. */
+  @Get('external-suggestions')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 10, windowMs: 60_000 })
+  externalSuggestions(
+    @Query(new ZodValidationPipe(productSearchQuerySchema)) query: { q: string; take: number },
+  ): Promise<ExternalProductSuggestionDto[]> {
+    return this.products.externalSuggestions(query.q);
   }
 
   @Get('resolve-ean')

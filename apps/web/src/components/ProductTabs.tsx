@@ -33,6 +33,12 @@ export function ProductTabs({ tabs }: { tabs: ProductTab[] }) {
     setActive(key);
   };
 
+  const selectRelative = (delta: number) => {
+    const idx = tabs.findIndex((t) => t.key === activeTab.key);
+    const next = tabs[idx + delta];
+    if (next) select(next.key);
+  };
+
   return (
     <div>
       <div className="hairline sticky top-[3rem] z-20 -mx-5 bg-canvas/92 px-5 backdrop-blur-xl">
@@ -90,6 +96,14 @@ export function ProductTabs({ tabs }: { tabs: ProductTab[] }) {
           animate="center"
           exit="exit"
           transition={{ type: 'spring', stiffness: 420, damping: 40 }}
+          /* Horizontal swipe switches tabs — vertical scrolling stays free. */
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.12}
+          onDragEnd={(_, info) => {
+            if (info.offset.x < -64 || info.velocity.x < -500) selectRelative(1);
+            else if (info.offset.x > 64 || info.velocity.x > 500) selectRelative(-1);
+          }}
           className="space-y-7 pt-5"
         >
           {activeTab.content}

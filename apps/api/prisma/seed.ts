@@ -21,7 +21,6 @@ import {
   SEED_USERS,
   type SeedExperience,
 } from './seed-data';
-import { buildProductImageUrl, buildProducts } from './seed-generator';
 import { seedShowcase } from './seed-showcase';
 import { seedExternalRatings } from './seed-external-ratings';
 
@@ -32,7 +31,7 @@ if (process.env.SEED_USE_PUBLIC_DATABASE_URL === 'true' && process.env.DATABASE_
 const prisma = new PrismaClient();
 
 const DEFAULT_PASSWORD = 'wudly12345';
-const PRODUCTS = buildProducts(CURATED_PRODUCTS, CATEGORIES);
+const PRODUCTS = CURATED_PRODUCTS;
 const QUESTIONS = CURATED_QUESTIONS;
 const BATCH_SIZE = 500;
 
@@ -593,6 +592,11 @@ async function findProductsByNormalizedNames(
 
 function seedId(prefix: string, index: number): string {
   return `seed_${prefix}_${index.toString(36)}`;
+}
+
+function buildProductImageUrl(canonicalName: string): string {
+  const normalized = normalizeProductName(canonicalName);
+  return `/api/products/image/${encodeURIComponent(normalized)}`;
 }
 
 /**

@@ -19,6 +19,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { PageSkeleton, EmptyState } from '@/components/states/States';
 import { Thumb } from '@/components/Thumb';
+import { HouseholdSwipeDeck } from '@/app/check/HouseholdSwipeDeck';
 
 function ProductItem({ product }: { product: ProductSummaryDto }) {
   const signal =
@@ -103,42 +104,51 @@ export function MyProductsClient() {
         </Link>
       </motion.div>
 
-      <motion.section
-        className="card-elevated p-5"
-        variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-      >
-        <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink">
-            <Zap className="h-5 w-5" strokeWidth={2.2} />
-          </span>
-          <div>
-            <p className="mono-data text-[0.625rem] font-semibold uppercase tracking-[0.2em] text-accent-ink">
-              3-Sekunden-Check
-            </p>
-            <h2 className="font-display mt-1 text-[1.45rem] italic leading-snug text-label">
-              Würdest du dein letztes Produkt wieder kaufen?
-            </h2>
+      {/* 3-Sekunden-Check: with products it becomes the swipe deck (drag right =
+          wieder kaufen, left = nie wieder); without, a calm static prompt. */}
+      <motion.section variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
+        {products.length > 0 ? (
+          <HouseholdSwipeDeck
+            products={products}
+            title="3-Sekunden-Check"
+            subtitle="Würdest du es wieder kaufen?"
+          />
+        ) : (
+          <div className="card-elevated p-5">
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink">
+                <Zap className="h-5 w-5" strokeWidth={2.2} />
+              </span>
+              <div>
+                <p className="mono-data text-[0.625rem] font-semibold uppercase tracking-[0.2em] text-accent-ink">
+                  3-Sekunden-Check
+                </p>
+                <h2 className="font-display mt-1 text-[1.45rem] italic leading-snug text-label">
+                  Würdest du dein letztes Produkt wieder kaufen?
+                </h2>
+              </div>
+            </div>
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              {[
+                { label: 'Ja', icon: ThumbsUp, tone: 'text-positive-ink ring-positive/35' },
+                { label: 'Nein', icon: ThumbsDown, tone: 'text-muted-foreground ring-border' },
+                { label: 'Unsicher', icon: CircleHelp, tone: 'text-unsure-ink ring-unsure/35' },
+              ].map((option) => {
+                const Icon = option.icon;
+                return (
+                  <Link
+                    key={option.label}
+                    href={lastProduct ? `/products/${lastProduct.id}/own` : '/check?own=1'}
+                    className={`press flex h-12 items-center justify-center gap-2 rounded-full bg-surface text-[0.9375rem] font-semibold shadow-[var(--shadow-xs)] ring-1 ${option.tone}`}
+                  >
+                    <Icon className="h-5 w-5" strokeWidth={2.2} />
+                    {option.label}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-        </div>
-        <div className="mt-5 grid grid-cols-3 gap-3">
-          {[
-            { label: 'Ja', icon: ThumbsUp, tone: 'text-positive-ink ring-positive/35' },
-            { label: 'Nein', icon: ThumbsDown, tone: 'text-muted-foreground ring-border' },
-            { label: 'Unsicher', icon: CircleHelp, tone: 'text-unsure-ink ring-unsure/35' },
-          ].map((option) => {
-            const Icon = option.icon;
-            return (
-              <Link
-                key={option.label}
-                href={lastProduct ? `/products/${lastProduct.id}/own` : '/check?own=1'}
-                className={`press flex h-12 items-center justify-center gap-2 rounded-full bg-surface text-[0.9375rem] font-semibold shadow-[var(--shadow-xs)] ring-1 ${option.tone}`}
-              >
-                <Icon className="h-5 w-5" strokeWidth={2.2} />
-                {option.label}
-              </Link>
-            );
-          })}
-        </div>
+        )}
       </motion.section>
 
       <motion.section

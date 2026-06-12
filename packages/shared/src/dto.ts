@@ -341,6 +341,20 @@ export interface EanResolutionDto {
   suggestion: { title: string; brand: string | null } | null;
 }
 
+/**
+ * A real-market product suggestion from an external catalog (no AI involved).
+ * Found by free-text search (UPCitemdb); selecting one resolves its EAN through
+ * the regular chain (Icecat first), so the created product gets official data.
+ */
+export interface ExternalProductSuggestionDto {
+  title: string;
+  brand: string | null;
+  ean: string;
+  image: string | null;
+  /** Provider key for attribution, e.g. "upcitemdb". */
+  source: string;
+}
+
 /** Find-or-create result for photo / research product entry points. */
 export interface EnsuredProductDto {
   product: ProductSummaryDto | null;

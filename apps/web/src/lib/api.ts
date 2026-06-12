@@ -32,6 +32,7 @@ import type {
   IdentifiedProductDto,
   EanResolutionDto,
   EnsuredProductDto,
+  ExternalProductSuggestionDto,
   MyProductsDto,
   FromPhotoInput,
   RegretCheckDto,
@@ -87,6 +88,9 @@ export const api = {
       apiFetch<PaginatedDto<ProductSummaryDto>>(`/products${qs(params)}`, opts),
     search: (q: string, take = 10, opts?: RequestOptions) =>
       apiFetch<ProductSummaryDto[]>(`/products/search${qs({ q, take })}`, opts),
+    /** Real-market name suggestions (no AI) when the catalog has no hits. */
+    externalSuggestions: (q: string, opts?: RequestOptions) =>
+      apiFetch<ExternalProductSuggestionDto[]>(`/products/external-suggestions${qs({ q })}`, opts),
     get: (id: string, opts?: RequestOptions) => apiFetch<ProductDetailDto>(`/products/${id}`, opts),
     insights: (id: string, opts?: RequestOptions) =>
       apiFetch<ProductInsightsDto>(`/products/${id}/insights`, opts),
