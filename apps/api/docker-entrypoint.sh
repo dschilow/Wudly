@@ -11,4 +11,5 @@ echo "▶ Running Prisma migrations…"
 }
 
 echo "▶ Starting Wudly API…"
-exec node dist/main.js
+# tsconfig rootDir "." (src + prisma compiled together) puts the entry at dist/src/main.js.
+exec node dist/src/main.js
