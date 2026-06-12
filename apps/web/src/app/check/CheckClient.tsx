@@ -25,6 +25,23 @@ const rise = {
   show: { opacity: 1, y: 0 },
 };
 
+/**
+ * Does any catalog hit actually contain every word of the query? The fuzzy
+ * search returns near-misses by design; only a token-complete hit counts as
+ * "found" — everything else should additionally trigger the market lookup.
+ */
+function hasStrongLocalMatch(q: string, found: ProductSummaryDto[]): boolean {
+  const tokens = q
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length >= 2);
+  if (tokens.length === 0) return found.length > 0;
+  return found.some((p) => {
+    const name = `${p.brand ?? ''} ${p.canonicalName}`.toLowerCase();
+    return tokens.every((t) => name.includes(t));
+  });
+}
+
 function signalLabel(product: ProductSummaryDto) {
   if (product.experienceCount < 20) return 'Frühes Signal';
   if (product.experienceCount < 80) return 'Erste Tendenz';
@@ -82,16 +99,19 @@ export function CheckClient({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanNotice, setScanNotice] = useState<string | null>(null);
   const [researching, setResearching] = useState(false);
-  // Real-market suggestions (no AI) when the catalog comes up empty.
+  // Real-market suggestions (no AI) when the catalog has no strong match.
   const [extSuggestions, setExtSuggestions] = useState<ExternalProductSuggestionDto[] | null>(null);
   const [extLoading, setExtLoading] = useState(false);
   const [creatingEan, setCreatingEan] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const extDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const runSearch = useCallback(async (q: string) => {
+    if (extDebounceRef.current) clearTimeout(extDebounceRef.current);
     if (q.trim().length < 2) {
       setResults(null);
       setExtSuggestions(null);
+      setExtLoading(false);
       setLoading(false);
       return;
     }
@@ -100,20 +120,26 @@ export function CheckClient({
     try {
       const found = await api.products.search(q, 12, { cache: 'no-store' });
       setResults(found);
-      if (found.length === 0 && q.trim().length >= 3) {
-        // Not in the catalog → look the name up on the real market (EAN DBs).
+
+      // The fuzzy catalog search almost always returns *something* — market
+      // suggestions must also appear when none of the hits really matches the
+      // query (e.g. "iPhone 17" finding only an old iPhone 14 entry).
+      if (q.trim().length >= 3 && !hasStrongLocalMatch(q, found)) {
+        // Extra debounce: the trial quota (~100/day) shouldn't burn while typing.
         setExtLoading(true);
-        setExtSuggestions(null);
-        try {
-          const ext = await api.products.externalSuggestions(q, { cache: 'no-store' });
-          setExtSuggestions(ext);
-        } catch {
-          setExtSuggestions([]);
-        } finally {
-          setExtLoading(false);
-        }
+        extDebounceRef.current = setTimeout(async () => {
+          try {
+            const ext = await api.products.externalSuggestions(q, { cache: 'no-store' });
+            setExtSuggestions(ext);
+          } catch {
+            setExtSuggestions([]);
+          } finally {
+            setExtLoading(false);
+          }
+        }, 550);
       } else {
         setExtSuggestions(null);
+        setExtLoading(false);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.displayMessage : 'Suche fehlgeschlagen.');
@@ -333,16 +359,22 @@ export function CheckClient({
           {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
           {!loading && results && results.length > 0 && <ProductList products={results} />}
 
-          {/* Catalog empty → real-market hits by name (no AI), tap to add. */}
-          {hasNoResults && !showAdd && (
-            <div className="space-y-4">
+          {/* Real-market hits by name (no AI) — shown whenever the catalog has
+              no strong match, ALSO underneath near-miss local results. */}
+          {!showAdd && (extLoading || (extSuggestions && extSuggestions.length > 0)) && (
+            <div className="mt-4 space-y-4">
               {extLoading && (
-                <div className="card overflow-hidden">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className={i < 2 ? 'hairline px-4 py-3' : 'px-4 py-3'}>
-                      <Skeleton className="h-11" />
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <p className="mono-data px-1 text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Im Markt suchen …
+                  </p>
+                  <div className="card overflow-hidden">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className={i < 2 ? 'hairline px-4 py-3' : 'px-4 py-3'}>
+                        <Skeleton className="h-11" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -408,35 +440,38 @@ export function CheckClient({
                   </p>
                 </section>
               )}
-
-              <EmptyState
-                className="py-8"
-                title={
-                  extSuggestions && extSuggestions.length > 0
-                    ? 'Nicht dabei?'
-                    : 'Kein Produkt gefunden'
-                }
-                description={
-                  extSuggestions && extSuggestions.length > 0
-                    ? 'Lass die KI nach genau deinem Produkt suchen.'
-                    : `Für "${query}" gibt es noch keinen Eintrag.`
-                }
-                action={
-                  <button
-                    onClick={handleResearch}
-                    disabled={researching}
-                    className="press inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-6 text-[1rem] font-semibold text-[#f1efe6] disabled:opacity-70"
-                  >
-                    {researching ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-5 w-5" />
-                    )}
-                    Finden &amp; anlegen
-                  </button>
-                }
-              />
             </div>
+          )}
+
+          {/* Nothing at all in the catalog → AI research as the last resort. */}
+          {hasNoResults && !showAdd && !extLoading && (
+            <EmptyState
+              className="py-8"
+              title={
+                extSuggestions && extSuggestions.length > 0
+                  ? 'Nicht dabei?'
+                  : 'Kein Produkt gefunden'
+              }
+              description={
+                extSuggestions && extSuggestions.length > 0
+                  ? 'Lass die KI nach genau deinem Produkt suchen.'
+                  : `Für "${query}" gibt es noch keinen Eintrag.`
+              }
+              action={
+                <button
+                  onClick={handleResearch}
+                  disabled={researching}
+                  className="press inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-6 text-[1rem] font-semibold text-[#f1efe6] disabled:opacity-70"
+                >
+                  {researching ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-5 w-5" />
+                  )}
+                  Finden &amp; anlegen
+                </button>
+              }
+            />
           )}
           {hasNoResults && showAdd && <AddProductForm initialName={query} ownIntent={ownIntent} />}
         </motion.section>
