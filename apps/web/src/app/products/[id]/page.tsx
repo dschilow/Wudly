@@ -27,6 +27,7 @@ import { ExperienceCard } from '@/components/ExperienceCard';
 import { ExternalRatingsCard } from '@/components/ExternalRatingsCard';
 import { QuestionCard } from '@/components/QuestionCard';
 import { ShowcaseCard } from '@/components/showcase/ShowcaseCard';
+import { LedgerRow } from '@/components/receipt/LedgerRow';
 import { EmptyState } from '@/components/states/States';
 
 export const revalidate = 20;
@@ -158,6 +159,31 @@ export default async function ProductPage({ params }: PageProps) {
 
   const uebersichtTab = (
     <>
+      {(product.description || product.specs.length > 0) && (
+        <section>
+          <SectionTitle>Das Produkt</SectionTitle>
+          <div className="card overflow-hidden">
+            {product.description && (
+              <p
+                className={
+                  'px-4 py-3.5 text-[0.9375rem] leading-relaxed text-ink-soft ' +
+                  (product.specs.length > 0 ? 'hairline' : '')
+                }
+              >
+                {product.description}
+              </p>
+            )}
+            {product.specs.length > 0 && (
+              <div className="space-y-2 px-4 py-4">
+                {product.specs.map((spec) => (
+                  <LedgerRow key={spec.label} label={spec.label} value={spec.value} />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {knowItems.length > 0 && (
         <section>
           <SectionTitle>Vorher wissen</SectionTitle>

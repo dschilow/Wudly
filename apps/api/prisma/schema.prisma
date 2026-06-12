@@ -236,6 +236,9 @@ model Product {
   categoryId     String?
   description    String?
   imageUrl       String?
+  /// Key→value technical facts (model, color, dimensions, …) gathered from
+  /// external catalogs (Icecat/UPCitemdb). Order-preserving array of pairs.
+  specs          Json          @default("[]")
   status         ProductStatus @default(ACTIVE)
   createdByUserId String?
   createdAt      DateTime      @default(now())

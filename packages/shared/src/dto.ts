@@ -123,8 +123,16 @@ export interface ExternalRatingDto {
   fetchedAt: string;
 }
 
+/** One technical fact about a product (e.g. "Modell" → "Magic5 Pro"). */
+export interface ProductSpecDto {
+  label: string;
+  value: string;
+}
+
 export interface ProductDetailDto extends ProductSummaryDto {
   description: string | null;
+  /** Technical facts from external catalogs (Icecat/UPCitemdb). May be empty. */
+  specs: ProductSpecDto[];
   insights: ProductInsightsDto;
   /** Aggregated rating facts from other platforms (may be empty). */
   externalRatings: ExternalRatingDto[];

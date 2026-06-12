@@ -44,7 +44,16 @@ export class ProductImageService {
     const fetched = url.startsWith('data:')
       ? this.decodeDataUrl(url)
       : await this.download(url);
-    if (!fetched) return;
+    if (!fetched) {
+      // An AI-guessed image URL that won't load must not linger as a broken
+      // <img> — clear it so the product falls back to its generated placeholder.
+      if (source === 'ai') {
+        await this.prisma.product
+          .updateMany({ where: { id: productId, imageUrl: url }, data: { imageUrl: null } })
+          .catch(() => undefined);
+      }
+      return;
+    }
 
     await this.prisma.productImage.upsert({
       where: { productId },

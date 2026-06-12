@@ -68,6 +68,11 @@ const researchSchema = z.object({
   brand: z.string().trim().max(80).nullable().optional(),
   categorySlug: z.string().trim().max(80).nullable().optional(),
   description: z.string().trim().max(400).nullable().optional(),
+  specs: z
+    .array(z.object({ label: z.string().trim().min(1).max(40), value: z.string().trim().min(1).max(80) }))
+    .max(14)
+    .optional(),
+  imageUrl: z.string().trim().url().max(600).nullable().optional(),
   found: z.coerce.boolean().optional().default(false),
 });
 
@@ -351,15 +356,21 @@ export class OpenRouterAiService implements AiService {
           'Findest du das Produkt nicht zweifelsfrei, setze found=false und erfinde nichts. ' +
           `categorySlug MUSS exakt einer aus dieser Liste sein oder null: ${categorySlugs.join(', ')}. ` +
           '"canonicalName" ist der saubere offizielle Produktname (mit Marke), "description" ein ' +
-          'sachlicher deutscher Satz. Antworte ausschließlich als valides JSON ohne Markdown: ' +
-          '{"canonicalName": string, "brand": string|null, "categorySlug": string|null, "description": string|null, "found": boolean}.',
+          'sachlicher deutscher Satz. "specs" sind bis zu 8 zentrale technische Fakten als ' +
+          '{label,value}-Paare auf Deutsch (z. B. {"label":"Display","value":"6,8\\" OLED"}); nur ' +
+          'sichere Fakten, sonst leer. "imageUrl" ist die URL eines offiziellen Produktfotos ' +
+          '(Hersteller/Händler), nur wenn du sehr sicher bist, sonst null. ' +
+          'Antworte ausschließlich als valides JSON ohne Markdown: ' +
+          '{"canonicalName": string, "brand": string|null, "categorySlug": string|null, ' +
+          '"description": string|null, "specs": [{"label":string,"value":string}], ' +
+          '"imageUrl": string|null, "found": boolean}.',
       },
       { role: 'user', content: `Produkt: ${name}` },
     ];
 
     const parsed = researchSchema.safeParse(
       parseJsonObject(
-        await this.client.completeJson(messages, { temperature: 0.2, maxTokens: 400, online: true }),
+        await this.client.completeJson(messages, { temperature: 0.2, maxTokens: 600, online: true }),
       ),
     );
     if (!parsed.success) return this.fallback.researchProduct(name, categorySlugs);
@@ -373,6 +384,8 @@ export class OpenRouterAiService implements AiService {
       brand: parsed.data.brand ?? null,
       categorySlug: slug,
       description: parsed.data.description ?? null,
+      specs: parsed.data.specs ?? [],
+      imageUrl: parsed.data.imageUrl ?? null,
       found: parsed.data.found ?? false,
     };
   }

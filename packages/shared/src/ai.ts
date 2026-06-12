@@ -63,6 +63,10 @@ export interface ResearchedProduct {
   /** Chosen from the provided slug list, or null if none fits. */
   categorySlug: string | null;
   description: string | null;
+  /** A few key technical facts the model is confident about (model, specs…). */
+  specs?: Array<{ label: string; value: string }>;
+  /** Official product image URL the model found, when confident (else null). */
+  imageUrl?: string | null;
   /** True when the model is confident this is a real, identifiable product. */
   found: boolean;
 }

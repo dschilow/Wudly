@@ -5,6 +5,7 @@ import {
   type ProductInsightsDto,
   type ExternalRatingDto,
   type CategoryDto,
+  type ProductSpecDto,
   type AspectStatDto,
   type UsageDuration,
   UsageDuration as UsageDurationEnum,
@@ -105,9 +106,22 @@ export function toProductDetailDto(
   return {
     ...toProductSummaryDto(product),
     description: product.description,
+    specs: asSpecDtos(product.specs),
     insights,
     externalRatings,
   };
+}
+
+/** Coerce the JSON `specs` column into typed label/value pairs. */
+function asSpecDtos(value: unknown): ProductSpecDto[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (v): v is ProductSpecDto =>
+      typeof v === 'object' &&
+      v !== null &&
+      typeof (v as Record<string, unknown>).label === 'string' &&
+      typeof (v as Record<string, unknown>).value === 'string',
+  );
 }
 
 /* -------- JSON column coercion helpers (snapshots store JSON) -------- */

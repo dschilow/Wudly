@@ -41,6 +41,123 @@ const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
 /** Market-search results barely change — cache generously to respect quotas. */
 const SUGGESTION_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 
+/** Raw UPCitemdb item shape (the fields we read). */
+interface UpcItem {
+  title?: string;
+  brand?: string;
+  ean?: string;
+  upc?: string;
+  model?: string;
+  color?: string;
+  size?: string;
+  dimension?: string;
+  weight?: string;
+  description?: string;
+  images?: string[];
+}
+
+/**
+ * Cheap spelling rewrites for the strict market search. Order matters — the
+ * caller stops at the first variant with enough hits. Deduplicated, capped.
+ */
+function spellingVariants(q: string): string[] {
+  const out = [q];
+  // "magic 5 pro" → "magic5 pro" (glue a letter-word to a following number)
+  out.push(q.replace(/([a-zäöü]) (\d)/gi, '$1$2'));
+  // "magic5 pro" → "magic 5 pro" (split a number off a letter-word)
+  out.push(q.replace(/([a-zäöü])(\d)/gi, '$1 $2'));
+  // collapsed: drop all spaces ("honormagic5pro") — last resort
+  out.push(q.replace(/\s+/g, ''));
+  return [...new Set(out.map((s) => s.trim()).filter((s) => s.length >= 3))].slice(0, 4);
+}
+
+/**
+ * Heuristic: is this market hit a third-party accessory rather than the product
+ * itself? Catches the common UPCitemdb noise (cases, covers, cables, glass) so a
+ * phone search doesn't surface "Case for Honor Magic5 Pro". Conservative — only
+ * flags clear accessory wording, and "no-name" generic brands.
+ */
+function isAccessory(title: string, brand: string | undefined): boolean {
+  const t = title.toLowerCase();
+  const ACCESSORY = [
+    'case for',
+    'cover for',
+    'hülle',
+    'schutzhülle',
+    'screen protector',
+    'displayschutz',
+    'panzerglas',
+    'tempered glass',
+    'wallet',
+    'holster',
+    'lanyard',
+    'charger for',
+    'cable for',
+    'ladekabel für',
+    'adapter for',
+    'replacement',
+    'stylus',
+    'mount for',
+    'stand for',
+    'skin for',
+    'sticker',
+  ];
+  if (ACCESSORY.some((kw) => t.includes(kw))) return true;
+  // "Suitable for X", "compatible with X" → accessory marketing.
+  if (/\b(suitable for|compatible with|kompatibel mit|geeignet für)\b/.test(t)) return true;
+  // Generic no-name brands UPCitemdb assigns to unbranded accessories.
+  const b = (brand ?? '').trim().toLowerCase();
+  if (b === 'no' || b === 'generic' || b === 'unbranded' || b === 'oem') return true;
+  return false;
+}
+
+/** Clean + cap a spec list: trim, drop blanks, dedupe labels, max 14. */
+function normalizeSpecs(
+  specs: Array<{ label: string; value: string }> | undefined,
+): Array<{ label: string; value: string }> {
+  if (!specs?.length) return [];
+  const seen = new Set<string>();
+  const out: Array<{ label: string; value: string }> = [];
+  for (const s of specs) {
+    const label = s.label?.trim();
+    const value = s.value?.trim();
+    if (!label || !value) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ label, value });
+    if (out.length >= 14) break;
+  }
+  return out;
+}
+
+/** Coerce a product's JSON `specs` column back into typed pairs. */
+function asSpecArray(value: unknown): Array<{ label: string; value: string }> {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (v): v is { label: string; value: string } =>
+      typeof v === 'object' &&
+      v !== null &&
+      typeof (v as Record<string, unknown>).label === 'string' &&
+      typeof (v as Record<string, unknown>).value === 'string',
+  );
+}
+
+/** Flatten UPCitemdb's loose attribute fields into label/value spec pairs. */
+function upcItemSpecs(item: UpcItem | undefined): Array<{ label: string; value: string }> {
+  if (!item) return [];
+  const pairs: Array<[string, string | undefined]> = [
+    ['Modell', item.model],
+    ['Farbe', item.color],
+    ['Größe', item.size],
+    ['Maße', item.dimension],
+    ['Gewicht', item.weight],
+  ];
+  return pairs
+    .map(([label, value]) => ({ label, value: value?.trim() ?? '' }))
+    .filter((p) => p.value.length > 0 && p.value.length <= 80);
+}
+
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
@@ -139,10 +256,14 @@ export class ProductsService {
       const { product } = await this.ensureProduct({
         canonicalName: external.title,
         brand: external.brand,
+        description: external.description ?? null,
+        specs: external.specs,
         imageUrl: external.image,
         imageSource: external.source,
         ean: normalized,
         userId,
+        // No image/specs from the EAN DB? Let AI fill the gaps (last resort).
+        research: !external.image || !external.specs?.length,
       });
       if (product) return { ean: normalized, product, suggestion: null };
       return {
@@ -197,6 +318,7 @@ export class ProductsService {
     brand?: string | null;
     categorySlug?: string | null;
     description?: string | null;
+    specs?: Array<{ label: string; value: string }>;
     imageUrl?: string | null;
     /** Provider key of the image origin (for the cache attribution). */
     imageSource?: string;
@@ -211,7 +333,12 @@ export class ProductsService {
     let brand = params.brand ?? null;
     let categorySlug = params.categorySlug ?? null;
     let description = params.description ?? null;
+    let imageUrl = params.imageUrl ?? null;
+    let imageSource = params.imageSource ?? 'manual';
+    let specs = normalizeSpecs(params.specs);
 
+    // Enrichment cascade — only ask the AI to fill what the catalogs couldn't
+    // (description, an image, a couple of specs). DB facts always win.
     if (params.research) {
       try {
         const slugs = await this.prisma.category.findMany({ select: { slug: true } });
@@ -219,31 +346,44 @@ export class ProductsService {
           rawName,
           slugs.map((s) => s.slug),
         );
-        if (researched.canonicalName) canonicalName = researched.canonicalName;
-        brand = brand ?? researched.brand;
-        categorySlug = categorySlug ?? researched.categorySlug;
-        description = description ?? researched.description;
+        if (researched.found) {
+          if (researched.canonicalName && !params.imageUrl) {
+            canonicalName = researched.canonicalName;
+          }
+          brand = brand ?? researched.brand;
+          categorySlug = categorySlug ?? researched.categorySlug;
+          description = description ?? researched.description;
+          if (specs.length === 0 && researched.specs?.length) {
+            specs = normalizeSpecs(researched.specs);
+          }
+          if (!imageUrl && researched.imageUrl) {
+            imageUrl = researched.imageUrl.trim() || null;
+            if (imageUrl) imageSource = 'ai';
+          }
+        }
       } catch (err) {
         this.logger.warn(`Product research failed: ${err instanceof Error ? err.message : err}`);
       }
     }
 
-    // Strong duplicate? Return the existing product instead of creating a twin.
+    // Strong duplicate? Return the existing product, topping up missing data.
     const candidates = await this.matching.findDuplicateCandidates(canonicalName, 3);
     const strong = candidates.find((c) => c.similarity >= DEFAULT_SIMILARITY_THRESHOLDS.duplicate);
     if (strong) {
       if (params.ean) await this.attachIdentifier(strong.product.id, params.ean);
-      if (params.imageUrl && !strong.product.imageUrl) {
+      const data: Record<string, unknown> = {};
+      if (imageUrl && !strong.product.imageUrl) data.imageUrl = imageUrl;
+      if (description && !strong.product.description) data.description = description;
+      if (specs.length > 0 && asSpecArray(strong.product.specs).length === 0) data.specs = specs;
+      if (Object.keys(data).length > 0) {
         const updated = await this.prisma.product.update({
           where: { id: strong.product.id },
-          data: { imageUrl: params.imageUrl },
+          data,
           include: PRODUCT_INCLUDE,
         });
-        this.images.cacheInBackground(
-          strong.product.id,
-          params.imageUrl,
-          params.imageSource ?? 'manual',
-        );
+        if (data.imageUrl) {
+          this.images.cacheInBackground(strong.product.id, imageUrl!, imageSource);
+        }
         return { product: toProductSummaryDto(updated), created: false };
       }
       return { product: toProductSummaryDto(strong.product), created: false };
@@ -255,14 +395,20 @@ export class ProductsService {
         brand: brand ?? undefined,
         categorySlug: categorySlug ?? undefined,
         description: description ?? undefined,
-        imageUrl: params.imageUrl ?? undefined,
+        imageUrl: imageUrl ?? undefined,
         forceCreate: true,
       },
       params.userId ?? null,
-      params.imageSource,
+      imageSource,
     );
     if (!result.created || !result.product) return { product: null, created: false };
     if (params.ean) await this.attachIdentifier(result.product.id, params.ean);
+    if (specs.length > 0) {
+      await this.prisma.product.update({
+        where: { id: result.product.id },
+        data: { specs },
+      });
+    }
     const product = await this.getSummaryOrThrow(result.product.id);
     return { product, created: true };
   }
@@ -341,26 +487,13 @@ export class ProductsService {
     const cached = this.suggestionCache.get(q);
     if (cached && Date.now() - cached.at < SUGGESTION_CACHE_TTL_MS) return cached.items;
 
+    // UPCitemdb matches strictly on spelling, so "magic 5 pro" and "magic5 pro"
+    // return different sets. Try the query, then a few cheap rewrites until one
+    // yields enough hits — capped so a true miss can't burn the daily quota.
     let items: ExternalProductSuggestionDto[] = [];
-    try {
-      const res = await fetch(
-        `https://api.upcitemdb.com/prod/trial/search?s=${encodeURIComponent(q)}&type=product&match_mode=0`,
-        { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8_000) },
-      );
-      if (res.ok) {
-        const data = (await res.json()) as {
-          items?: Array<{
-            title?: string;
-            brand?: string;
-            ean?: string;
-            upc?: string;
-            images?: string[];
-          }>;
-        };
-        items = this.cleanSuggestions(data.items ?? []);
-      }
-    } catch (err) {
-      this.logger.warn(`External search failed: ${err instanceof Error ? err.message : err}`);
+    for (const variant of spellingVariants(q)) {
+      items = await this.fetchSuggestions(variant);
+      if (items.length >= 2) break;
     }
 
     // Cache even empty results — repeating a miss would burn the daily quota.
@@ -369,11 +502,25 @@ export class ProductsService {
     return items;
   }
 
-  /** Dedupe + de-noise raw market hits: new products first, refurbished
-      listings only as filler, twins and EAN-less rows dropped. */
-  private cleanSuggestions(
-    raw: Array<{ title?: string; brand?: string; ean?: string; upc?: string; images?: string[] }>,
-  ): ExternalProductSuggestionDto[] {
+  /** One UPCitemdb free-text search → cleaned suggestions (empty on failure). */
+  private async fetchSuggestions(q: string): Promise<ExternalProductSuggestionDto[]> {
+    try {
+      const res = await fetch(
+        `https://api.upcitemdb.com/prod/trial/search?s=${encodeURIComponent(q)}&type=product&match_mode=0`,
+        { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8_000) },
+      );
+      if (!res.ok) return [];
+      const data = (await res.json()) as { items?: UpcItem[] };
+      return this.cleanSuggestions(data.items ?? []);
+    } catch (err) {
+      this.logger.warn(`External search failed: ${err instanceof Error ? err.message : err}`);
+      return [];
+    }
+  }
+
+  /** Dedupe + de-noise raw market hits: real new products first, refurbished as
+      filler; accessories (cases/cables/…), twins and EAN-less rows dropped. */
+  private cleanSuggestions(raw: UpcItem[]): ExternalProductSuggestionDto[] {
     const seenTitles = new Set<string>();
     const seenEans = new Set<string>();
     const clean: ExternalProductSuggestionDto[] = [];
@@ -383,6 +530,8 @@ export class ProductsService {
       const title = item.title?.trim();
       const ean = item.ean?.trim() || item.upc?.trim();
       if (!title || !ean || seenEans.has(ean)) continue;
+      // Drop third-party accessories — a phone search shouldn't list cases.
+      if (isAccessory(title, item.brand)) continue;
       const norm = title.toLowerCase().replace(/[^a-z0-9äöüß]+/g, ' ').trim();
       if (seenTitles.has(norm)) continue;
       seenTitles.add(norm);
@@ -416,9 +565,7 @@ export class ProductsService {
         { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(6_000) },
       );
       if (!res.ok) return null;
-      const data = (await res.json()) as {
-        items?: Array<{ title?: string; brand?: string; images?: string[] }>;
-      };
+      const data = (await res.json()) as { items?: UpcItem[] };
       const item = data.items?.[0];
       const title = item?.title?.trim();
       if (!title) return null;
@@ -426,6 +573,8 @@ export class ProductsService {
         title,
         brand: item?.brand?.trim() || null,
         image: item?.images?.find((u) => typeof u === 'string' && u.startsWith('http')) ?? null,
+        description: item?.description?.trim() || null,
+        specs: upcItemSpecs(item),
         source: 'upcitemdb',
       };
     } catch (err) {
