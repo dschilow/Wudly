@@ -93,11 +93,24 @@ export interface ProductInsightsDto {
   insteadOfShare: number;
   /** Most-named alternatives, "would rather have bought" (most frequent first). */
   insteadOfHighlights: string[];
+  /** Owner verification mix behind this score. */
+  verification: VerificationBreakdownDto;
+  /** Lightweight swipe-deck signal, shown separately from the Wudly Signal. */
+  quickVotes: QuickVoteResultDto;
   /** AI-written one-line summary of owner experiences (null when unavailable). */
   aiHeadline: string | null;
   /** "Wudly-empfohlen" quality seal (auto-awarded). */
   wudlySeal: boolean;
   generatedAt: string;
+}
+
+export interface VerificationBreakdownDto {
+  total: number;
+  verified: number;
+  selfDeclared: number;
+  unverified: number;
+  /** Share of verified owners, 0-100. */
+  verifiedShare: number;
 }
 
 /**

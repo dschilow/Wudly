@@ -21,16 +21,23 @@ import { PageSkeleton, EmptyState } from '@/components/states/States';
 import { Thumb } from '@/components/Thumb';
 import { HouseholdSwipeDeck } from '@/app/check/HouseholdSwipeDeck';
 
-function ProductItem({ product }: { product: ProductSummaryDto }) {
-  const signal =
+type ProductRelation = 'owned' | 'created';
+
+function ProductItem({ product, relation }: { product: ProductSummaryDto; relation: ProductRelation }) {
+  const scoreText =
     product.rebuyScore === null
-      ? 'Unsicher'
+      ? 'Noch kein Wudly Signal'
+      : product.experienceCount < 20
+        ? 'Signal im Aufbau'
+        : `${product.rebuyScore}% Wudly Signal`;
+  const tone =
+    product.rebuyScore === null
+      ? 'bg-faint'
       : product.rebuyScore >= 65
-        ? 'Ja'
+        ? 'bg-positive'
         : product.rebuyScore >= 45
-          ? 'Unsicher'
-          : 'Nein';
-  const tone = signal === 'Ja' ? 'bg-positive' : signal === 'Nein' ? 'bg-regret' : 'bg-unsure';
+          ? 'bg-unsure'
+          : 'bg-regret';
 
   return (
     <Link href={`/products/${product.id}`} className="card press flex items-center gap-3 p-3">
@@ -41,11 +48,11 @@ function ProductItem({ product }: { product: ProductSummaryDto }) {
         </h3>
         <p className="mt-1 flex items-center gap-1.5 text-[0.9375rem] text-muted-foreground">
           <CalendarDays className="h-4 w-4" strokeWidth={2.2} />
-          Nutzt du seit {product.experienceCount > 20 ? '1 Jahr' : '3 Monaten'}
+          {relation === 'owned' ? 'Von dir als Besitz markiert' : 'Von dir angelegt'}
         </p>
         <p className="mt-1 flex items-center gap-2 text-[0.9375rem] text-muted-foreground">
           <span className={`h-2.5 w-2.5 rounded-full ${tone}`} />
-          Dein Signal: <span className="font-medium text-label">{signal}</span>
+          <span className="font-medium text-label">{scoreText}</span>
         </p>
       </div>
       <ChevronRight className="h-6 w-6 shrink-0 text-label-3" strokeWidth={2.3} />
@@ -72,15 +79,22 @@ export function MyProductsClient() {
       .finally(() => setDataLoading(false));
   }, [user, loading, router]);
 
-  const products = useMemo(() => [...(data?.owned ?? []), ...(data?.created ?? [])], [data]);
-  const lastProduct = products[0];
+  const products = useMemo(
+    () => [
+      ...(data?.owned ?? []).map((product) => ({ product, relation: 'owned' as const })),
+      ...(data?.created ?? []).map((product) => ({ product, relation: 'created' as const })),
+    ],
+    [data],
+  );
+  const productSummaries = products.map((entry) => entry.product);
+  const lastProduct = productSummaries[0];
 
   if (loading || dataLoading) return <PageSkeleton />;
   if (!user) return null;
 
   return (
     <motion.div
-      className="space-y-7 pt-2"
+      className="mx-auto max-w-2xl space-y-7 pt-2"
       initial="hidden"
       animate="show"
       variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
@@ -109,7 +123,7 @@ export function MyProductsClient() {
       <motion.section variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
         {products.length > 0 ? (
           <HouseholdSwipeDeck
-            products={products}
+            products={productSummaries}
             title="3-Sekunden-Check"
             subtitle="Würdest du es wieder kaufen?"
           />
@@ -167,8 +181,8 @@ export function MyProductsClient() {
         </div>
         {products.length > 0 ? (
           <div className="space-y-3">
-            {products.slice(0, 8).map((product) => (
-              <ProductItem key={product.id} product={product} />
+            {products.slice(0, 8).map(({ product, relation }) => (
+              <ProductItem key={`${relation}-${product.id}`} product={product} relation={relation} />
             ))}
           </div>
         ) : (
@@ -194,7 +208,7 @@ export function MyProductsClient() {
             Dein Impact
           </p>
           <p className="mt-0.5 text-[1.0625rem] font-semibold leading-snug text-label">
-            Du hast bereits {(data?.owned.length ?? 0) * 4 + 12} Käufern geholfen.
+            Jede echte Erfahrung macht ein Produkt für andere Käufer nützlicher.
           </p>
         </div>
         <ChevronRight className="h-5 w-5 text-label-3" strokeWidth={2.3} />

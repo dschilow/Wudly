@@ -71,14 +71,10 @@ export function SignalPanel({
   }, []);
 
   const stamp = earlySignal
-    ? ({ label: 'Frühes Signal', tone: 'unsure' } as const)
+    ? ({ label: 'Im Aufbau', tone: 'unsure' } as const)
     : verdictStamp(score);
 
-  const scoreText = earlySignal
-    ? `${earlyYesCount}/${ownerCount}`
-    : score !== null
-      ? `${score}%`
-      : '–';
+  const scoreText = earlySignal ? 'Aufbau' : score !== null ? `${score}%` : '–';
 
   return (
     <>
@@ -117,9 +113,11 @@ export function SignalPanel({
             {/* The verdict moment: giant serif score + stamp. */}
             <div className="mt-2 flex items-end justify-between gap-3">
               {earlySignal ? (
-                <p className="font-display text-[4.4rem] leading-[0.95] text-label">
-                  <AnimatedNumber value={earlyYesCount} duration={0.7} />
-                  <span className="text-[2.4rem] text-muted-foreground">/{ownerCount}</span>
+                <p className="font-display text-[3.45rem] leading-[0.95] text-label sm:text-[4rem]">
+                  Aufbau
+                  <span className="block pt-1 text-[1rem] leading-snug text-muted-foreground">
+                    {earlyYesCount} von {ownerCount} Besitzern sagen ja
+                  </span>
                 </p>
               ) : score !== null ? (
                 <p className="font-display text-[5.2rem] leading-[0.92] text-label">
@@ -265,7 +263,7 @@ export function SignalPanel({
             <p className="mono-data text-[0.625rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               Signalstärke
             </p>
-            <LedgerRow label="Unter 20 Bewertungen" value="Frühes Signal" />
+            <LedgerRow label="Signalstatus" value="Signal im Aufbau" />
             <LedgerRow label="Ab 20" value="Erste Tendenz" />
             <LedgerRow label="Ab 80" value="Belastbare Tendenz" />
             <LedgerRow label="Ab 250" value="Starkes Langzeitsignal" strong />

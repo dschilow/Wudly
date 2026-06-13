@@ -158,16 +158,31 @@ export const api = {
   },
 
   rankings: {
-    topRebuy: (take = 20, opts?: RequestOptions) =>
-      apiFetch<RankingEntryDto[]>(`/rankings/top-rebuy${qs({ take })}`, opts),
-    topRegret: (take = 20, opts?: RequestOptions) =>
-      apiFetch<RankingEntryDto[]>(`/rankings/top-regret${qs({ take })}`, opts),
-    mostDiscussed: (take = 20, opts?: RequestOptions) =>
-      apiFetch<RankingEntryDto[]>(`/rankings/most-discussed${qs({ take })}`, opts),
-    regretCards: (take = 6, opts?: RequestOptions) =>
-      apiFetch<RegretCardDto[]>(`/rankings/regret-cards${qs({ take })}`, opts),
-    byCategory: (slug: string, take = 20, opts?: RequestOptions) =>
-      apiFetch<RankingEntryDto[]>(`/rankings/category/${slug}${qs({ take })}`, opts),
+    topRebuy: (take = 20, opts?: RequestOptions, minExperiences = 1) =>
+      apiFetch<RankingEntryDto[]>(
+        `/rankings/top-rebuy${qs({ take, minExperiences })}`,
+        opts,
+      ),
+    topRegret: (take = 20, opts?: RequestOptions, minExperiences = 1) =>
+      apiFetch<RankingEntryDto[]>(
+        `/rankings/top-regret${qs({ take, minExperiences })}`,
+        opts,
+      ),
+    mostDiscussed: (take = 20, opts?: RequestOptions, minExperiences = 1) =>
+      apiFetch<RankingEntryDto[]>(
+        `/rankings/most-discussed${qs({ take, minExperiences })}`,
+        opts,
+      ),
+    regretCards: (take = 6, opts?: RequestOptions, minExperiences = 1) =>
+      apiFetch<RegretCardDto[]>(
+        `/rankings/regret-cards${qs({ take, minExperiences })}`,
+        opts,
+      ),
+    byCategory: (slug: string, take = 20, opts?: RequestOptions, minExperiences = 1) =>
+      apiFetch<RankingEntryDto[]>(
+        `/rankings/category/${slug}${qs({ take, minExperiences })}`,
+        opts,
+      ),
     categoryOverview: (slug: string, opts?: RequestOptions) =>
       apiFetch<CategoryOverviewDto>(`/rankings/category/${slug}/overview`, opts),
     blindSpots: (opts?: RequestOptions) => apiFetch<BlindSpotDto[]>('/rankings/blind-spots', opts),

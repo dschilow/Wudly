@@ -25,7 +25,7 @@ const SEGMENTS = [
 const rise = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 
 function signalStrength(product: ProductSummaryDto) {
-  if (product.experienceCount < 20) return 'Frühes Signal';
+  if (product.experienceCount < 20) return 'Signal im Aufbau';
   if (product.experienceCount < 80) return 'Erste Tendenz';
   if (product.experienceCount < 250) return 'Belastbare Tendenz';
   return 'Starkes Langzeitsignal';
@@ -36,7 +36,7 @@ function rebuyLine(product: ProductSummaryDto) {
   if (score === null) return 'Noch zu wenige Daten';
   const yes = Math.round((score / 100) * product.ownerCount);
   if (product.experienceCount < 20) {
-    return `${yes} von ${product.ownerCount} würden es wieder kaufen`;
+    return `Im Aufbau: ${yes} von ${product.ownerCount} sagen ja`;
   }
   return `${score}% würden es nach 6 Monaten wieder kaufen`;
 }
@@ -194,11 +194,11 @@ function RankedRow({ entry, tab }: { entry: RankingEntryDto; tab: Tab }) {
   const score =
     tab === 'discussed'
       ? `${entry.metricValue}`
-      : negative
+        : negative
         ? product.regretScore === null
           ? '–'
           : `${product.regretScore}%`
-        : product.rebuyScore === null
+        : product.rebuyScore === null || product.experienceCount < 20
           ? '–'
           : `${product.rebuyScore}%`;
   const sub =
@@ -262,7 +262,7 @@ export function RankingsClient({
   const loadCategory = useCallback(async (slug: string) => {
     setCatLoading(true);
     try {
-      const data = await api.rankings.byCategory(slug, 30, { cache: 'no-store' });
+      const data = await api.rankings.byCategory(slug, 30, { cache: 'no-store' }, 20);
       setCatEntries(data);
     } catch {
       setCatEntries([]);
@@ -289,7 +289,7 @@ export function RankingsClient({
 
   return (
     <motion.div
-      className="space-y-5 pt-4"
+      className="mx-auto max-w-2xl space-y-5 pt-4"
       initial="hidden"
       animate="show"
       variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}

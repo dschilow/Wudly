@@ -24,7 +24,18 @@ Dockerfile-Build über die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
 | `CORS_ORIGIN` | `https://wudly-web-production.up.railway.app` |
 | `COOKIE_SECURE` | `true` |
 | `NODE_ENV` | `production` |
-| `AI_PROVIDER` | `dummy` |
+| `AI_PROVIDER` | `openrouter` |
+| `OPENROUTER_API_KEY` | OpenRouter API-Key |
+| `OPENROUTER_MODEL` | `google/gemini-3.1-flash-lite` |
+| `OPENROUTER_SITE_URL` | `https://wudly-web-production.up.railway.app` |
+| `OPENROUTER_APP_TITLE` | `Wudly` |
+| `ICECAT_USERNAME` | optional, Open-Icecat-Account fÃ¼r offizielle EAN-Daten |
+| `ICECAT_API_TOKEN` | optional |
+| `GOOGLE_CSE_KEY` | optional, Google Programmable Search API-Key |
+| `GOOGLE_CSE_ID` | optional, Programmable Search Engine ID |
+| `VAPID_PUBLIC_KEY` | optional, Web-Push Public Key |
+| `VAPID_PRIVATE_KEY` | optional, Web-Push Private Key |
+| `VAPID_SUBJECT` | `mailto:hallo@wudly.app` |
 | `RAILWAY_DOCKERFILE_PATH` | `apps/api/Dockerfile` |
 | `PORT` | (von Railway gesetzt — der Code liest `process.env.PORT`) |
 

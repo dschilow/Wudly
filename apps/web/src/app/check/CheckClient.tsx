@@ -37,7 +37,7 @@ const rise = {
 };
 
 function signalLabel(product: ProductSummaryDto) {
-  if (product.experienceCount < 20) return 'Frühes Signal';
+  if (product.experienceCount < 20) return 'Signal im Aufbau';
   if (product.experienceCount < 80) return 'Erste Tendenz';
   if (product.experienceCount < 250) return 'Belastbare Tendenz';
   return 'Starkes Langzeitsignal';
@@ -53,7 +53,7 @@ function RecentProduct({ product }: { product: ProductSummaryDto }) {
     product.rebuyScore === null
       ? '–'
       : product.experienceCount < 20 && yes !== null
-        ? `${yes}/${product.ownerCount}`
+        ? 'Aufbau'
         : `${product.rebuyScore}%`;
 
   return (
@@ -281,7 +281,7 @@ export function CheckClient({
 
   return (
     <motion.div
-      className="space-y-7 pt-4"
+      className="mx-auto max-w-2xl space-y-7 pt-4"
       variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
       initial="hidden"
       animate="show"

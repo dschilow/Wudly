@@ -82,7 +82,7 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
           </div>
           {earlySignal && yesCount !== null && !showRegret && (
             <p className="mt-1 truncate text-[0.75rem] font-medium text-positive-ink">
-              Frühes Signal · {yesCount} von {product.ownerCount} würden es wieder kaufen
+              Signal im Aufbau · {yesCount} von {product.ownerCount} sagen ja
             </p>
           )}
         </div>

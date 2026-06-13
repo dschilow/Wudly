@@ -49,7 +49,17 @@ export function toProductSummaryDto(product: ProductWithRelations): ProductSumma
 export function toProductInsightsDto(
   productId: string,
   snap: ProductInsightSnapshot | null,
+  extras: Partial<Pick<ProductInsightsDto, 'verification' | 'quickVotes'>> = {},
 ): ProductInsightsDto {
+  const verification = extras.verification ?? {
+    total: 0,
+    verified: 0,
+    selfDeclared: 0,
+    unverified: 0,
+    verifiedShare: 0,
+  };
+  const quickVotes = extras.quickVotes ?? { rebuy: null, count: 0, yes: 0, no: 0 };
+
   if (!snap) {
     return {
       productId,
@@ -66,6 +76,8 @@ export function toProductInsightsDto(
       notSuitedFor: [],
       insteadOfShare: 0,
       insteadOfHighlights: [],
+      verification,
+      quickVotes,
       aiHeadline: null,
       wudlySeal: false,
       generatedAt: new Date().toISOString(),
@@ -92,6 +104,8 @@ export function toProductInsightsDto(
     notSuitedFor: aiNotSuited,
     insteadOfShare: snap.insteadOfShare ?? 0,
     insteadOfHighlights: asStringArray(snap.insteadOfHighlights),
+    verification,
+    quickVotes,
     aiHeadline: snap.aiHeadline ?? null,
     wudlySeal: snap.wudlySeal ?? false,
     generatedAt: snap.generatedAt.toISOString(),

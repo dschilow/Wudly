@@ -18,6 +18,12 @@ const toneToPill = {
   neutral: 'neutral',
 } as const;
 
+const verificationCopy = {
+  VERIFIED: 'verifiziert',
+  SELF_DECLARED: 'selbst angegeben',
+  UNVERIFIED: 'ungeprüft',
+} as const;
+
 /**
  * A "Stimme" — one owner's experience, quote-first like a magazine pull quote:
  * the owner's words lead in serif italic, the metadata follows as a mono
@@ -87,6 +93,9 @@ export function ExperienceCard({ experience }: { experience: ExperienceDto }) {
               aria-label="Per Kamera/Barcode als echter Käufer bestätigt"
             />
           )}
+          <span className="rounded-full bg-fill-2 px-1.5 py-0.5 text-[0.625rem] normal-case tracking-normal text-muted-foreground">
+            {verificationCopy[experience.verificationStatus] ?? 'ungeprüft'}
+          </span>
           <span aria-hidden>·</span>
           <span className="shrink-0">{USAGE_DURATION_LABEL[experience.usageDuration]}</span>
           <span aria-hidden>·</span>

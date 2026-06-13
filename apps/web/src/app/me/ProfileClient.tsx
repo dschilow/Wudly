@@ -92,7 +92,7 @@ export function ProfileClient() {
   }, [user, loading, router]);
 
   const rebuyRate = useMemo(() => {
-    if (experiences.length === 0) return 72;
+    if (experiences.length === 0) return null;
     const yes = experiences.filter(
       (experience) => experience.wouldBuyAgain === WouldBuyAgain.YES,
     ).length;
@@ -104,7 +104,7 @@ export function ProfileClient() {
 
   return (
     <motion.div
-      className="space-y-6 pt-4"
+      className="mx-auto max-w-2xl space-y-6 pt-4"
       initial="hidden"
       animate="show"
       variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
@@ -146,18 +146,30 @@ export function ProfileClient() {
               </div>
 
               <div className="mt-1 flex items-end justify-between gap-3">
-                <p className="font-display text-[4.6rem] leading-[0.95] text-label">
-                  <AnimatedNumber value={rebuyRate} duration={1.1} />
-                  <span className="text-[2.3rem]">%</span>
-                </p>
+                {rebuyRate === null ? (
+                  <p className="font-display text-[4.6rem] leading-[0.95] text-label-3">–</p>
+                ) : (
+                  <p className="font-display text-[4.6rem] leading-[0.95] text-label">
+                    <AnimatedNumber value={rebuyRate} duration={1.1} />
+                    <span className="text-[2.3rem]">%</span>
+                  </p>
+                )}
                 <div className="pb-3">
-                  <Stamp tone={rebuyRate >= 70 ? 'positive' : 'unsure'}>
-                    {rebuyRate >= 70 ? 'Gute Käufe' : 'Gemischt'}
+                  <Stamp
+                    tone={rebuyRate === null ? 'neutral' : rebuyRate >= 70 ? 'positive' : 'unsure'}
+                  >
+                    {rebuyRate === null
+                      ? 'Noch offen'
+                      : rebuyRate >= 70
+                        ? 'Gute Käufe'
+                        : 'Gemischt'}
                   </Stamp>
                 </div>
               </div>
               <p className="font-display mt-1 text-[1.2rem] italic leading-snug text-ink-soft">
-                deiner Produkte würdest du wieder kaufen.
+                {rebuyRate === null
+                  ? 'Teile deine erste Erfahrung, dann entsteht dein Kaufprofil.'
+                  : 'deiner Produkte würdest du wieder kaufen.'}
               </p>
             </div>
 

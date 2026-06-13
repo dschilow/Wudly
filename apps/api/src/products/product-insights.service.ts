@@ -82,7 +82,7 @@ export class ProductInsightsService {
       update: { ...data, generatedAt: new Date() },
     });
 
-    const dto = toProductInsightsDto(productId, persisted);
+    const dto = toProductInsightsDto(productId, persisted, await this.insightExtras(productId));
     // If no AI summary persisted yet, overlay the rule-based audience hints so the
     // UI is never empty; and kick off AI generation for next time.
     if (!persisted.aiHeadline) {
@@ -104,7 +104,7 @@ export class ProductInsightsService {
       if (!exists) throw new NotFoundException('Produkt nicht gefunden.');
       return this.regenerate(productId);
     }
-    const dto = toProductInsightsDto(productId, snap);
+    const dto = toProductInsightsDto(productId, snap, await this.insightExtras(productId));
     if (!snap.aiHeadline) {
       const audience = await this.deriveAudienceLive(productId);
       dto.suitedFor = audience.suitedFor;
@@ -153,6 +153,35 @@ export class ProductInsightsService {
     const aspects = await this.prisma.categoryAspect.findMany({ where: { categoryId } });
     for (const a of aspects) map.set(a.key, a.label);
     return map;
+  }
+
+  private async insightExtras(
+    productId: string,
+  ): Promise<Pick<ProductInsightsDto, 'verification' | 'quickVotes'>> {
+    const [verified, selfDeclared, unverified, yes, no] = await Promise.all([
+      this.prisma.ownership.count({ where: { productId, verificationStatus: 'VERIFIED' } }),
+      this.prisma.ownership.count({ where: { productId, verificationStatus: 'SELF_DECLARED' } }),
+      this.prisma.ownership.count({ where: { productId, verificationStatus: 'UNVERIFIED' } }),
+      this.prisma.quickVote.count({ where: { productId, value: 'YES' } }),
+      this.prisma.quickVote.count({ where: { productId, value: 'NO' } }),
+    ]);
+    const total = verified + selfDeclared + unverified;
+    const quickTotal = yes + no;
+    return {
+      verification: {
+        total,
+        verified,
+        selfDeclared,
+        unverified,
+        verifiedShare: total > 0 ? Math.round((verified / total) * 100) : 0,
+      },
+      quickVotes: {
+        yes,
+        no,
+        count: quickTotal,
+        rebuy: quickTotal > 0 ? Math.round((yes / quickTotal) * 100) : null,
+      },
+    };
   }
 
   private async deriveAudienceLive(

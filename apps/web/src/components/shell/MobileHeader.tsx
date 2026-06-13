@@ -8,6 +8,39 @@ import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const ROOT_ROUTES = new Set(['/', '/check', '/rankings', '/me/products', '/me']);
+const DESKTOP_ITEMS = [
+  { href: '/check', label: 'Prüfen', match: (p: string) => p === '/' || p.startsWith('/check') },
+  { href: '/rankings', label: 'Entdecken', match: (p: string) => p.startsWith('/rankings') },
+  { href: '/me/products', label: 'Besitzen', match: (p: string) => p.startsWith('/me/products') },
+  {
+    href: '/me',
+    label: 'Ich',
+    match: (p: string) => p === '/me' || (p.startsWith('/me/') && !p.startsWith('/me/products')),
+  },
+];
+
+function DesktopNav({ pathname }: { pathname: string }) {
+  return (
+    <nav className="hidden items-center gap-1 md:flex" aria-label="Hauptnavigation">
+      {DESKTOP_ITEMS.map((item) => {
+        const active = item.match(pathname);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={active ? 'page' : undefined}
+            className={cn(
+              'rounded-full px-3 py-1.5 text-[0.875rem] font-semibold transition-colors duration-200',
+              active ? 'bg-accent text-[#f1efe6]' : 'text-muted-foreground hover:bg-fill',
+            )}
+          >
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 /**
  * Editorial masthead. Root tabs show the serif-italic "Wudly" wordmark with a
@@ -33,7 +66,7 @@ export function MobileHeader() {
   if (!isRoot) {
     return (
       <header className={chrome}>
-        <div className="mx-auto flex h-12 max-w-2xl items-center justify-between px-2">
+        <div className="mx-auto flex h-12 max-w-6xl items-center justify-between px-2 md:px-5">
           <button
             onClick={() => router.back()}
             className="tap-dim -ml-1 flex items-center gap-0.5 pr-2 text-[1.0625rem] text-accent"
@@ -47,6 +80,7 @@ export function MobileHeader() {
               Wudly
             </span>
           </Link>
+          <DesktopNav pathname={pathname} />
         </div>
       </header>
     );
@@ -54,13 +88,14 @@ export function MobileHeader() {
 
   return (
     <header className={chrome}>
-      <div className="relative mx-auto flex h-14 max-w-2xl items-end justify-between px-5 pb-2">
+      <div className="relative mx-auto flex h-14 max-w-6xl items-end justify-between px-5 pb-2">
         <Link href="/check" className="tap-dim" aria-label="Wudly — Startseite">
           <span className="font-display text-[1.85rem] italic leading-none text-accent">
             Wudly
           </span>
         </Link>
-        <span className="mono-data pb-0.5 text-[0.625rem] uppercase tracking-[0.22em] text-muted-foreground">
+        <DesktopNav pathname={pathname} />
+        <span className="mono-data pb-0.5 text-[0.625rem] uppercase tracking-[0.22em] text-muted-foreground md:hidden">
           Echte Besitzer
         </span>
       </div>
