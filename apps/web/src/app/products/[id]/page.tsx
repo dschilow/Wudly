@@ -617,6 +617,7 @@ export default async function ProductPage({ params }: PageProps) {
           product={product}
           className="h-28 w-28 shrink-0 sm:h-32 sm:w-32"
           rounded="rounded-[1rem]"
+          pollForPhoto
         />
         <div className="min-w-0 flex-1">
           <p className="mono-data flex flex-wrap items-center gap-x-2 text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">

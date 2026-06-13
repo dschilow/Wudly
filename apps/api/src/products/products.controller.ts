@@ -186,6 +186,19 @@ export class ProductsController {
     return this.products.getShareSvgById(id);
   }
 
+  /**
+   * Re-run the photo hunt for a product and return a full diagnostic report
+   * (which stage found what, why candidates failed, whether Google CSE is even
+   * configured). Auth-gated and rate-limited; primarily a debugging + healing
+   * tool for products that ended up without a photo.
+   */
+  @Post(':id/rehunt-image')
+  @UseGuards(JwtAuthGuard, RateLimitGuard)
+  @RateLimit({ limit: 20, windowMs: 60_000 })
+  rehuntImage(@Param('id') id: string): Promise<unknown> {
+    return this.products.rehuntImage(id);
+  }
+
   @Post('identify')
   @UseGuards(RateLimitGuard)
   @RateLimit({ limit: 12, windowMs: 60_000 })

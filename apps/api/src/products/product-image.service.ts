@@ -74,9 +74,25 @@ export class ProductImageService {
 
   private async download(url: string): Promise<{ mime: string; bytes: Uint8Array<ArrayBuffer> } | null> {
     if (!/^https?:\/\//i.test(url)) return null;
+    // Browser UA + a same-origin referer: many product CDNs hotlink-protect
+    // their images and 403 a bot UA. We pull the bytes into our own cache, so
+    // there's no lasting hotlink — this just gets past the gate once.
+    let referer: string | undefined;
+    try {
+      referer = new URL(url).origin + '/';
+    } catch {
+      referer = undefined;
+    }
     const res = await fetch(url, {
-      headers: { Accept: 'image/*', 'User-Agent': 'Wudly/1.0 (wudly.app)' },
+      headers: {
+        Accept: 'image/avif,image/webp,image/png,image/*,*/*;q=0.8',
+        'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        ...(referer ? { Referer: referer } : {}),
+      },
       signal: AbortSignal.timeout(8_000),
+      redirect: 'follow',
     });
     if (!res.ok) return null;
     const mime = (res.headers.get('content-type') ?? '').split(';')[0]!.trim();
@@ -90,11 +106,13 @@ export class ProductImageService {
    * The product-photo hunt for products no EAN database covered. Tries every
    * candidate in order and caches the FIRST one that actually downloads as a
    * real image — `product.imageUrl` is only ever set after validation, so the
-   * UI never renders a broken photo:
+   * UI never renders a broken photo. Candidate order (most reliable first):
    *
-   *   1. direct candidate URLs (e.g. an AI-suggested image link)
-   *   2. og:image of the official product page (very reliable when known)
-   *   3. Google image search (when GOOGLE_CSE_KEY/ID are configured — 100/day free)
+   *   1. Google image search (finds REAL urls instead of guessing — by far the
+   *      most reliable source for products no EAN db covers)
+   *   2. og:image of the official product page the AI named (good when the url
+   *      is right, but the AI guesses it — a lead, not a guarantee)
+   *   3. direct AI-suggested image url (LLMs hallucinate these — last resort)
    *
    * Fire-and-forget; on total failure the generated placeholder remains.
    */
@@ -103,35 +121,93 @@ export class ProductImageService {
     query: string,
     options: { candidateUrls?: Array<string | null | undefined>; pageUrl?: string | null },
   ): void {
-    void (async () => {
-      try {
-        const candidates: Array<{ url: string; source: string }> = [];
-        for (const url of options.candidateUrls ?? []) {
-          if (url && /^https?:\/\//i.test(url)) candidates.push({ url, source: 'ai' });
-        }
-        if (options.pageUrl) {
-          const og = await this.findOgImage(options.pageUrl);
-          if (og) candidates.push({ url: og, source: 'og-image' });
-        }
-        if (candidates.length < 3) {
-          for (const url of await this.searchGoogleImages(query)) {
-            candidates.push({ url, source: 'google-images' });
-          }
-        }
-
-        for (const candidate of candidates) {
-          const fetched = await this.download(candidate.url).catch(() => null);
-          if (!fetched) continue;
-          await this.store(productId, candidate.url, candidate.source, fetched);
-          this.logger.log(`Image found for ${productId} via ${candidate.source}`);
-          return;
-        }
-      } catch (err) {
+    void this.hunt(productId, query, options).then((report) => {
+      if (report.storedVia) {
+        this.logger.log(`Image found for ${productId} via ${report.storedVia} (q="${query}")`);
+      } else {
         this.logger.warn(
-          `Image hunt failed for ${productId}: ${err instanceof Error ? err.message : err}`,
+          `Image hunt EMPTY for ${productId} (q="${query}"): ` +
+            `google=${report.googleCount} og=${report.ogFound ? 'yes' : 'no'} ` +
+            `ai=${report.aiCount} cse=${this.cseKey && this.cseId ? 'configured' : 'OFF'}`,
         );
       }
-    })();
+    });
+  }
+
+  /**
+   * The actual hunt — returns a diagnostic report so the debug endpoint can show
+   * exactly which stage produced what (the #1 thing missing when "no images"
+   * needs answering without a redeploy). Never throws.
+   */
+  async hunt(
+    productId: string,
+    query: string,
+    options: { candidateUrls?: Array<string | null | undefined>; pageUrl?: string | null },
+  ): Promise<{
+    storedVia: string | null;
+    cseConfigured: boolean;
+    googleCount: number;
+    ogFound: boolean;
+    aiCount: number;
+    tried: Array<{ url: string; source: string; ok: boolean; reason?: string }>;
+  }> {
+    const report = {
+      storedVia: null as string | null,
+      cseConfigured: Boolean(this.cseKey && this.cseId),
+      googleCount: 0,
+      ogFound: false,
+      aiCount: 0,
+      tried: [] as Array<{ url: string; source: string; ok: boolean; reason?: string }>,
+    };
+    const candidates: Array<{ url: string; source: string }> = [];
+
+    try {
+      // 1 · Google CSE first — it finds real, live image urls.
+      const googleUrls = await this.searchGoogleImages(query);
+      report.googleCount = googleUrls.length;
+      for (const url of googleUrls) candidates.push({ url, source: 'google-images' });
+
+      // 2 · og:image of the AI-named product page.
+      if (options.pageUrl) {
+        const og = await this.findOgImage(options.pageUrl);
+        if (og) {
+          report.ogFound = true;
+          candidates.push({ url: og, source: 'og-image' });
+        }
+      }
+
+      // 3 · direct AI-suggested image urls (least reliable).
+      for (const url of options.candidateUrls ?? []) {
+        if (url && /^https?:\/\//i.test(url)) {
+          report.aiCount += 1;
+          candidates.push({ url: this.absolutize(url), source: 'ai' });
+        }
+      }
+
+      for (const candidate of candidates) {
+        let reason: string | undefined;
+        const fetched = await this.download(candidate.url).catch((e) => {
+          reason = e instanceof Error ? e.message : 'error';
+          return null;
+        });
+        report.tried.push({ url: candidate.url, source: candidate.source, ok: Boolean(fetched), reason });
+        if (!fetched) continue;
+        await this.store(productId, candidate.url, candidate.source, fetched);
+        report.storedVia = candidate.source;
+        return report;
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Image hunt failed for ${productId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+    return report;
+  }
+
+  /** Resolve protocol-relative (`//host/…`) urls to absolute https. */
+  private absolutize(url: string): string {
+    const u = url.trim();
+    return u.startsWith('//') ? `https:${u}` : u;
   }
 
   /** Extract og:image / twitter:image from a product page (capped download). */
@@ -184,16 +260,23 @@ export class ProductImageService {
     try {
       const url =
         `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(this.cseKey)}` +
-        `&cx=${encodeURIComponent(this.cseId)}&searchType=image&num=4&safe=active` +
-        `&q=${encodeURIComponent(query.trim())}`;
+        `&cx=${encodeURIComponent(this.cseId)}&searchType=image&num=8&safe=active` +
+        // Bias towards usable product shots over tiny icons / huge banners.
+        `&imgSize=large&q=${encodeURIComponent(query.trim())}`;
       const res = await fetch(url, {
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(8_000),
       });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        // Google returns a precise reason (bad key, CSE not enabled, quota) in
+        // the body — surface it, otherwise "no images" is unanswerable.
+        const body = await res.text().catch(() => '');
+        this.logger.warn(`Google CSE HTTP ${res.status}: ${body.slice(0, 300)}`);
+        return [];
+      }
       const data = (await res.json()) as { items?: Array<{ link?: string }> };
       return (data.items ?? [])
-        .map((i) => i.link?.trim() ?? '')
+        .map((i) => this.absolutize(i.link?.trim() ?? ''))
         .filter((u) => /^https?:\/\//i.test(u));
     } catch (err) {
       this.logger.warn(`Google image search failed: ${err instanceof Error ? err.message : err}`);

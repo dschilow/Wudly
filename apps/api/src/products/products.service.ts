@@ -506,6 +506,45 @@ export class ProductsService {
   }
 
   /**
+   * Re-run the product-photo hunt for one product and return the diagnostic
+   * report (which stage found what, and why candidates failed). Used by the
+   * admin debug endpoint to answer "why no image?" without redeploying, and to
+   * heal existing imageless products on demand. Re-asks the AI for fresh leads
+   * (a product page url + direct image url) when research is available.
+   */
+  async rehuntImage(productId: string): Promise<{
+    productId: string;
+    name: string;
+    imageQuery: string;
+    aiImageUrl: string | null;
+    aiPageUrl: string | null;
+    report: Awaited<ReturnType<ProductImageService['hunt']>>;
+  }> {
+    const product = await this.findOrThrow(productId);
+    let aiImageUrl: string | null = null;
+    let aiPageUrl: string | null = null;
+    try {
+      const slugs = await this.prisma.category.findMany({ select: { slug: true } });
+      const researched = await this.ai.researchProduct(
+        product.canonicalName,
+        slugs.map((s) => s.slug),
+      );
+      if (researched.found) {
+        aiImageUrl = researched.imageUrl?.trim() || null;
+        aiPageUrl = researched.productUrl?.trim() || null;
+      }
+    } catch (err) {
+      this.logger.warn(`Rehunt research failed: ${err instanceof Error ? err.message : err}`);
+    }
+    const imageQuery = [product.brand, product.canonicalName].filter(Boolean).join(' ');
+    const report = await this.images.hunt(productId, imageQuery, {
+      candidateUrls: [aiImageUrl],
+      pageUrl: aiPageUrl,
+    });
+    return { productId, name: product.canonicalName, imageQuery, aiImageUrl, aiPageUrl, report };
+  }
+
+  /**
    * Background enrichment: aggregated rating facts from other platforms via AI
    * web research (average + count + product link — never review texts, per the
    * transparency rules). No-op with the dummy provider; failures are silent.
