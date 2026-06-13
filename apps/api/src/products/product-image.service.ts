@@ -55,7 +55,7 @@ export class ProductImageService {
   private async cache(productId: string, url: string, source: string): Promise<void> {
     const fetched = url.startsWith('data:')
       ? this.decodeDataUrl(url)
-      : await this.download(url);
+      : await this.download(url).catch(() => null);
     if (!fetched) {
       // An AI-guessed image URL that won't load must not linger as a broken
       // <img> — clear it so the product falls back to its generated placeholder.
@@ -83,6 +83,8 @@ export class ProductImageService {
     } catch {
       referer = undefined;
     }
+    // Throw a precise reason on failure: the hunt report turns it into a `reason`
+    // so "image found but not stored" is debuggable (HTTP vs MIME vs size).
     const res = await fetch(url, {
       headers: {
         Accept: 'image/avif,image/webp,image/png,image/*,*/*;q=0.8',
@@ -94,11 +96,12 @@ export class ProductImageService {
       signal: AbortSignal.timeout(8_000),
       redirect: 'follow',
     });
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error(`http ${res.status}`);
     const mime = (res.headers.get('content-type') ?? '').split(';')[0]!.trim();
-    if (!ALLOWED_MIME.test(mime)) return null;
+    if (!ALLOWED_MIME.test(mime)) throw new Error(`mime ${mime || 'none'}`);
     const bytes = new Uint8Array(await res.arrayBuffer());
-    if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_BYTES) return null;
+    if (bytes.byteLength === 0) throw new Error('empty');
+    if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error(`too-big ${bytes.byteLength}`);
     return { mime, bytes };
   }
 

@@ -132,6 +132,19 @@ function normalizeSpecs(
   return out;
 }
 
+/**
+ * Build the image-search query: "<brand> <name>", but only prepend the brand
+ * when the name doesn't already start with it — otherwise "Sony WH-1000XM6"
+ * becomes "Sony Sony WH-1000XM6" and search results suffer.
+ */
+function buildImageQuery(brand: string | null | undefined, name: string): string {
+  const n = name.trim();
+  const b = brand?.trim();
+  if (!b) return n;
+  if (n.toLowerCase().startsWith(b.toLowerCase())) return n;
+  return `${b} ${n}`;
+}
+
 /** Coerce a product's JSON `specs` column back into typed pairs. */
 function asSpecArray(value: unknown): Array<{ label: string; value: string }> {
   if (!Array.isArray(value)) return [];
@@ -442,7 +455,7 @@ export class ProductsService {
       }
     }
 
-    const imageQuery = [brand, canonicalName].filter(Boolean).join(' ');
+    const imageQuery = buildImageQuery(brand, canonicalName);
     const huntImage = (productId: string) =>
       this.images.findAndCacheInBackground(productId, imageQuery, {
         candidateUrls: [aiImageUrl],
@@ -536,7 +549,7 @@ export class ProductsService {
     } catch (err) {
       this.logger.warn(`Rehunt research failed: ${err instanceof Error ? err.message : err}`);
     }
-    const imageQuery = [product.brand, product.canonicalName].filter(Boolean).join(' ');
+    const imageQuery = buildImageQuery(product.brand, product.canonicalName);
     const report = await this.images.hunt(productId, imageQuery, {
       candidateUrls: [aiImageUrl],
       pageUrl: aiPageUrl,
