@@ -31,6 +31,7 @@ import { JsonLd } from '@/components/JsonLd';
 import { productJsonLd, breadcrumbJsonLd, absoluteUrl } from '@/lib/seo';
 import { ShareButton } from '@/components/ShareButton';
 import { SignalPanel } from '@/components/SignalPanel';
+import { dataConfidenceLabel } from '@/lib/verdict';
 import { ProductActionBar } from '@/components/ProductActionBar';
 import { ProductTabs } from '@/components/ProductTabs';
 import { Reveal } from '@/components/motion/Reveal';
@@ -75,8 +76,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const description =
       product.insights.aiHeadline ??
       (early
-        ? `Signal im Aufbau: ${earlyYes} von ${product.insights.ownerCount} Besitzern würden es wieder kaufen. Noch zu wenige Daten für einen belastbaren Score.`
-        : `Wudly Signal ${score ?? '–'} · ${product.insights.experienceCount} echte Erfahrungen.`);
+        ? `Erst ${earlyYes} von ${product.insights.ownerCount} Besitzern würden es wieder kaufen — noch zu wenige Bewertungen für ein verlässliches Urteil.`
+        : `${score ?? '–'}% würden es wieder kaufen · ${product.insights.experienceCount} echte Erfahrungen.`);
     return {
       title: product.canonicalName,
       description,
@@ -348,14 +349,7 @@ export default async function ProductPage({ params }: PageProps) {
   const earlyYesCount = earlySignal
     ? Math.round((ins.rebuyScore! / 100) * Math.max(1, ins.ownerCount))
     : 0;
-  const signalStrength =
-    ins.experienceCount < 20
-      ? 'Signal im Aufbau'
-      : ins.experienceCount < 80
-        ? 'Erste Tendenz'
-        : ins.experienceCount < 250
-          ? 'Belastbare Tendenz'
-          : 'Starkes Langzeitsignal';
+  const signalStrength = dataConfidenceLabel(ins.experienceCount);
 
   // One calm context sentence under the stamp.
   const subline =
@@ -644,15 +638,15 @@ export default async function ProductPage({ params }: PageProps) {
               text={
                 ins.aiHeadline ??
                 (earlySignal
-                  ? `Signal im Aufbau: ${earlyYesCount} von ${ins.ownerCount} Besitzern würden es wieder kaufen.`
-                  : `Wudly Signal ${ins.rebuyScore ?? '–'} auf Wudly`)
+                  ? `Erst ${earlyYesCount} von ${ins.ownerCount} Besitzern würden es wieder kaufen.`
+                  : `${ins.rebuyScore ?? '–'}% würden es wieder kaufen`)
               }
             />
           </div>
         </div>
       </section>
 
-      {/* 2 · The Kassenbon — Wudly's verdict artifact */}
+      {/* 2 · The Verdict — Wudly's signal */}
       <SignalPanel
         productId={product.id}
         productName={product.canonicalName}
@@ -667,7 +661,7 @@ export default async function ProductPage({ params }: PageProps) {
 
       {earlySignal && (
         <p className="px-1 text-[0.875rem] leading-snug text-muted-foreground">
-          Signal im Aufbau: noch zu wenige Daten für einen belastbaren Score.
+          Sobald mehr Besitzer bewerten, wird das Urteil verlässlicher.
         </p>
       )}
 

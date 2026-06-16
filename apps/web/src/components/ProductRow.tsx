@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import type { ProductSummaryDto } from '@wudly/shared';
 import { cn } from '@/lib/utils';
+import { isEarlySignal } from '@/lib/verdict';
 import { Thumb } from './Thumb';
 import { ScoreBadge } from './ScoreBadge';
 import { SealBadge } from './SealBadge';
@@ -23,7 +24,7 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
   const showRegret = emphasis === 'regret';
   const score = showRegret ? product.regretScore : product.rebuyScore;
   const medal = rank !== undefined && rank <= 3;
-  const earlySignal = product.experienceCount < 20;
+  const earlySignal = isEarlySignal(product.experienceCount);
   const yesCount =
     product.rebuyScore === null
       ? null
@@ -82,7 +83,7 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
           </div>
           {earlySignal && yesCount !== null && !showRegret && (
             <p className="mt-1 truncate text-[0.75rem] font-medium text-positive-ink">
-              Signal im Aufbau · {yesCount} von {product.ownerCount} sagen ja
+              Noch wenige Bewertungen · {yesCount} von {product.ownerCount} würden wieder kaufen
             </p>
           )}
         </div>
@@ -90,7 +91,7 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
         <ScoreBadge
           score={earlySignal && !showRegret ? null : score}
           kind={showRegret ? 'regret' : 'rebuy'}
-          labelOverride={earlySignal && !showRegret ? 'Signal' : undefined}
+          labelOverride={earlySignal && !showRegret ? 'Zu früh' : undefined}
         />
         <ChevronRight
           className="-ml-0.5 -mr-1 h-[1.0625rem] w-[1.0625rem] shrink-0 text-label-3"

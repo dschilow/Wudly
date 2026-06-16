@@ -24,6 +24,7 @@ import type {
 } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
+import { dataConfidenceLabel } from '@/lib/verdict';
 import { ProductList } from '@/components/ProductList';
 import { Thumb } from '@/components/Thumb';
 import { WaveLines } from '@/components/motion/WaveLines';
@@ -36,25 +37,9 @@ const rise = {
   show: { opacity: 1, y: 0 },
 };
 
-function signalLabel(product: ProductSummaryDto) {
-  if (product.experienceCount < 20) return 'Signal im Aufbau';
-  if (product.experienceCount < 80) return 'Erste Tendenz';
-  if (product.experienceCount < 250) return 'Belastbare Tendenz';
-  return 'Starkes Langzeitsignal';
-}
-
-/** A recently-checked product as a compact receipt line: name · signal ····· score. */
+/** A recently-checked product as a compact row: name · data confidence ····· score. */
 function RecentProduct({ product }: { product: ProductSummaryDto }) {
-  const yes =
-    product.rebuyScore === null
-      ? null
-      : Math.round((product.rebuyScore / 100) * product.ownerCount);
-  const scoreText =
-    product.rebuyScore === null
-      ? '–'
-      : product.experienceCount < 20 && yes !== null
-        ? 'Aufbau'
-        : `${product.rebuyScore}%`;
+  const scoreText = product.rebuyScore === null ? '–' : `${product.rebuyScore}%`;
 
   return (
     <Link href={`/products/${product.id}`} className="card press flex items-center gap-3.5 p-3">
@@ -64,7 +49,7 @@ function RecentProduct({ product }: { product: ProductSummaryDto }) {
           {product.canonicalName}
         </h3>
         <p className="mono-data mt-1 truncate text-[0.6875rem] uppercase tracking-[0.12em] text-muted-foreground">
-          {signalLabel(product)}
+          {dataConfidenceLabel(product.experienceCount)}
         </p>
       </div>
       <span className="font-display shrink-0 text-[1.75rem] leading-none text-accent-ink">

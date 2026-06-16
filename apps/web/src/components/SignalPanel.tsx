@@ -6,7 +6,6 @@ import { AnimatedNumber } from '@/components/motion/AnimatedNumber';
 import { LedgerRow } from '@/components/receipt/LedgerRow';
 import { verdictStamp } from '@/components/receipt/Stamp';
 import { Sheet } from '@/components/ui/Sheet';
-import { plural } from '@/lib/format';
 
 interface SignalPanelProps {
   productId: string;
@@ -86,10 +85,10 @@ export function SignalPanel({
   }, []);
 
   const stamp = earlySignal
-    ? ({ label: 'Im Aufbau', tone: 'unsure' } as const)
+    ? ({ label: 'Zu wenige Daten', tone: 'unsure' } as const)
     : verdictStamp(score);
   const toneColor = TONE_COLOR[stamp.tone];
-  const scoreText = earlySignal ? 'Aufbau' : score !== null ? `${score}%` : '–';
+  const scoreText = earlySignal ? 'Offen' : score !== null ? `${score}%` : '–';
 
   return (
     <>
@@ -138,10 +137,11 @@ export function SignalPanel({
           {/* The verdict moment. */}
           <div className="mt-3 flex items-end justify-between gap-4">
             {earlySignal ? (
-              <p className="font-display text-[3.1rem] font-semibold leading-[0.95] tracking-[-0.03em] text-white sm:text-[3.5rem]">
-                Aufbau
+              <p className="font-display text-[2.7rem] font-semibold leading-[1.0] tracking-[-0.03em] text-white sm:text-[3rem]">
+                Noch offen
                 <span className="block pt-1.5 text-[0.95rem] font-normal leading-snug text-white/60">
-                  {earlyYesCount} von {ownerCount} Besitzern sagen ja
+                  Erst {earlyYesCount} von {ownerCount} Besitzern würden wieder kaufen — zu wenige
+                  für ein klares Urteil.
                 </span>
               </p>
             ) : score !== null ? (
@@ -167,15 +167,9 @@ export function SignalPanel({
 
           {/* Clean data rows — no dotted leaders, no barcode. */}
           <div className="mt-5 divide-y divide-white/[0.07] rounded-[var(--radius-md)] bg-white/[0.03]">
-            <StatRow
-              label="Datenbasis"
-              value={`${experienceCount} ${plural(experienceCount, 'Bewertung', 'Bewertungen')}`}
-            />
-            <StatRow
-              label="Besitzer"
-              value={`${ownerCount} ${plural(ownerCount, 'Person', 'Personen')}`}
-            />
-            <StatRow label="Signalstärke" value={signalStrength} strong />
+            <StatRow label="Bewertungen" value={`${experienceCount}`} />
+            <StatRow label="Besitzer" value={`${ownerCount}`} />
+            <StatRow label="Aussagekraft" value={signalStrength} strong />
           </div>
 
           <p className="mt-4 text-center font-mono text-[0.625rem] uppercase tracking-[0.3em] text-white/40">
@@ -245,7 +239,7 @@ export function SignalPanel({
                       <span className="text-white">{experienceCount} Bew.</span>
                     </p>
                     <p className="flex justify-between gap-4">
-                      <span>Signalstärke</span>
+                      <span>Aussagekraft</span>
                       <span className="text-white">{signalStrength}</span>
                     </p>
                   </div>
@@ -294,12 +288,12 @@ export function SignalPanel({
 
           <div className="card space-y-2.5 p-4">
             <p className="font-mono text-[0.625rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Signalstärke
+              Aussagekraft
             </p>
-            <LedgerRow label="Signalstatus" value="Signal im Aufbau" />
+            <LedgerRow label="Unter 20 Bewertungen" value="Zu wenige Daten" />
             <LedgerRow label="Ab 20" value="Erste Tendenz" />
-            <LedgerRow label="Ab 80" value="Belastbare Tendenz" />
-            <LedgerRow label="Ab 250" value="Starkes Langzeitsignal" strong />
+            <LedgerRow label="Ab 80" value="Solide Datenbasis" />
+            <LedgerRow label="Ab 250" value="Sehr große Datenbasis" strong />
           </div>
 
           <p className="px-1 text-[0.875rem] leading-snug text-muted-foreground">

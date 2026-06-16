@@ -17,6 +17,7 @@ import {
 import type { MyProductsDto, ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { dataConfidenceLabel, isEarlySignal } from '@/lib/verdict';
 import { PageSkeleton, EmptyState } from '@/components/states/States';
 import { Thumb } from '@/components/Thumb';
 import { HouseholdSwipeDeck } from '@/app/check/HouseholdSwipeDeck';
@@ -26,10 +27,10 @@ type ProductRelation = 'owned' | 'created';
 function ProductItem({ product, relation }: { product: ProductSummaryDto; relation: ProductRelation }) {
   const scoreText =
     product.rebuyScore === null
-      ? 'Noch kein Wudly Signal'
-      : product.experienceCount < 20
-        ? 'Signal im Aufbau'
-        : `${product.rebuyScore}% Wudly Signal`;
+      ? 'Noch keine Bewertungen'
+      : isEarlySignal(product.experienceCount)
+        ? dataConfidenceLabel(product.experienceCount)
+        : `${product.rebuyScore}% würden wieder kaufen`;
   const tone =
     product.rebuyScore === null
       ? 'bg-faint'

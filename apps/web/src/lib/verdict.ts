@@ -44,8 +44,8 @@ export function rebuyVerdict(score: number | null): Verdict {
   if (score >= 50) {
     return {
       tone: 'mixed',
-      short: 'Solide',
-      label: 'Gemischtes Echo',
+      short: 'Gemischt',
+      label: 'Geteilte Meinungen',
       color: 'var(--color-unsure)',
       ink: 'var(--color-unsure-ink)',
       soft: 'var(--color-unsure-soft)',
@@ -59,4 +59,23 @@ export function rebuyVerdict(score: number | null): Verdict {
     ink: 'var(--color-regret-ink)',
     soft: 'var(--color-regret-soft)',
   };
+}
+
+/**
+ * How much real owner data backs a score, in plain German — no insider "Signal"
+ * or "Aufbau" jargon. Centralized so every card, ranking and the product page say
+ * the same thing. Below {@link EARLY_SIGNAL_MIN_EXPERIENCES} a verdict is still
+ * forming and should be shown with a clear "too few ratings" caveat.
+ */
+export const EARLY_SIGNAL_MIN_EXPERIENCES = 20;
+
+export function isEarlySignal(experienceCount: number): boolean {
+  return experienceCount < EARLY_SIGNAL_MIN_EXPERIENCES;
+}
+
+export function dataConfidenceLabel(experienceCount: number): string {
+  if (experienceCount < EARLY_SIGNAL_MIN_EXPERIENCES) return 'Zu wenige Bewertungen';
+  if (experienceCount < 80) return 'Erste Tendenz';
+  if (experienceCount < 250) return 'Solide Datenbasis';
+  return 'Sehr große Datenbasis';
 }

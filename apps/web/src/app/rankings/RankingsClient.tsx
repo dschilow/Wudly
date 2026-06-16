@@ -11,6 +11,7 @@ import { Stamp } from '@/components/receipt/Stamp';
 import { Thumb } from '@/components/Thumb';
 import { Skeleton, EmptyState } from '@/components/states/States';
 import { plural } from '@/lib/format';
+import { dataConfidenceLabel, isEarlySignal } from '@/lib/verdict';
 import { cn } from '@/lib/utils';
 
 type Tab = 'rebuy' | 'regret' | 'discussed' | 'longterm';
@@ -24,19 +25,12 @@ const SEGMENTS = [
 
 const rise = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 
-function signalStrength(product: ProductSummaryDto) {
-  if (product.experienceCount < 20) return 'Signal im Aufbau';
-  if (product.experienceCount < 80) return 'Erste Tendenz';
-  if (product.experienceCount < 250) return 'Belastbare Tendenz';
-  return 'Starkes Langzeitsignal';
-}
-
 function rebuyLine(product: ProductSummaryDto) {
   const score = product.rebuyScore;
   if (score === null) return 'Noch zu wenige Daten';
   const yes = Math.round((score / 100) * product.ownerCount);
-  if (product.experienceCount < 20) {
-    return `Im Aufbau: ${yes} von ${product.ownerCount} sagen ja`;
+  if (isEarlySignal(product.experienceCount)) {
+    return `Erst wenige Bewertungen: ${yes} von ${product.ownerCount} würden wieder kaufen`;
   }
   return `${score}% würden es nach 6 Monaten wieder kaufen`;
 }
@@ -120,7 +114,7 @@ function HeroCard({ entry }: { entry: RankingEntryDto }) {
           </p>
           <p className="mono-data mt-2 text-[0.6875rem] uppercase tracking-[0.12em] text-muted-foreground">
             {product.experienceCount} {plural(product.experienceCount, 'Erfahrung', 'Erfahrungen')}{' '}
-            · {signalStrength(product)}
+            · {dataConfidenceLabel(product.experienceCount)}
           </p>
         </div>
       </div>

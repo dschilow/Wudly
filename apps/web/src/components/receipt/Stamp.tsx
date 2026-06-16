@@ -41,6 +41,6 @@ export function verdictStamp(score: number | null): {
 } {
   if (score === null) return { label: 'Noch offen', tone: 'neutral' };
   if (score >= 75) return { label: 'Wieder kaufen', tone: 'positive' };
-  if (score >= 50) return { label: 'Geteiltes Echo', tone: 'unsure' };
+  if (score >= 50) return { label: 'Gemischt', tone: 'unsure' };
   return { label: 'Lieber nicht', tone: 'regret' };
 }
