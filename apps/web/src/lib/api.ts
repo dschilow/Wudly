@@ -61,6 +61,8 @@ import type {
   AiPlaygroundTarget,
   AiPlaygroundReply,
   AiPlaygroundChatRequest,
+  AiPlaygroundPing,
+  AiPlaygroundTargetId,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -277,6 +279,9 @@ export const api = {
     /** Admin-only: send one prompt to one target and get the answer + metrics. */
     playgroundChat: (input: AiPlaygroundChatRequest, opts?: RequestOptions) =>
       apiFetch<AiPlaygroundReply>('/ai/playground/chat', { ...opts, method: 'POST', json: input }),
+    /** Admin-only: fast reachability probe for one target (Gemma: /api/tags). */
+    playgroundPing: (target: AiPlaygroundTargetId, opts?: RequestOptions) =>
+      apiFetch<AiPlaygroundPing>(`/ai/playground/ping?target=${encodeURIComponent(target)}`, opts),
   },
 
   admin: {

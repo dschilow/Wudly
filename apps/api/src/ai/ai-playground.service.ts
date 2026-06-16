@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
   AiPlaygroundChatRequest,
+  AiPlaygroundPing,
   AiPlaygroundReply,
   AiPlaygroundTarget,
   AiPlaygroundTargetId,
@@ -135,6 +136,59 @@ export class AiPlaygroundService {
         hint: separate2b ? undefined : 'Nutzt OLLAMA_BASE_URL (kein separater 2B-Host gesetzt).',
       },
     ];
+  }
+
+  /**
+   * Lightweight reachability probe for one target. For Gemma this hits Ollama's
+   * `/api/tags` (no inference), so it confirms the service is reachable and
+   * whether the model is pulled — in seconds, without a cold-start wait.
+   */
+  async ping(targetId: AiPlaygroundTargetId): Promise<AiPlaygroundPing> {
+    const started = Date.now();
+
+    if (targetId === 'openrouter') {
+      const client = this.getOpenRouter();
+      if (!client) {
+        return { targetId, ok: false, latencyMs: 0, error: 'OPENROUTER_API_KEY ist nicht gesetzt.' };
+      }
+      const probe = await client.ping();
+      const latencyMs = Date.now() - started;
+      return {
+        targetId,
+        ok: probe.ok,
+        latencyMs,
+        models: probe.model ? [probe.model] : undefined,
+        error: probe.ok ? undefined : this.explainError('openrouter', probe.error, latencyMs),
+      };
+    }
+
+    const client = targetId === 'gemma-2b' ? this.getGemma2b() : this.getGemma4b();
+    const model = targetId === 'gemma-2b' ? this.gemma2bModel : this.gemma4bModel;
+    const res = await client.reachable();
+    const latencyMs = Date.now() - started;
+    const modelPresent = res.models ? res.models.includes(model) : undefined;
+
+    if (res.ok && modelPresent === false) {
+      return {
+        targetId,
+        ok: false,
+        latencyMs,
+        models: res.models,
+        modelPresent,
+        error: `Dienst erreichbar, aber Modell "${model}" ist nicht gepullt. Verfügbar: ${
+          res.models && res.models.length ? res.models.join(', ') : '—'
+        }.`,
+      };
+    }
+
+    return {
+      targetId,
+      ok: res.ok,
+      latencyMs,
+      models: res.models,
+      modelPresent,
+      error: res.ok ? undefined : this.explainError('ollama', res.error, latencyMs),
+    };
   }
 
   /** Run one prompt against one target and return the answer + metrics. */

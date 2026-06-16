@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, Send, Trash2, Zap, AlertCircle, ChevronDown } from 'lucide-react';
+import { Loader2, Send, Trash2, Zap, AlertCircle, ChevronDown, Wifi } from 'lucide-react';
 import type {
   AiPlaygroundChatRequest,
   AiPlaygroundMessage,
+  AiPlaygroundPing,
   AiPlaygroundReply,
   AiPlaygroundTarget,
   AiPlaygroundTargetId,
@@ -36,6 +37,8 @@ interface Turn {
   replies: ReplyState[];
 }
 
+type PingState = AiPlaygroundPing & { loading?: boolean };
+
 function formatLatency(ms: number): string {
   if (!ms) return '—';
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
@@ -64,6 +67,8 @@ export function KiTestClient() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [sending, setSending] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [pings, setPings] = useState<Record<string, PingState>>({});
+  const [pinging, setPinging] = useState(false);
 
   const isAdmin = user?.role === 'ADMIN';
   const scrollAnchor = useRef<HTMLDivElement>(null);
@@ -173,6 +178,34 @@ export function KiTestClient() {
       setSending(false),
     );
   }, [input, sending, compare, selected, targets, runTarget]);
+
+  const testReachability = useCallback(() => {
+    const ids = compare ? ALL_TARGET_IDS : [selected];
+    setPinging(true);
+    setPings((prev) => {
+      const next = { ...prev };
+      for (const id of ids) next[id] = { targetId: id, ok: false, latencyMs: 0, loading: true };
+      return next;
+    });
+    Promise.allSettled(
+      ids.map((id) =>
+        api.ai
+          .playgroundPing(id, { cache: 'no-store' })
+          .then((res) => setPings((prev) => ({ ...prev, [id]: res })))
+          .catch((err) =>
+            setPings((prev) => ({
+              ...prev,
+              [id]: {
+                targetId: id,
+                ok: false,
+                latencyMs: 0,
+                error: err instanceof ApiError ? err.displayMessage : 'Test fehlgeschlagen.',
+              },
+            })),
+          ),
+      ),
+    ).finally(() => setPinging(false));
+  }, [compare, selected]);
 
   if (loading || (isAdmin && !targetsLoaded)) return <LoadingState />;
   if (!user) return null;
@@ -291,6 +324,53 @@ export function KiTestClient() {
             kann 1–3&nbsp;Min dauern (Cold Start), danach bleibt das Modell ~30&nbsp;Min warm.
           </p>
         )}
+
+        <div className="flex flex-col gap-2 border-t border-separator pt-3">
+          <button
+            onClick={testReachability}
+            disabled={pinging}
+            className="inline-flex w-fit items-center gap-1.5 rounded-full bg-fill-2 px-3.5 py-1.5 text-[0.8125rem] font-semibold text-label transition-opacity disabled:opacity-50"
+          >
+            {pinging ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Wifi className="h-4 w-4" />
+            )}
+            Erreichbarkeit testen
+          </button>
+          {(compare ? ALL_TARGET_IDS : [selected]).map((id) => {
+            const p = pings[id];
+            if (!p) return null;
+            return (
+              <div
+                key={id}
+                className="flex items-start gap-2 text-[0.78rem] leading-snug"
+                aria-live="polite"
+              >
+                {p.loading ? (
+                  <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                ) : p.ok ? (
+                  <span className="mt-px shrink-0 text-positive">✓</span>
+                ) : (
+                  <span className="mt-px shrink-0 text-regret">✗</span>
+                )}
+                <span className="min-w-0">
+                  <span className="font-semibold text-label">{labelFor(targets, id)}</span>{' '}
+                  {p.loading ? (
+                    <span className="text-muted-foreground">teste…</span>
+                  ) : p.ok ? (
+                    <span className="text-muted-foreground">
+                      erreichbar ({formatLatency(p.latencyMs)}
+                      {p.models && p.models.length ? ` · ${p.models.length} Modell(e)` : ''})
+                    </span>
+                  ) : (
+                    <span className="text-regret">{p.error ?? 'nicht erreichbar'}</span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </Card>
 
       {/* Transcript */}

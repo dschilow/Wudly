@@ -115,6 +115,22 @@ export interface AiPlaygroundReply {
   tokensPerSecond?: number;
 }
 
+/**
+ * Result of a lightweight reachability probe for one target. For self-hosted
+ * Gemma this hits Ollama's `/api/tags` (no model inference), so it confirms the
+ * service is reachable in seconds instead of waiting through a cold start.
+ */
+export interface AiPlaygroundPing {
+  targetId: AiPlaygroundTargetId;
+  ok: boolean;
+  latencyMs: number;
+  /** For Ollama: the model tags the service reports as available. */
+  models?: string[];
+  /** Whether the target's configured model is present in `models`. */
+  modelPresent?: boolean;
+  error?: string;
+}
+
 /** Live web research result used to auto-create a product the catalog lacks. */
 export interface ResearchedProduct {
   canonicalName: string;

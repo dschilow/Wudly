@@ -19,10 +19,12 @@ export interface OllamaOptions {
  */
 export class OllamaClient implements JsonChatClient {
   private readonly logger = new Logger(OllamaClient.name);
+  private readonly baseUrl: string;
   private readonly chatUrl: string;
 
   constructor(private readonly options: OllamaOptions) {
     const base = options.baseUrl.replace(/\/+$/, '');
+    this.baseUrl = base;
     this.chatUrl = `${base}/api/chat`;
   }
 
@@ -61,6 +63,35 @@ export class OllamaClient implements JsonChatClient {
     if (!res.ok) return { ok: false, error: res.error ?? 'unknown error' };
     const parsed = parseJsonObject<{ ok?: boolean }>(res.content ?? null);
     return parsed?.ok ? { ok: true, model: this.options.model } : { ok: false, error: 'bad JSON probe' };
+  }
+
+  /**
+   * Cheap reachability probe: lists the service's models via `/api/tags` without
+   * loading/running any model. Confirms the Ollama service is reachable (and
+   * whether the configured model is pulled) in seconds, even on a cold instance.
+   */
+  async reachable(
+    timeoutMs = 12_000,
+  ): Promise<{ ok: boolean; models?: string[]; error?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        return { ok: false, error: `HTTP ${response.status} ${truncate(text)}` };
+      }
+      const data = (await response.json()) as {
+        models?: Array<{ name?: string; model?: string }>;
+      };
+      const models = (data.models ?? [])
+        .map((m) => m.name ?? m.model)
+        .filter((n): n is string => Boolean(n));
+      return { ok: true, models };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   /**

@@ -1,9 +1,11 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import type {
   AiPlaygroundChatRequest,
+  AiPlaygroundPing,
   AiPlaygroundReply,
   AiPlaygroundTarget,
+  AiPlaygroundTargetId,
 } from '@wudly/shared';
 import { AiPlaygroundService } from './ai-playground.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -11,8 +13,10 @@ import { RolesGuard, Roles } from '../auth/roles.guard';
 import { RateLimit, RateLimitGuard } from '../common/rate-limit.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 
+const TARGET_IDS = ['openrouter', 'gemma-4b', 'gemma-2b'] as const;
+
 const playgroundChatSchema = z.object({
-  targetId: z.enum(['openrouter', 'gemma-4b', 'gemma-2b']),
+  targetId: z.enum(TARGET_IDS),
   messages: z
     .array(
       z.object({
@@ -25,6 +29,8 @@ const playgroundChatSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
   maxTokens: z.number().int().min(16).max(2048).optional(),
 });
+
+const pingTargetSchema = z.enum(TARGET_IDS);
 
 /**
  * Admin-only model playground. Proxies a free-form prompt to a chosen model so
@@ -42,6 +48,16 @@ export class AiController {
   @Get('targets')
   targets(): AiPlaygroundTarget[] {
     return this.playground.listTargets();
+  }
+
+  /** Fast reachability probe for one target (Gemma: `/api/tags`, no inference). */
+  @Get('ping')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 60, windowMs: 60_000 })
+  ping(
+    @Query('target', new ZodValidationPipe(pingTargetSchema)) target: AiPlaygroundTargetId,
+  ): Promise<AiPlaygroundPing> {
+    return this.playground.ping(target);
   }
 
   @Post('chat')
