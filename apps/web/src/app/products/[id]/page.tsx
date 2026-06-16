@@ -6,9 +6,7 @@ import {
   Battery,
   BadgeCheck,
   Bolt,
-  Lightbulb,
-  MessagesSquare,
-  Minus,
+  Lightbulb,  Minus,
   PackageOpen,
   ScanBarcode,
   Sparkles,
@@ -41,7 +39,7 @@ import { UsageDurationChart } from '@/components/UsageDurationChart';
 import { ExperienceCard } from '@/components/ExperienceCard';
 import { ExternalRatingsCard } from '@/components/ExternalRatingsCard';
 import { AiInsightCard } from '@/components/AiInsightCard';
-import { QuestionCard } from '@/components/QuestionCard';
+import { QuestionsPanel } from '@/components/QuestionsPanel';
 import { ShowcaseCard } from '@/components/showcase/ShowcaseCard';
 import { LedgerRow } from '@/components/receipt/LedgerRow';
 import { SealBadge } from '@/components/SealBadge';
@@ -582,21 +580,7 @@ export default async function ProductPage({ params }: PageProps) {
           Frage stellen
         </Link>
       </div>
-      {questions.length > 0 ? (
-        <div className="space-y-3">
-          {questions.map((q) => (
-            <QuestionCard key={q.id} question={q} />
-          ))}
-        </div>
-      ) : (
-        <div className="card">
-          <EmptyState
-            icon={<MessagesSquare className="h-7 w-7" strokeWidth={1.8} />}
-            title="Noch keine Fragen"
-            description="Stell den Besitzern, was dich wirklich interessiert."
-          />
-        </div>
-      )}
+      <QuestionsPanel questions={questions} />
     </>
   );
 

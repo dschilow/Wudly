@@ -72,10 +72,13 @@ function AnswerRow({ answer }: { answer: AnswerDto }) {
 export function QuestionCard({
   question,
   onAnswered,
+  embedded = false,
 }: {
   question: QuestionDto;
   /** Called after this user posts an answer (e.g. to drop it from an "open" list). */
   onAnswered?: (answer: AnswerDto) => void;
+  /** Render as an accordion body: drop the card chrome + the big question header. */
+  embedded?: boolean;
 }) {
   const { user } = useAuth();
   const { show } = useToast();
@@ -107,18 +110,20 @@ export function QuestionCard({
   };
 
   return (
-    <article className="card space-y-3.5 p-4">
-      <div>
-        <p className="text-[1.0625rem] font-semibold leading-snug text-label">
-          {question.questionText}
-        </p>
-        <p className="mono-data mt-1 text-[0.6875rem] uppercase tracking-[0.1em] text-faint">
-          {question.authorName ? `${question.authorName} · ` : ''}
-          {formatDate(question.createdAt)}
-          {answers.length > 0 &&
-            ` · ${answers.length} ${answers.length === 1 ? 'Antwort' : 'Antworten'}`}
-        </p>
-      </div>
+    <article className={embedded ? 'space-y-3.5' : 'card space-y-3.5 p-4'}>
+      {!embedded && (
+        <div>
+          <p className="text-[1.0625rem] font-semibold leading-snug text-label">
+            {question.questionText}
+          </p>
+          <p className="mono-data mt-1 text-[0.6875rem] uppercase tracking-[0.1em] text-faint">
+            {question.authorName ? `${question.authorName} · ` : ''}
+            {formatDate(question.createdAt)}
+            {answers.length > 0 &&
+              ` · ${answers.length} ${answers.length === 1 ? 'Antwort' : 'Antworten'}`}
+          </p>
+        </div>
+      )}
 
       {answers.length > 0 && (
         <div className="space-y-3">
@@ -149,7 +154,7 @@ export function QuestionCard({
                 key={opt.value}
                 onClick={() => setQuick((q) => (q === opt.value ? '' : opt.value))}
                 className={`tap-dim rounded-full px-3 py-1 text-[0.8125rem] font-medium transition-colors ${
-                  quick === opt.value ? 'bg-accent text-[#f1efe6]' : 'bg-surface text-label'
+                  quick === opt.value ? 'bg-primary text-primary-foreground' : 'bg-surface text-label'
                 }`}
               >
                 {opt.label}

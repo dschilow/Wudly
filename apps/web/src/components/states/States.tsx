@@ -47,8 +47,32 @@ export function EmptyState({
 export function LoadingState({ label }: { label?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2.5 py-20 text-muted-foreground">
-      <Loader2 className="h-7 w-7 animate-spin text-faint" aria-hidden />
+      <Loader2 className="h-7 w-7 animate-spin text-accent-ink" aria-hidden />
       {label && <span className="text-[0.9375rem]">{label}</span>}
+    </div>
+  );
+}
+
+/**
+ * Signature wait state for the slow, "magic" moments (AI research, camera scan,
+ * score crunching): a luminous accent pulse around a spinner with a calm mono
+ * caption. Turns dead time into a branded beat instead of a blank spinner.
+ */
+export function ThinkingLoader({ label = 'Wudly denkt …' }: { label?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-16">
+      <span className="relative grid h-14 w-14 place-items-center">
+        <span
+          aria-hidden
+          className="animate-verdict-pulse absolute inset-0 rounded-full bg-accent/30 blur-md"
+        />
+        <span className="relative grid h-11 w-11 place-items-center rounded-full bg-accent-soft text-accent-ink">
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+        </span>
+      </span>
+      <span className="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground">
+        {label}
+      </span>
     </div>
   );
 }
