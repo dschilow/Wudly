@@ -1,21 +1,25 @@
 # Deployment auf Railway
 
-Wudly läuft als **drei Services** im Railway-Projekt `wudly`:
+Wudly laeuft als regulaere Services im Railway-Projekt `wudly`. Optional kommen
+separate Gemma-Test-Services dazu:
 
 | Service | Build | Start | Public URL |
 | ------- | ----- | ----- | ---------- |
-| `wudly-api`  | `apps/api/Dockerfile` | `docker-entrypoint.sh` (migrate + start) | `https://wudly-api-production.up.railway.app` |
-| `wudly-web`  | `apps/web/Dockerfile` (Next standalone) | `node apps/web/server.js` | `https://wudly-web-production.up.railway.app` |
-| `Postgres`   | Railway-Plugin | – | intern: `postgres-enfg.railway.internal:5432` |
+| `wudly-api` | `apps/api/Dockerfile` | `docker-entrypoint.sh` (migrate + start) | `https://wudly-api-production.up.railway.app` |
+| `wudly-web` | `apps/web/Dockerfile` (Next standalone) | `node apps/web/server.js` | `https://wudly-web-production.up.railway.app` |
+| `wudly-gemma` | `apps/gemma/Dockerfile` (Ollama) | `start-ollama.sh` | intern: Ollama API, Gemma 4 E4B |
+| `wudly-gemma-e2b` | `apps/gemma/Dockerfile` (Ollama) | `start-ollama.sh` | intern: Ollama API, Gemma 4 E2B |
+| `Postgres` | Railway-Plugin | - | intern: `postgres-enfg.railway.internal:5432` |
 
-Der Build-Kontext beider Dockerfiles ist der **Repo-Root** (Monorepo). Erzwungen wird der
-Dockerfile-Build über die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
+Der Build-Kontext der Dockerfiles ist der Repo-Root (Monorepo). Erzwungen wird
+der Dockerfile-Build ueber die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
 
 ---
 
 ## Variablen pro Service
 
 ### `wudly-api`
+
 | Variable | Wert |
 | -------- | ---- |
 | `DATABASE_URL` | `${{Postgres-eNfg.DATABASE_URL}}` (Referenz) |
@@ -24,65 +28,127 @@ Dockerfile-Build über die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
 | `CORS_ORIGIN` | `https://wudly-web-production.up.railway.app` |
 | `COOKIE_SECURE` | `true` |
 | `NODE_ENV` | `production` |
-| `AI_PROVIDER` | `openrouter` |
-| `OPENROUTER_API_KEY` | OpenRouter API-Key |
+| `PORT` | von Railway gesetzt |
+| `AI_PROVIDER` | `openrouter` oder fuer Gemma-Test `ollama` |
+| `OPENROUTER_API_KEY` | OpenRouter API-Key, nur bei `AI_PROVIDER=openrouter` |
 | `OPENROUTER_MODEL` | `google/gemini-3.1-flash-lite` |
 | `OPENROUTER_SITE_URL` | `https://wudly-web-production.up.railway.app` |
 | `OPENROUTER_APP_TITLE` | `Wudly` |
-| `ICECAT_USERNAME` | optional, Open-Icecat-Account fÃ¼r offizielle EAN-Daten |
+| `OLLAMA_BASE_URL` | nur bei Gemma-Test: `http://wudly-gemma.railway.internal:11434` oder `http://wudly-gemma-e2b.railway.internal:11434` |
+| `OLLAMA_MODEL` | nur bei Gemma-Test: `gemma4:e4b` oder `gemma4:e2b` |
+| `ICECAT_USERNAME` | optional, Open-Icecat-Account |
 | `ICECAT_API_TOKEN` | optional |
-| `GOOGLE_CSE_KEY` | optional, Google Programmable Search API-Key |
-| `GOOGLE_CSE_ID` | optional, Programmable Search Engine ID |
-| `VAPID_PUBLIC_KEY` | optional, Web-Push Public Key |
-| `VAPID_PRIVATE_KEY` | optional, Web-Push Private Key |
-| `VAPID_SUBJECT` | `mailto:hallo@wudly.app` |
+| `GOOGLE_CSE_KEY` / `GOOGLE_CSE_ID` | optional, Google Programmable Search |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | optional, Web Push |
 | `RAILWAY_DOCKERFILE_PATH` | `apps/api/Dockerfile` |
-| `PORT` | (von Railway gesetzt — der Code liest `process.env.PORT`) |
 
 ### `wudly-web`
+
 | Variable | Wert |
 | -------- | ---- |
-| `NEXT_PUBLIC_API_URL` | `https://wudly-api-production.up.railway.app/api` |
+| `NEXT_PUBLIC_API_URL` | `https://<api-domain>/api` |
 | `NODE_ENV` | `production` |
 | `RAILWAY_DOCKERFILE_PATH` | `apps/web/Dockerfile` |
 
-> `NEXT_PUBLIC_API_URL` wird zur **Build-Zeit** in das Client-Bundle gebacken (das Dockerfile nimmt es
-> als `ARG`). Nach einer Änderung dieser Variable muss `wudly-web` neu gebaut werden.
+`NEXT_PUBLIC_API_URL` wird zur Build-Zeit in das Client-Bundle gebacken. Nach
+einer Aenderung dieser Variable muss `wudly-web` neu gebaut werden.
+
+### `wudly-gemma` (optional, Gemma 4 E4B Test)
+
+| Variable | Wert |
+| -------- | ---- |
+| `GEMMA_MODEL` | `gemma4:e4b` |
+| `OLLAMA_KEEP_ALIVE` | `30m` |
+| `PORT` | `11434` |
+| `RAILWAY_DOCKERFILE_PATH` | `apps/gemma/Dockerfile` |
+
+Empfohlen: Railway Volume auf `/root/.ollama` mounten, sonst wird `gemma4:e4b`
+bei jedem frischen Deploy neu geladen. Das Ollama-Modell ist ca. 9.6 GB gross;
+plane fuer den Service mindestens grob 12-16 GB RAM ein, je nach Context/Last.
+
+### `wudly-gemma-e2b` (optional, Gemma 4 E2B Test)
+
+| Variable | Wert |
+| -------- | ---- |
+| `GEMMA_MODEL` | `gemma4:e2b` |
+| `OLLAMA_KEEP_ALIVE` | `30m` |
+| `PORT` | `11434` |
+| `RAILWAY_DOCKERFILE_PATH` | `apps/gemma/Dockerfile` |
+
+Empfohlen: eigene Railway Volume auf `/root/.ollama` mounten. So koennen E4B
+und E2B parallel laufen und ihre Modellgewichte getrennt cachen.
 
 ---
 
 ## Erstmaliges Setup (Railway CLI)
 
 ```bash
-# Einloggen (öffnet den Browser)
 railway login
-
-# Projekt anlegen
 railway init --name wudly
-
-# Postgres-Plugin hinzufügen
 railway add --database postgres
 
-# Services anlegen (Variablen können direkt mitgegeben werden)
-railway add --service wudly-api  --variables "NODE_ENV=production" --variables "JWT_SECRET=..." ...
-railway add --service wudly-web  --variables "NODE_ENV=production"
+railway add --service wudly-api --variables "NODE_ENV=production" --variables "JWT_SECRET=..."
+railway add --service wudly-web --variables "NODE_ENV=production"
+railway add --service wudly-gemma --variables "GEMMA_MODEL=gemma4:e4b" --variables "PORT=11434"
+railway add --service wudly-gemma-e2b --variables "GEMMA_MODEL=gemma4:e2b" --variables "PORT=11434"
 
-# Domains generieren
 railway domain --service wudly-api
 railway domain --service wudly-web
 
-# Cross-Service-Variablen setzen
 railway variables --service wudly-api --set "CORS_ORIGIN=https://<web-domain>"
 railway variables --service wudly-web --set "NEXT_PUBLIC_API_URL=https://<api-domain>/api"
 railway variables --service wudly-api --set "RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile"
 railway variables --service wudly-web --set "RAILWAY_DOCKERFILE_PATH=apps/web/Dockerfile"
+railway variables --service wudly-gemma --set "RAILWAY_DOCKERFILE_PATH=apps/gemma/Dockerfile"
+railway variables --service wudly-gemma-e2b --set "RAILWAY_DOCKERFILE_PATH=apps/gemma/Dockerfile"
 ```
+
+## Gemma 4 E4B und E2B testen
+
+1. Gewuenschtes Modell-Service deployen:
+
+```bash
+railway up --service wudly-gemma --ci
+railway up --service wudly-gemma-e2b --ci
+```
+
+2. `wudly-api` temporaer auf E4B umstellen:
+
+```bash
+railway variables --service wudly-api --set "AI_PROVIDER=ollama"
+railway variables --service wudly-api --set "OLLAMA_MODEL=gemma4:e4b"
+railway variables --service wudly-api --set "OLLAMA_BASE_URL=http://wudly-gemma.railway.internal:11434"
+railway up --service wudly-api --ci
+```
+
+Oder temporaer auf E2B:
+
+```bash
+railway variables --service wudly-api --set "AI_PROVIDER=ollama"
+railway variables --service wudly-api --set "OLLAMA_MODEL=gemma4:e2b"
+railway variables --service wudly-api --set "OLLAMA_BASE_URL=http://wudly-gemma-e2b.railway.internal:11434"
+railway up --service wudly-api --ci
+```
+
+3. Live pruefen:
+
+```bash
+curl "https://<api-domain>/api/health/ai?test=1"
+```
+
+Wichtig: Der Ollama-Pfad hat keine Websuche. Wudly-Funktionen, die `online: true`
+nutzen (`researchProduct`, `suggestProducts`, `researchExternalRatings`), fallen
+automatisch auf den Dummy-/Fallback-Pfad zurueck. Fuer den Vergleich mit Gemini
+sind vor allem Produktnormalisierung, Erfahrungstext-Normalisierung, Fragevorschlaege
+und AI-Zusammenfassungen aussagekraeftig.
 
 ## Deployen
 
 ```bash
-railway up --service wudly-api --ci    # Backend (führt beim Start prisma migrate deploy aus)
-railway up --service wudly-web --ci    # Frontend
+railway up --service wudly-api --ci
+railway up --service wudly-web --ci
+railway up --service wudly-gemma --ci
+railway up --service wudly-gemma-e2b --ci
 ```
 
 Build-Logs live: `railway logs --service <name> --build`.
@@ -90,27 +156,31 @@ Laufzeit-Logs: `railway logs --service <name>`.
 
 ## Datenbank: Migration & Seed
 
-- **Migrationen** laufen automatisch beim Start des API-Containers
-  (`apps/api/docker-entrypoint.sh` → `prisma migrate deploy`).
-- **Seed** (einmalig, optional) von lokal gegen die Railway-DB über den **öffentlichen** Proxy —
-  ohne Credentials im Klartext anzuzeigen:
+Migrationen laufen automatisch beim Start des API-Containers
+(`apps/api/docker-entrypoint.sh` -> `prisma migrate deploy`).
+
+Seed einmalig, optional, von lokal gegen die Railway-DB ueber den oeffentlichen
+Proxy:
 
 ```bash
 railway run --service "Postgres-eNfg" \
   sh -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" pnpm --filter @wudly/api prisma:seed'
 ```
 
-> `railway run` injiziert standardmäßig die **internen** URLs (`*.railway.internal`), die nur innerhalb
-> Railways erreichbar sind. Für lokale Einmal-Aktionen (Seed/Inspektion) nutzt man `DATABASE_PUBLIC_URL`.
+`railway run` injiziert standardmaessig interne URLs (`*.railway.internal`), die
+nur innerhalb Railways erreichbar sind. Fuer lokale Einmal-Aktionen nutzt man
+`DATABASE_PUBLIC_URL`.
 
 ## Healthcheck
 
-`wudly-api` ist über `GET /api/health` prüfbar; in `apps/api/railway.json` als Healthcheck-Pfad hinterlegt.
+`wudly-api` ist ueber `GET /api/health` pruefbar.
+Der AI-Status ist ueber `GET /api/health/ai` sichtbar; mit `?test=1` wird ein
+Live-Probe gegen OpenRouter oder Ollama ausgefuehrt.
 
 ## Troubleshooting
 
-- **„No start command detected" / Railpack statt Docker:** `RAILWAY_DOCKERFILE_PATH` auf dem Service setzen.
-- **„flag '--mount=type=cache' is missing the cacheKey prefix":** Railways Builder akzeptiert das
-  BuildKit-Cache-Mount nicht — es ist aus den Dockerfiles entfernt.
-- **API erreichbar, aber DB-Fehler:** prüfen, ob `DATABASE_URL` als `${{Postgres-….DATABASE_URL}}`-Referenz gesetzt ist.
-- **CORS-Fehler im Browser:** `CORS_ORIGIN` (api) muss exakt der Web-Domain entsprechen, `COOKIE_SECURE=true` in prod.
+- "No start command detected" / Railpack statt Docker: `RAILWAY_DOCKERFILE_PATH` auf dem Service setzen.
+- API erreichbar, aber DB-Fehler: pruefen, ob `DATABASE_URL` als `${{Postgres-....DATABASE_URL}}`-Referenz gesetzt ist.
+- CORS-Fehler im Browser: `CORS_ORIGIN` muss exakt der Web-Domain entsprechen, `COOKIE_SECURE=true` in Produktion.
+- Gemma-Services starten langsam: erster Start laedt das jeweilige Modell; ein Volume auf `/root/.ollama` vermeidet erneute Downloads.
+- `GET /api/health/ai?test=1` kann bei Ollama lange blockieren, weil es das Modell wirklich laedt. Fuer UI-kritische Pfade lieber konkrete Endpunkte mit eigenem Timeout testen.

@@ -56,6 +56,65 @@ export interface RegretAssessment {
   summary: string;
 }
 
+/* ------------------------------------------------------------------ *
+ * Model playground (admin benchmarking tool)
+ *
+ * Lets an admin send a free-form prompt to a specific model and compare the
+ * cloud model (Gemini Flash Lite via OpenRouter) against the self-hosted Gemma
+ * variants on Railway — measuring latency, token usage and answer quality.
+ * ------------------------------------------------------------------ */
+
+export type AiPlaygroundTargetId = 'openrouter' | 'gemma-4b' | 'gemma-2b';
+
+export interface AiPlaygroundTarget {
+  id: AiPlaygroundTargetId;
+  /** Short human label, e.g. "Gemini Flash Lite (Cloud)". */
+  label: string;
+  provider: 'openrouter' | 'ollama';
+  model: string;
+  /** Where requests go: "openrouter.ai" or the Ollama host. */
+  endpoint: string;
+  /** False when a required credential/URL is missing. */
+  configured: boolean;
+  /** Paid cloud model vs self-hosted compute. */
+  kind: 'cloud' | 'self-hosted';
+  hint?: string;
+}
+
+export interface AiPlaygroundMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AiPlaygroundChatRequest {
+  targetId: AiPlaygroundTargetId;
+  messages: AiPlaygroundMessage[];
+  /** Sampling temperature 0..2 (default 0.7). */
+  temperature?: number;
+  /** Max output tokens (default 800). */
+  maxTokens?: number;
+}
+
+export interface AiPlaygroundUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+
+export interface AiPlaygroundReply {
+  targetId: AiPlaygroundTargetId;
+  provider: 'openrouter' | 'ollama';
+  model: string;
+  ok: boolean;
+  text: string;
+  error?: string;
+  /** End-to-end wall-clock latency in ms (includes any cold start). */
+  latencyMs: number;
+  usage?: AiPlaygroundUsage;
+  /** Generation throughput (completion tokens / sec) when available. */
+  tokensPerSecond?: number;
+}
+
 /** Live web research result used to auto-create a product the catalog lacks. */
 export interface ResearchedProduct {
   canonicalName: string;

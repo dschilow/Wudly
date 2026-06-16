@@ -58,6 +58,9 @@ import type {
   ReorderBlocksInput,
   ExternalRatingDto,
   UpsertExternalRatingInput,
+  AiPlaygroundTarget,
+  AiPlaygroundReply,
+  AiPlaygroundChatRequest,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -265,6 +268,15 @@ export const api = {
     templates: (opts?: RequestOptions) => apiFetch<ProductTemplateDto[]>('/templates', opts),
     templatesForCategory: (categorySlug: string, opts?: RequestOptions) =>
       apiFetch<ProductTemplateDto[]>(`/templates/category/${categorySlug}`, opts),
+  },
+
+  ai: {
+    /** Admin-only model playground: list benchmarkable targets. */
+    playgroundTargets: (opts?: RequestOptions) =>
+      apiFetch<AiPlaygroundTarget[]>('/ai/playground/targets', opts),
+    /** Admin-only: send one prompt to one target and get the answer + metrics. */
+    playgroundChat: (input: AiPlaygroundChatRequest) =>
+      apiFetch<AiPlaygroundReply>('/ai/playground/chat', { method: 'POST', json: input }),
   },
 
   admin: {

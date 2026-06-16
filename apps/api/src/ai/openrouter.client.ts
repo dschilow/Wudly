@@ -20,6 +20,35 @@ export interface ChatMessage {
   content: string | ChatContentPart[];
 }
 
+export interface JsonChatClient {
+  readonly modelChain: readonly string[];
+  completeJson(
+    messages: ChatMessage[],
+    opts?: { temperature?: number; maxTokens?: number; online?: boolean; timeoutMs?: number },
+  ): Promise<string | null>;
+  ping(): Promise<{ ok: boolean; model?: string; error?: string }>;
+}
+
+/** Token usage for a single chat completion (provider-normalised). */
+export interface ChatUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+
+/** Result of a plain-text chat completion (used by the admin model playground). */
+export interface ChatTextResult {
+  ok: boolean;
+  /** The model actually used for this call. */
+  model: string;
+  text?: string;
+  error?: string;
+  status?: number;
+  usage?: ChatUsage;
+  /** Generation throughput (completion tokens / sec) when the provider reports it. */
+  tokensPerSecond?: number;
+}
+
 /**
  * Minimal OpenRouter chat client.
  *
@@ -28,7 +57,7 @@ export interface ChatMessage {
  * handling (retry the next model on 4xx/5xx). Returns the raw assistant string;
  * callers parse + validate the JSON themselves (never trust model output blindly).
  */
-export class OpenRouterClient {
+export class OpenRouterClient implements JsonChatClient {
   private readonly logger = new Logger(OpenRouterClient.name);
   private readonly models: string[];
 
@@ -55,7 +84,7 @@ export class OpenRouterClient {
    */
   async completeJson(
     messages: ChatMessage[],
-    opts: { temperature?: number; maxTokens?: number; online?: boolean } = {},
+    opts: { temperature?: number; maxTokens?: number; online?: boolean; timeoutMs?: number } = {},
   ): Promise<string | null> {
     let lastError: string | null = null;
 
@@ -97,10 +126,62 @@ export class OpenRouterClient {
     return { ok: false, error: lastError ?? 'unknown error' };
   }
 
+  /**
+   * Plain-text chat completion against the *primary* configured model (no JSON
+   * constraint, no fallback chain). Returns the assistant text plus token usage
+   * so the model playground can benchmark latency, cost and quality fairly.
+   */
+  async chat(
+    messages: ChatMessage[],
+    opts: { temperature?: number; maxTokens?: number; timeoutMs?: number } = {},
+  ): Promise<ChatTextResult> {
+    const model = this.options.model;
+    try {
+      const response = await fetch(OPENROUTER_CHAT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.options.apiKey}`,
+          'HTTP-Referer': this.options.siteUrl ?? 'https://wudly.app',
+          'X-Title': this.options.appTitle,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: opts.temperature ?? 0.7,
+          max_tokens: opts.maxTokens ?? 800,
+        }),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        return { ok: false, model, status: response.status, error: `HTTP ${response.status} ${truncate(text)}` };
+      }
+
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      };
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      const usage = data.usage
+        ? {
+            promptTokens: data.usage.prompt_tokens,
+            completionTokens: data.usage.completion_tokens,
+            totalTokens: data.usage.total_tokens,
+          }
+        : undefined;
+      if (!content.trim()) return { ok: false, model, error: 'empty content', usage };
+      return { ok: true, model, text: content, usage };
+    } catch (err) {
+      return { ok: false, model, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   private async callModel(
     model: string,
     messages: ChatMessage[],
-    opts: { temperature?: number; maxTokens?: number; online?: boolean },
+    opts: { temperature?: number; maxTokens?: number; online?: boolean; timeoutMs?: number },
     mode: 'json' | 'plain',
   ): Promise<{ ok: boolean; content?: string; status?: number; error?: string }> {
     try {
@@ -125,7 +206,7 @@ export class OpenRouterClient {
           'X-Title': this.options.appTitle,
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? 25_000),
       });
 
       if (!response.ok) {

@@ -4,8 +4,12 @@ import { AI_SERVICE, type AiService } from '@wudly/shared';
 import { DummyAiService } from './dummy-ai.service';
 import { OpenRouterAiService } from './openrouter-ai.service';
 import { OpenRouterClient } from './openrouter.client';
+import { OllamaClient } from './ollama.client';
 import { AiHealthService } from './ai-health.service';
+import { AiPlaygroundService } from './ai-playground.service';
+import { AiController } from './ai.controller';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthModule } from '../auth/auth.module';
 import { resolveAiProvider, type AppConfig } from '../config/configuration';
 
 /**
@@ -19,9 +23,12 @@ import { resolveAiProvider, type AppConfig } from '../config/configuration';
  */
 @Global()
 @Module({
+  imports: [AuthModule],
+  controllers: [AiController],
   providers: [
     DummyAiService,
     AiHealthService,
+    AiPlaygroundService,
     {
       provide: AI_SERVICE,
       inject: [ConfigService, DummyAiService, PrismaService],
@@ -53,6 +60,16 @@ import { resolveAiProvider, type AppConfig } from '../config/configuration';
           return new OpenRouterAiService(client, dummy, prisma);
         }
 
+        if (provider === 'ollama') {
+          const ollamaModel = config.get('OLLAMA_MODEL', { infer: true });
+          const client = new OllamaClient({
+            baseUrl: config.get('OLLAMA_BASE_URL', { infer: true }),
+            model: ollamaModel,
+          });
+          logger.log(`AI provider: Ollama (model=${ollamaModel})`);
+          return new OpenRouterAiService(client, dummy, prisma);
+        }
+
         if (apiKey) {
           logger.warn(
             `OPENROUTER_API_KEY is set but AI_PROVIDER="${process.env.AI_PROVIDER}" → AI disabled. ` +
@@ -64,6 +81,6 @@ import { resolveAiProvider, type AppConfig } from '../config/configuration';
       },
     },
   ],
-  exports: [AI_SERVICE, AiHealthService],
+  exports: [AI_SERVICE, AiHealthService, AiPlaygroundService],
 })
 export class AiModule {}

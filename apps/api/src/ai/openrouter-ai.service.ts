@@ -20,7 +20,7 @@ import {
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { DummyAiService } from './dummy-ai.service';
-import { OpenRouterClient, parseJsonObject, type ChatMessage } from './openrouter.client';
+import { parseJsonObject, type ChatMessage, type JsonChatClient } from './openrouter.client';
 
 /* ----- Zod schemas to validate model output (never trust it raw) ----- */
 
@@ -126,7 +126,7 @@ export class OpenRouterAiService implements AiService {
   private readonly logger = new Logger(OpenRouterAiService.name);
 
   constructor(
-    private readonly client: OpenRouterClient,
+    private readonly client: JsonChatClient,
     private readonly fallback: DummyAiService,
     private readonly prisma: PrismaService,
   ) {}
@@ -302,15 +302,21 @@ export class OpenRouterAiService implements AiService {
     ];
 
     const parsed = questionsSchema.safeParse(
-      parseJsonObject(await this.client.completeJson(messages, { temperature: 0.7, maxTokens: 300 })),
+      parseJsonObject(
+        await this.client.completeJson(messages, {
+          temperature: 0.7,
+          maxTokens: 180,
+          timeoutMs: 5_000,
+        }),
+      ),
     );
     const questions = parsed.success
       ? parsed.data.questions.filter((q) => q.trim().length > 0)
       : [];
 
-    // Top up from the curated list if the model returned too few.
+    // Top up from product/category-aware prompts if the local model is too slow.
     if (questions.length < 3) {
-      for (const q of COMMON_QUESTIONS) {
+      for (const q of fallbackOwnerQuestions(product.canonicalName, product.category?.name ?? null)) {
         if (questions.length >= 4) break;
         if (!questions.includes(q)) questions.push(q);
       }
@@ -507,4 +513,52 @@ export class OpenRouterAiService implements AiService {
       }))
       .filter((r) => r.source.length >= 2);
   }
+}
+
+function fallbackOwnerQuestions(productName: string, categoryName: string | null): string[] {
+  const category = (categoryName ?? '').toLowerCase();
+  const name = productName.trim();
+
+  if (category.includes('waschmaschine')) {
+    return [
+      'Wie laut ist sie beim Schleudern im Alltag?',
+      'Wie gut wäscht sie kurze Programme sauber?',
+      'Wie zuverlässig ist sie nach mehreren Monaten?',
+      'Wie einfach lassen sich Dichtung und Filter reinigen?',
+    ];
+  }
+
+  if (category.includes('saugroboter')) {
+    return [
+      'Wie gut kommt er mit Teppichen und Kanten zurecht?',
+      'Wie oft muss man Behälter oder Bürsten reinigen?',
+      'Findet er nach längerer Nutzung zuverlässig zur Station?',
+      'Wie gut erkennt er Kabel, Socken und kleine Hindernisse?',
+    ];
+  }
+
+  if (category.includes('wärmepumpe') || category.includes('waermepumpe')) {
+    return [
+      'Wie stabil läuft sie bei niedrigen Außentemperaturen?',
+      'Wie laut ist sie draußen im normalen Betrieb?',
+      'Wie hoch ist der Stromverbrauch im Winter?',
+      'Wie aufwendig waren Wartung und Service bisher?',
+    ];
+  }
+
+  if (category.includes('kaffeemaschine')) {
+    return [
+      'Wie gut schmeckt Kaffee nach mehreren Monaten Nutzung?',
+      'Wie oft muss man reinigen oder entkalken?',
+      'Wie laut ist Mahlwerk oder Pumpe morgens?',
+      'Gab es Probleme mit Brüheinheit oder Milchsystem?',
+    ];
+  }
+
+  return [
+    `Was nervt dich im Alltag an ${name}?`,
+    'Wie zuverlässig ist es nach mehreren Monaten?',
+    'Wie gut funktioniert es im Vergleich zur Erwartung?',
+    'Würdest du es zum heutigen Preis wieder kaufen?',
+  ];
 }

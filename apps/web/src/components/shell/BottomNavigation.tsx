@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'motion/react';
-import { Box, Compass, Search, User, type LucideIcon } from 'lucide-react';
+import { Box, Compass, FlaskConical, Search, User, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth-context';
 
 interface NavItem {
   href: string;
@@ -13,7 +14,7 @@ interface NavItem {
   match: (path: string) => boolean;
 }
 
-const items: NavItem[] = [
+const BASE_ITEMS: NavItem[] = [
   {
     href: '/check',
     label: 'Prüfen',
@@ -35,6 +36,14 @@ const items: NavItem[] = [
   },
 ];
 
+/** Admin-only model benchmarking tab, appended for ADMIN users. */
+const KI_ITEM: NavItem = {
+  href: '/ki-test',
+  label: 'KI-Test',
+  icon: FlaskConical,
+  match: (p) => p.startsWith('/ki-test'),
+};
+
 /**
  * Floating dock — a detached pill that hovers above the content instead of a
  * full-width system tab bar. The active tab gets a green ink platter that
@@ -42,6 +51,8 @@ const items: NavItem[] = [
  */
 export function BottomNavigation() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const items = user?.role === 'ADMIN' ? [...BASE_ITEMS, KI_ITEM] : BASE_ITEMS;
 
   return (
     <nav

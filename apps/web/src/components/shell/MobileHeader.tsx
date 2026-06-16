@@ -6,9 +6,15 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMotionValueEvent, useScroll } from 'motion/react';
 import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth-context';
 
-const ROOT_ROUTES = new Set(['/', '/check', '/rankings', '/me/products', '/me']);
-const DESKTOP_ITEMS = [
+const ROOT_ROUTES = new Set(['/', '/check', '/rankings', '/me/products', '/me', '/ki-test']);
+interface DesktopItem {
+  href: string;
+  label: string;
+  match: (p: string) => boolean;
+}
+const BASE_DESKTOP_ITEMS: DesktopItem[] = [
   { href: '/check', label: 'Prüfen', match: (p: string) => p === '/' || p.startsWith('/check') },
   { href: '/rankings', label: 'Entdecken', match: (p: string) => p.startsWith('/rankings') },
   { href: '/me/products', label: 'Besitzen', match: (p: string) => p.startsWith('/me/products') },
@@ -18,11 +24,17 @@ const DESKTOP_ITEMS = [
     match: (p: string) => p === '/me' || (p.startsWith('/me/') && !p.startsWith('/me/products')),
   },
 ];
+/** Admin-only model benchmarking entry. */
+const KI_DESKTOP_ITEM: DesktopItem = {
+  href: '/ki-test',
+  label: 'KI-Test',
+  match: (p: string) => p.startsWith('/ki-test'),
+};
 
-function DesktopNav({ pathname }: { pathname: string }) {
+function DesktopNav({ pathname, items }: { pathname: string; items: DesktopItem[] }) {
   return (
     <nav className="hidden items-center gap-1 md:flex" aria-label="Hauptnavigation">
-      {DESKTOP_ITEMS.map((item) => {
+      {items.map((item) => {
         const active = item.match(pathname);
         return (
           <Link
@@ -51,6 +63,9 @@ function DesktopNav({ pathname }: { pathname: string }) {
 export function MobileHeader() {
   const pathname = usePathname();
   const router = useRouter();
+  const { user } = useAuth();
+  const desktopItems =
+    user?.role === 'ADMIN' ? [...BASE_DESKTOP_ITEMS, KI_DESKTOP_ITEM] : BASE_DESKTOP_ITEMS;
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = useState(false);
 
@@ -80,7 +95,7 @@ export function MobileHeader() {
               Wudly
             </span>
           </Link>
-          <DesktopNav pathname={pathname} />
+          <DesktopNav pathname={pathname} items={desktopItems} />
         </div>
       </header>
     );
@@ -94,7 +109,7 @@ export function MobileHeader() {
             Wudly
           </span>
         </Link>
-        <DesktopNav pathname={pathname} />
+        <DesktopNav pathname={pathname} items={desktopItems} />
         <span className="mono-data pb-0.5 text-[0.625rem] uppercase tracking-[0.22em] text-muted-foreground md:hidden">
           Echte Besitzer
         </span>

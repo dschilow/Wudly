@@ -16,13 +16,21 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
-  AI_PROVIDER: z.enum(['dummy', 'openrouter', 'openai', 'gemini', 'anthropic']).default('dummy'),
+  AI_PROVIDER: z.enum(['dummy', 'openrouter', 'ollama', 'openai', 'gemini', 'anthropic']).default('dummy'),
   // OpenRouter (used when AI_PROVIDER=openrouter). Key is optional so the app
   // still boots without it and transparently falls back to the deterministic AI.
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_MODEL: z.string().default('google/gemini-3.1-flash-lite'),
   OPENROUTER_SITE_URL: z.string().optional(),
   OPENROUTER_APP_TITLE: z.string().default('Wudly'),
+  // Ollama-compatible local model service. Used when AI_PROVIDER=ollama.
+  OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),
+  OLLAMA_MODEL: z.string().default('gemma4:e4b'),
+  // Second self-hosted Gemma (smaller 2B/E2B variant), used by the admin model
+  // playground to benchmark it against the 4B model and the cloud model. When
+  // OLLAMA_2B_BASE_URL is unset, the playground reuses OLLAMA_BASE_URL.
+  OLLAMA_2B_BASE_URL: z.string().url().optional(),
+  OLLAMA_2B_MODEL: z.string().default('gemma4:e2b'),
   // Web Push (VAPID). Optional so the app boots without them; push is simply
   // disabled until all three are set. Generate with `npx web-push generate-vapid-keys`.
   VAPID_PUBLIC_KEY: z.string().optional(),
@@ -73,10 +81,11 @@ export function parseCorsOrigins(value: string): string[] {
 export function resolveAiProvider(env: {
   AI_PROVIDER?: string;
   OPENROUTER_API_KEY?: string;
-}): 'openrouter' | 'dummy' {
+}): 'openrouter' | 'ollama' | 'dummy' {
   const explicit = env.AI_PROVIDER?.trim();
   const hasKey = Boolean(env.OPENROUTER_API_KEY && env.OPENROUTER_API_KEY.trim().length > 0);
   if (explicit === 'openrouter') return 'openrouter';
+  if (explicit === 'ollama') return 'ollama';
   if (!explicit && hasKey) return 'openrouter';
   return 'dummy';
 }
