@@ -199,6 +199,8 @@ export interface QuestionDto {
   status: QuestionStatus;
   answers: AnswerDto[];
   answerCount: number;
+  /** How many people own this product — the denominator for answer progress. */
+  ownerCount: number;
   createdAt: string;
 }
 

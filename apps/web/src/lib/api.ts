@@ -205,6 +205,8 @@ export const api = {
       apiFetch<{ count: number }>('/me/notifications/unread-count', opts),
     openQuestions: (opts?: RequestOptions) =>
       apiFetch<OpenQuestionDto[]>('/me/notifications/open-questions', opts),
+    myQuestions: (opts?: RequestOptions) =>
+      apiFetch<OpenQuestionDto[]>('/me/notifications/my-questions', opts),
     markRead: (id: string) => apiFetch<void>(`/me/notifications/${id}/read`, { method: 'PATCH' }),
     markAllRead: () => apiFetch<void>('/me/notifications/read-all', { method: 'PATCH' }),
     pushKey: (opts?: RequestOptions) =>

@@ -89,6 +89,12 @@ export class NotificationsController {
     return this.questions.listOpenForOwner(user.id);
   }
 
+  /** Questions the current user asked, with answer progress — the "my questions" inbox. */
+  @Get('my-questions')
+  myQuestions(@CurrentUser() user: AuthUser): Promise<OpenQuestionDto[]> {
+    return this.questions.listAskedByUser(user.id);
+  }
+
   @Patch(':id/read')
   @HttpCode(HttpStatus.NO_CONTENT)
   async markRead(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<void> {

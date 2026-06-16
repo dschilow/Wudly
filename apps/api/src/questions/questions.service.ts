@@ -35,12 +35,15 @@ export class QuestionsService {
     });
     if (!exists) throw new NotFoundException('Produkt nicht gefunden.');
 
-    const questions = await this.prisma.productQuestion.findMany({
-      where: { productId, status: { not: 'HIDDEN' } },
-      include: QUESTION_INCLUDE,
-      orderBy: { createdAt: 'desc' },
-    });
-    return questions.map((q) => toQuestionDto(q as QuestionWithRelations));
+    const [questions, ownerCount] = await Promise.all([
+      this.prisma.productQuestion.findMany({
+        where: { productId, status: { not: 'HIDDEN' } },
+        include: QUESTION_INCLUDE,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.ownership.count({ where: { productId } }),
+    ]);
+    return questions.map((q) => toQuestionDto(q as QuestionWithRelations, ownerCount));
   }
 
   /**
@@ -70,10 +73,41 @@ export class QuestionsService {
       take: 50,
     });
 
+    const ownerCounts = await this.ownerCountMap(productIds);
     return questions.map((q) => ({
-      question: toQuestionDto(q as unknown as QuestionWithRelations),
+      question: toQuestionDto(q as unknown as QuestionWithRelations, ownerCounts.get(q.productId) ?? 0),
       product: toProductSummaryDto(q.product as ProductWithRelations),
     }));
+  }
+
+  /** Questions the given user asked, newest first, with answer progress + product context. */
+  async listAskedByUser(userId: string): Promise<OpenQuestionDto[]> {
+    const questions = await this.prisma.productQuestion.findMany({
+      where: { askedByUserId: userId, status: { not: 'HIDDEN' } },
+      include: {
+        ...QUESTION_INCLUDE,
+        product: { include: { category: true, insightSnapshot: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    if (questions.length === 0) return [];
+    const ownerCounts = await this.ownerCountMap(questions.map((q) => q.productId));
+    return questions.map((q) => ({
+      question: toQuestionDto(q as unknown as QuestionWithRelations, ownerCounts.get(q.productId) ?? 0),
+      product: toProductSummaryDto(q.product as ProductWithRelations),
+    }));
+  }
+
+  /** owners-per-product counts for a set of products, as a lookup map. */
+  private async ownerCountMap(productIds: string[]): Promise<Map<string, number>> {
+    if (productIds.length === 0) return new Map();
+    const grouped = await this.prisma.ownership.groupBy({
+      by: ['productId'],
+      where: { productId: { in: productIds } },
+      _count: { _all: true },
+    });
+    return new Map(grouped.map((g) => [g.productId, g._count._all]));
   }
 
   async createQuestion(

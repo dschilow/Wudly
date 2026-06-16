@@ -21,7 +21,7 @@ export function toAnswerDto(answer: AnswerWithAuthor): AnswerDto {
   };
 }
 
-export function toQuestionDto(question: QuestionWithRelations): QuestionDto {
+export function toQuestionDto(question: QuestionWithRelations, ownerCount = 0): QuestionDto {
   const answers = [...question.answers]
     .sort((a, b) => b.helpfulCount - a.helpfulCount || +a.createdAt - +b.createdAt)
     .map(toAnswerDto);
@@ -34,6 +34,7 @@ export function toQuestionDto(question: QuestionWithRelations): QuestionDto {
     status: question.status,
     answers,
     answerCount: answers.length,
+    ownerCount,
     createdAt: question.createdAt.toISOString(),
   };
 }

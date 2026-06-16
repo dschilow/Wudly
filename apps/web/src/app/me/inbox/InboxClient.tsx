@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { motion } from 'motion/react';
 import { Bell, MessageCircleQuestion, ThumbsUp, Package, Clock3 } from 'lucide-react';
 import type {
   NotificationDto,
@@ -32,17 +33,20 @@ export function InboxClient() {
 
   const [data, setData] = useState<NotificationListDto | null>(null);
   const [openQuestions, setOpenQuestions] = useState<OpenQuestionDto[] | null>(null);
+  const [myQuestions, setMyQuestions] = useState<OpenQuestionDto[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [list, open] = await Promise.all([
+      const [list, open, mine] = await Promise.all([
         api.notifications.list(30, { cache: 'no-store' }),
         api.notifications.openQuestions({ cache: 'no-store' }),
+        api.notifications.myQuestions({ cache: 'no-store' }),
       ]);
       setData(list);
       setOpenQuestions(open);
+      setMyQuestions(mine);
     } finally {
       setLoading(false);
     }
@@ -89,6 +93,16 @@ export function InboxClient() {
         </div>
       ) : (
         <>
+          {/* My own questions — answer progress across owners */}
+          {myQuestions && myQuestions.length > 0 && (
+            <section className="space-y-2.5">
+              <SectionLabel>Meine Fragen · {myQuestions.length}</SectionLabel>
+              {myQuestions.map((mq) => (
+                <MyQuestionRow key={mq.question.id} item={mq} />
+              ))}
+            </section>
+          )}
+
           {/* Open questions on products I own — the "answer the owner" inbox */}
           {openQuestions && openQuestions.length > 0 && (
             <section className="space-y-2.5">
@@ -124,7 +138,8 @@ export function InboxClient() {
                 ))}
               </div>
             ) : (
-              openQuestions?.length === 0 && (
+              (openQuestions?.length ?? 0) === 0 &&
+              (myQuestions?.length ?? 0) === 0 && (
                 <div className="rounded-[var(--radius-lg)] bg-surface">
                   <EmptyState
                     title="Noch nichts hier"
@@ -145,6 +160,41 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     <h2 className="px-1 text-[0.8125rem] uppercase tracking-[0.02em] text-muted-foreground">
       {children}
     </h2>
+  );
+}
+
+/** One of my asked questions, with a live "X von Y Besitzern haben geantwortet" bar. */
+function MyQuestionRow({ item }: { item: OpenQuestionDto }) {
+  const { question, product } = item;
+  const total = question.ownerCount;
+  const answered = Math.min(question.answerCount, total > 0 ? total : question.answerCount);
+  const pct = total > 0 ? Math.round((answered / total) * 100) : answered > 0 ? 100 : 0;
+
+  return (
+    <Link href={`/products/${product.id}`} className="card press block space-y-2.5 p-4">
+      <div className="flex items-center gap-2 text-[0.75rem] text-muted-foreground">
+        <Package className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+        <span className="truncate">{product.canonicalName}</span>
+      </div>
+      <p className="text-[1rem] font-semibold leading-snug text-label">{question.questionText}</p>
+      <div className="space-y-1.5">
+        <div className="h-1.5 overflow-hidden rounded-full bg-fill-2">
+          <motion.span
+            className="block h-full rounded-full bg-accent"
+            initial={{ width: 0 }}
+            animate={{ width: `${pct}%` }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          />
+        </div>
+        <p className="mono-data text-[0.6875rem] uppercase tracking-[0.1em] text-faint">
+          {total > 0
+            ? `${answered} von ${total} ${total === 1 ? 'Besitzer hat' : 'Besitzern haben'} geantwortet`
+            : question.answerCount > 0
+              ? `${question.answerCount} ${question.answerCount === 1 ? 'Antwort' : 'Antworten'}`
+              : 'Wartet auf Besitzer-Antworten'}
+        </p>
+      </div>
+    </Link>
   );
 }
 
