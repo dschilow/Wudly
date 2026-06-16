@@ -8,7 +8,8 @@
       "PowerShell(pnpm install 2>&1)",
       "PowerShell(try { $r = Invoke-WebRequest -Uri \"https://registry.npmjs.org/typescript\" -UseBasicParsing -TimeoutSec 15; Write-Output \"npmjs reachable: HTTP $\\($r.StatusCode\\)\" } catch { Write-Output \"npmjs NOT reachable: $\\($_.Exception.Message\\)\" })",
       "PowerShell(pnpm --filter @wudly/shared test 2>&1)",
-      "PowerShell(docker compose -f docker-compose.dev.yml up -d 2>&1)"
+      "PowerShell(docker compose -f docker-compose.dev.yml up -d 2>&1)",
+      "PowerShell(pnpm --filter @wudly/web typecheck)"
     ]
   }
 }

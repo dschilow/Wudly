@@ -4,9 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMotionValueEvent, useScroll } from 'motion/react';
-import { ChevronLeft } from 'lucide-react';
+import { Bell, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
+import { useNotifications } from '@/lib/notifications-context';
 
 const ROOT_ROUTES = new Set(['/', '/check', '/rankings', '/me/products', '/me', '/ki-test']);
 interface DesktopItem {
@@ -42,8 +43,10 @@ function DesktopNav({ pathname, items }: { pathname: string; items: DesktopItem[
             href={item.href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'rounded-full px-3 py-1.5 text-[0.875rem] font-semibold transition-colors duration-200',
-              active ? 'bg-accent text-[#f1efe6]' : 'text-muted-foreground hover:bg-fill',
+              'rounded-full px-3.5 py-1.5 text-[0.875rem] font-semibold transition-colors duration-200',
+              active
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-fill hover:text-label',
             )}
           >
             {item.label}
@@ -54,11 +57,41 @@ function DesktopNav({ pathname, items }: { pathname: string; items: DesktopItem[
   );
 }
 
+/** Wudly wordmark — Space Grotesk, confident, with one luminous accent point. */
+function Wordmark({ className }: { className?: string }) {
+  return (
+    <span className={cn('font-display font-semibold tracking-[-0.03em] text-label', className)}>
+      Wudly<span className="text-accent">.</span>
+    </span>
+  );
+}
+
+/** Notifications affordance with a live unread badge — the previously invisible signal. */
+function NotificationBell() {
+  const { unreadCount } = useNotifications();
+  const has = unreadCount > 0;
+  return (
+    <Link
+      href="/me/inbox"
+      aria-label={has ? `Mitteilungen, ${unreadCount} ungelesen` : 'Mitteilungen'}
+      onClick={() => navigator.vibrate?.(6)}
+      className="press relative grid h-9 w-9 place-items-center rounded-full bg-fill text-label-2 transition-colors hover:text-label"
+    >
+      <Bell className="h-[1.15rem] w-[1.15rem]" strokeWidth={2} aria-hidden />
+      {has && (
+        <span className="absolute -right-0.5 -top-0.5 grid h-[1.05rem] min-w-[1.05rem] place-items-center rounded-full bg-regret px-1 text-[0.625rem] font-bold leading-none text-white ring-2 ring-canvas">
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 /**
- * Editorial masthead. Root tabs show the serif-italic "Wudly" wordmark with a
- * thin rule underneath — a magazine header, not an app toolbar. Deep routes
- * swap to a plain back affordance. Scroll-aware: flat at the top, gaining its
- * rule + denser material once content slides beneath.
+ * Verdict masthead. The wordmark is a confident Space Grotesk mark with a single
+ * luminous point — calm, premium, unmistakably Wudly. Glass chrome that stays
+ * flat at the very top and gains its hairline + denser material once content
+ * slides beneath. Root routes carry the notifications bell with its live badge.
  */
 export function MobileHeader() {
   const pathname = usePathname();
@@ -75,7 +108,7 @@ export function MobileHeader() {
 
   const chrome = cn(
     'safe-top sticky top-0 z-30 backdrop-blur-xl backdrop-saturate-150 transition-[background-color,box-shadow] duration-300',
-    scrolled ? 'bg-canvas/90 shadow-[0_1px_0_var(--color-separator)]' : 'bg-canvas/55',
+    scrolled ? 'bg-canvas/85 shadow-[0_1px_0_var(--color-separator)]' : 'bg-canvas/50',
   );
 
   if (!isRoot) {
@@ -84,18 +117,19 @@ export function MobileHeader() {
         <div className="mx-auto flex h-12 max-w-6xl items-center justify-between px-2 md:px-5">
           <button
             onClick={() => router.back()}
-            className="tap-dim -ml-1 flex items-center gap-0.5 pr-2 text-[1.0625rem] text-accent"
+            className="tap-dim -ml-1 flex items-center gap-0.5 pr-2 text-[1.0625rem] font-medium text-accent-ink"
             aria-label="Zurück"
           >
             <ChevronLeft className="h-[1.5rem] w-[1.5rem]" strokeWidth={2.4} />
             <span>Zurück</span>
           </button>
-          <Link href="/check" className="tap-dim pr-2" aria-label="Wudly — Startseite">
-            <span className="font-display text-[1.35rem] italic leading-none text-accent">
-              Wudly
-            </span>
+          <Link href="/check" className="tap-dim" aria-label="Wudly — Startseite">
+            <Wordmark className="text-[1.2rem]" />
           </Link>
-          <DesktopNav pathname={pathname} items={desktopItems} />
+          <div className="flex items-center gap-2">
+            <DesktopNav pathname={pathname} items={desktopItems} />
+            {user && <NotificationBell />}
+          </div>
         </div>
       </header>
     );
@@ -103,16 +137,14 @@ export function MobileHeader() {
 
   return (
     <header className={chrome}>
-      <div className="relative mx-auto flex h-14 max-w-6xl items-end justify-between px-5 pb-2">
+      <div className="relative mx-auto flex h-14 max-w-6xl items-center justify-between px-5">
         <Link href="/check" className="tap-dim" aria-label="Wudly — Startseite">
-          <span className="font-display text-[1.85rem] italic leading-none text-accent">
-            Wudly
-          </span>
+          <Wordmark className="text-[1.6rem]" />
         </Link>
-        <DesktopNav pathname={pathname} items={desktopItems} />
-        <span className="mono-data pb-0.5 text-[0.625rem] uppercase tracking-[0.22em] text-muted-foreground md:hidden">
-          Echte Besitzer
-        </span>
+        <div className="flex items-center gap-2">
+          <DesktopNav pathname={pathname} items={desktopItems} />
+          {user && <NotificationBell />}
+        </div>
       </div>
     </header>
   );

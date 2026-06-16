@@ -1,133 +1,153 @@
 @import 'tailwindcss';
 
 /*
- * Wudly — "Kassenbon Editorial" design system (Tailwind v4 CSS-first theme).
+ * Wudly — "Verdict" design system (Tailwind v4 CSS-first theme).
  *
- * Identity: Wudly is about purchases you'd make again — so the UI borrows the
- * one artifact every purchase produces: the receipt. Warm paper instead of
- * sterile white, mono "data lines" with dotted leaders, perforated edges,
- * rubber-stamp verdicts and barcodes — interpreted through modern editorial
- * typography (Instrument Serif for the big moments, Instrument Sans for UI,
- * Spline Sans Mono for data). Calm, graphic, unmistakably Wudly.
+ * Identity: every Wudly product page is a clear *verdict* on a purchase.
+ * The language is premium and quiet — deep anthracite, generous negative
+ * space, a single luminous accent, and a score that subtly *lives*.
+ * Dark-first and confident, with an equally clean light variant.
+ * Type: Space Grotesk for the big verdict moments, Inter for UI,
+ * JetBrains Mono for data. Professional, scannable, unmistakably Wudly.
  */
 @theme {
-  /* ---- Ink (text) on paper ---- */
-  --color-label: #1a1a16; /* warm near-black ink */
-  --color-label-2: #1a1a1699;
-  --color-label-3: #1a1a164d;
-  --color-label-4: #1a1a162e;
-  --color-ink: #1a1a16;
-  --color-ink-soft: #44443d;
-  --color-muted-foreground: #6f6c61;
-  --color-faint: #a6a294;
+  /* ---- Ink (text) — light variant defaults ---- */
+  --color-label: #0c0d12;
+  --color-label-2: #0c0d1299;
+  --color-label-3: #0c0d1266;
+  --color-label-4: #0c0d1233;
+  --color-ink: #0c0d12;
+  --color-ink-soft: #3a3d49;
+  --color-muted-foreground: #5b5f6d;
+  --color-faint: #9aa0ae;
 
-  /* ---- Paper (backgrounds) ---- */
-  --color-canvas: #f7f5ef; /* warm paper, never pure white */
-  --color-surface: #fffefa; /* the receipt itself */
-  --color-surface-soft: #fffefa;
-  --color-surface-muted: #efece3;
-  --color-surface-2: #f7f5ef;
-  --color-surface-sunken: #e9e6db;
-  --color-fill: #1a1a160d;
-  --color-fill-2: #1a1a1614;
+  /* ---- Surfaces (backgrounds) — clean, cool, never warm paper ---- */
+  --color-canvas: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-surface-soft: #fbfbfd;
+  --color-surface-muted: #eef0f4;
+  --color-surface-2: #f1f2f6;
+  --color-surface-sunken: #e7e9ef;
+  --color-fill: #0c0d120a;
+  --color-fill-2: #0c0d1212;
 
   /* ---- Rules (hairlines) ---- */
-  --color-separator: #1a1a1629;
-  --color-border: #1a1a161a;
-  --color-border-strong: #1a1a1647;
+  --color-separator: #0c0d1216;
+  --color-border: #0c0d1214;
+  --color-border-strong: #0c0d1233;
 
-  /* ---- Brand / Tints ---- */
-  --color-accent: #0a5740; /* Wudly forest ink */
-  --color-accent-hover: #07432f;
-  --color-accent-soft: #0a574014;
-  --color-accent-ink: #0a5740;
-  --brand-from: #0a5740;
-  --brand-mid: #0e6b4b;
-  --brand-to: #06402e;
+  /* ---- Brand / Accent — one luminous emerald ---- */
+  --color-accent: #0aa06a;
+  --color-accent-hover: #088a5b;
+  --color-accent-soft: #0aa06a14;
+  --color-accent-ink: #077951;
+  --brand-from: #12b277;
+  --brand-mid: #0aa06a;
+  --brand-to: #068050;
 
-  --color-primary: #1a1a16;
-  --color-primary-hover: #2c2c26;
-  --color-primary-foreground: #fffefa;
+  /* ---- Neutral strong button (black on light / white on dark) ---- */
+  --color-primary: #14151b;
+  --color-primary-hover: #24262f;
+  --color-primary-foreground: #ffffff;
 
-  /* ---- Semantic verdict colors ---- */
-  --color-positive: #1f8a4d;
-  --color-positive-soft: #1f8a4d14;
-  --color-positive-ink: #176a3b;
+  /* ---- Semantic verdict colors — muted, clear, premium ---- */
+  --color-positive: #10a06a;
+  --color-positive-soft: #10a06a14;
+  --color-positive-ink: #0b7d50;
 
-  --color-regret: #c2402a; /* stamp red */
-  --color-regret-soft: #c2402a12;
-  --color-regret-ink: #a33420;
+  --color-regret: #e0483a;
+  --color-regret-soft: #e0483a14;
+  --color-regret-ink: #bb3527;
 
-  --color-unsure: #b9851f;
-  --color-unsure-soft: #b9851f17;
-  --color-unsure-ink: #93691a;
+  --color-unsure: #c8851a;
+  --color-unsure-soft: #c8851a17;
+  --color-unsure-ink: #9a6512;
 
-  /* ---- Radii — crisp, editorial (a receipt isn't a bubble) ---- */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.875rem;
-  --radius-xl: 1.125rem;
-  --radius-2xl: 1.375rem;
+  /* ---- Radii — modern, soft but never bubbly ---- */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
 
-  /* ---- Shadows — flat, graphic lift; paper on a desk, not glass ---- */
-  --shadow-xs: 0 1px 1px rgba(26, 26, 22, 0.04);
-  --shadow-sm: 0 1px 2px rgba(26, 26, 22, 0.05);
-  --shadow-card: 0 1px 2px rgba(26, 26, 22, 0.04), 0 6px 16px -8px rgba(26, 26, 22, 0.1);
+  /* ---- Shadows — soft real depth + an accent glow for the verdict ---- */
+  --shadow-xs: 0 1px 2px rgba(12, 13, 18, 0.04);
+  --shadow-sm: 0 1px 3px rgba(12, 13, 18, 0.06);
+  --shadow-card: 0 1px 2px rgba(12, 13, 18, 0.04), 0 10px 30px -14px rgba(12, 13, 18, 0.16);
   --shadow-elevated:
-    0 2px 4px rgba(26, 26, 22, 0.05), 0 18px 36px -16px rgba(26, 26, 22, 0.18);
-  --shadow-pop: 0 10px 30px -10px rgba(26, 26, 22, 0.25);
-  --shadow-hero: 0 18px 40px -14px rgba(10, 87, 64, 0.4);
-  --shadow-glow: 0 8px 22px -8px rgba(10, 87, 64, 0.5);
+    0 2px 6px rgba(12, 13, 18, 0.06), 0 24px 50px -20px rgba(12, 13, 18, 0.26);
+  --shadow-pop: 0 16px 40px -12px rgba(12, 13, 18, 0.3);
+  --shadow-hero: 0 30px 70px -30px rgba(10, 160, 106, 0.5);
+  --shadow-glow: 0 0 36px -6px rgba(16, 200, 120, 0.45);
 
   /* ---- Type — the backbone of the identity ---- */
   --font-sans:
-    var(--font-sans-app), 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    system-ui, sans-serif;
-  --font-display: var(--font-serif-app), 'Instrument Serif', Georgia, 'Times New Roman', serif;
+    var(--font-sans-app), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
+    sans-serif;
+  --font-display:
+    var(--font-display-app), 'Space Grotesk', 'Inter', system-ui, sans-serif;
   --font-mono:
-    var(--font-mono-app), 'Spline Sans Mono', ui-monospace, 'SF Mono', 'Cascadia Mono',
-    monospace;
+    var(--font-mono-app), 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', monospace;
 
   --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
-  --ease-out-soft: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-label: #f1efe6; /* cream ink on dark paper */
-    --color-label-2: #f1efe699;
-    --color-label-3: #f1efe64d;
-    --color-label-4: #f1efe62e;
-    --color-ink: #f1efe6;
-    --color-ink-soft: #d6d3c6;
-    --color-muted-foreground: #a4a193;
-    --color-faint: #6f6d61;
+    /* ---- Ink on deep anthracite ---- */
+    --color-label: #eef0f5;
+    --color-label-2: #eef0f5a3;
+    --color-label-3: #eef0f561;
+    --color-label-4: #eef0f533;
+    --color-ink: #eef0f5;
+    --color-ink-soft: #c4c7d2;
+    --color-muted-foreground: #9b9fae;
+    --color-faint: #5a5e6c;
 
-    --color-canvas: #141411;
-    --color-surface: #1c1c18;
-    --color-surface-soft: #21211c;
-    --color-surface-muted: #242420;
-    --color-surface-2: #242420;
-    --color-surface-sunken: #2b2b26;
-    --color-fill: #f1efe612;
-    --color-fill-2: #f1efe61a;
+    --color-canvas: #0b0c10;
+    --color-surface: #15161d;
+    --color-surface-soft: #191a22;
+    --color-surface-muted: #1f2029;
+    --color-surface-2: #1c1d25;
+    --color-surface-sunken: #0e0f14;
+    --color-fill: #ffffff0a;
+    --color-fill-2: #ffffff12;
 
-    --color-separator: #f1efe624;
-    --color-border: #f1efe614;
-    --color-border-strong: #f1efe63d;
+    --color-separator: #ffffff14;
+    --color-border: #ffffff14;
+    --color-border-strong: #ffffff2e;
 
-    --color-accent-soft: #2fae7e21;
-    --color-accent-ink: #a9ddc0;
-    --color-positive-soft: #2f9f5621;
-    --color-positive-ink: #93d4ac;
-    --color-regret-soft: #d84a3a21;
-    --color-regret-ink: #f0a795;
-    --color-unsure-soft: #c9892b21;
-    --color-unsure-ink: #e3bc76;
+    --color-accent: #34e39b;
+    --color-accent-hover: #28cf8b;
+    --color-accent-soft: #34e39b1f;
+    --color-accent-ink: #7df2c2;
+    --brand-from: #3ff0a6;
+    --brand-mid: #22d68c;
+    --brand-to: #10b673;
 
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 24px -16px rgba(0, 0, 0, 0.6);
-    --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.35), 0 18px 34px -18px rgba(0, 0, 0, 0.75);
-    --shadow-pop: 0 10px 32px -14px rgba(0, 0, 0, 0.75);
+    --color-primary: #eef0f5;
+    --color-primary-hover: #ffffff;
+    --color-primary-foreground: #0b0c10;
+
+    --color-positive: #37d98d;
+    --color-positive-soft: #37d98d1f;
+    --color-positive-ink: #86ecbf;
+    --color-regret: #f76c5e;
+    --color-regret-soft: #f76c5e1f;
+    --color-regret-ink: #ffa99e;
+    --color-unsure: #efb44a;
+    --color-unsure-soft: #efb44a1f;
+    --color-unsure-ink: #f7d086;
+
+    --shadow-card:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.04), 0 14px 40px -16px rgba(0, 0, 0, 0.7);
+    --shadow-elevated:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 30px 60px -22px rgba(0, 0, 0, 0.85);
+    --shadow-pop: 0 20px 50px -16px rgba(0, 0, 0, 0.85);
+    --shadow-hero: 0 30px 80px -30px rgba(52, 227, 155, 0.45);
+    --shadow-glow: 0 0 44px -6px rgba(52, 227, 155, 0.5);
   }
 }
 
@@ -143,20 +163,9 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.01em;
-    line-height: 1.5;
+    letter-spacing: -0.011em;
+    line-height: 1.55;
     overscroll-behavior-y: none;
-  }
-
-  /* Faint paper grain over the whole canvas — texture you feel, not see. */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0.5;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
   button,
@@ -217,9 +226,8 @@
     transform-origin: bottom;
   }
 
-  /* Receipt divider — a dashed rule like the tear line on a Kassenbon. */
   .rule-dashed {
-    border-top: 1px dashed var(--color-separator);
+    border-top: 1px solid var(--color-separator);
   }
 
   /* Tap feedback */
@@ -246,7 +254,7 @@
     transform: scale(0.975);
   }
 
-  /* The receipt card: warm white paper, hairline edge, flat graphic lift. */
+  /* The Verdict card: clean surface, hairline ring, soft real depth. */
   .card {
     background: var(--color-surface);
     border-radius: var(--radius-lg);
@@ -262,65 +270,36 @@
       var(--shadow-elevated);
   }
 
-  /* Perforated receipt edges — canvas-colored punch holes over the card edge. */
-  .perf-bottom {
-    position: relative;
+  /* Frosted glass — for floating chrome and sheets. */
+  .glass {
+    background: color-mix(in srgb, var(--color-surface) 76%, transparent);
+    backdrop-filter: blur(18px) saturate(1.3);
+    -webkit-backdrop-filter: blur(18px) saturate(1.3);
   }
-  .perf-bottom::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -5px;
-    height: 10px;
-    background-image: radial-gradient(
-      circle 5px at center,
-      var(--color-canvas) 0 4px,
-      transparent 4.6px
-    );
-    background-size: 18px 10px;
-    background-position: 7px 0;
-    background-repeat: repeat-x;
-    pointer-events: none;
-  }
+
+  /* Receipt motifs are retired — keep names as no-ops so nothing breaks. */
+  .perf-bottom,
   .perf-top {
     position: relative;
   }
-  .perf-top::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: -5px;
-    height: 10px;
-    background-image: radial-gradient(
-      circle 5px at center,
-      var(--color-canvas) 0 4px,
-      transparent 4.6px
-    );
-    background-size: 18px 10px;
-    background-position: 7px 0;
-    background-repeat: repeat-x;
-    pointer-events: none;
-  }
 
-  /* Rubber-stamp verdict: bordered, tracked uppercase. Rotate via Tailwind. */
+  /* Verdict tag — a clean, confident micro-label (was the rubber stamp). */
   .stamp {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    border: 2px solid currentColor;
-    border-radius: 0.4rem;
-    padding: 0.3rem 0.65rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
     font-family: var(--font-mono);
-    font-weight: 700;
-    font-size: 0.75rem;
-    letter-spacing: 0.16em;
+    font-weight: 600;
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    line-height: 1.1;
+    line-height: 1;
   }
 
-  /* Receipt data line: label ····· value (dotted leader, mono value). */
+  /* Data line: label —— value (faint hairline leader, mono value). */
   .ledger-row {
     display: flex;
     align-items: baseline;
@@ -329,8 +308,8 @@
   .leader {
     flex: 1;
     min-width: 1.25rem;
-    border-bottom: 2px dotted var(--color-label-3);
-    transform: translateY(-0.3em);
+    border-bottom: 1px solid var(--color-separator);
+    transform: translateY(-0.28em);
   }
   .mono-data {
     font-family: var(--font-mono);
@@ -338,23 +317,23 @@
     letter-spacing: 0;
   }
 
-  /* Verdict hero panels — paper tinted by the verdict, dark-mode aware. */
+  /* Verdict-tinted panels, dark-mode aware. */
   .panel-positive {
-    background: linear-gradient(170deg, #eef4ec, #e4efe5);
+    background: linear-gradient(165deg, #e9f8f0, #e2f3ea);
   }
   .panel-regret {
-    background: linear-gradient(165deg, #f9efe9, #f6e6df);
+    background: linear-gradient(165deg, #fdeceb, #fbe3e1);
   }
   @media (prefers-color-scheme: dark) {
     .panel-positive {
-      background: linear-gradient(170deg, #18241c, #121b15);
+      background: linear-gradient(165deg, #11261d, #0c1a15);
     }
     .panel-regret {
-      background: linear-gradient(165deg, #271713, #1c110e);
+      background: linear-gradient(165deg, #271513, #1b0f0e);
     }
   }
 
-  /* Signature brand gradient (key CTAs). */
+  /* Signature accent gradient (key CTAs). */
   .brand-gradient {
     background-image: linear-gradient(
       135deg,
@@ -371,34 +350,36 @@
   }
   .font-display {
     font-family: var(--font-display);
-    letter-spacing: 0;
-    font-weight: 400;
-  }
-  .premium-panel {
-    background:
-      linear-gradient(135deg, rgba(14, 107, 75, 0.35), rgba(14, 107, 75, 0) 40%),
-      linear-gradient(180deg, #181814 0%, #100f0c 100%);
-    color: #f1efe6;
-  }
-  .premium-ink {
-    background: #14130f;
-    color: #f1efe6;
-  }
-  .on-light {
-    color: #1a1a16;
+    font-weight: 500;
+    letter-spacing: -0.02em;
   }
 
-  /* Ambient warmth behind the app — a faint green light from above. */
+  /* The premium dark hero surface — deep anthracite with an accent halo. */
+  .premium-panel {
+    background:
+      radial-gradient(120% 100% at 50% -20%, rgba(52, 227, 155, 0.18), transparent 60%),
+      linear-gradient(180deg, #15161d 0%, #0b0c10 100%);
+    color: #eef0f5;
+  }
+  .premium-ink {
+    background: #0b0c10;
+    color: #eef0f5;
+  }
+  .on-light {
+    color: #0c0d12;
+  }
+
+  /* Ambient aurora behind the app — a faint luminous light from above. */
   .app-ambient {
     background-image:
-      radial-gradient(50rem 30rem at 50% -10%, rgba(14, 107, 75, 0.07), transparent 60%),
-      radial-gradient(30rem 22rem at 100% 0%, rgba(185, 133, 31, 0.05), transparent 55%);
+      radial-gradient(60rem 34rem at 50% -12%, rgba(16, 160, 106, 0.08), transparent 60%),
+      radial-gradient(40rem 26rem at 100% 0%, rgba(16, 160, 106, 0.05), transparent 55%);
   }
   @media (prefers-color-scheme: dark) {
     .app-ambient {
       background-image:
-        radial-gradient(50rem 30rem at 50% -10%, rgba(47, 174, 126, 0.1), transparent 60%),
-        radial-gradient(30rem 22rem at 100% 0%, rgba(201, 137, 43, 0.06), transparent 55%);
+        radial-gradient(60rem 36rem at 50% -12%, rgba(52, 227, 155, 0.1), transparent 60%),
+        radial-gradient(42rem 28rem at 100% 0%, rgba(52, 227, 155, 0.06), transparent 55%);
     }
   }
 
@@ -425,7 +406,7 @@
   /* Conic score ring driven by --score (0..100) and --ring-color */
   .score-ring {
     background: conic-gradient(
-      var(--ring-color, var(--color-positive)) calc(var(--score, 0) * 1%),
+      var(--ring-color, var(--color-accent)) calc(var(--score, 0) * 1%),
       var(--color-fill-2) 0
     );
   }
@@ -438,32 +419,37 @@
   }
 
   .animate-rise {
-    animation: ios-rise 0.5s var(--ease-ios) both;
+    animation: ios-rise 0.5s var(--ease-out-soft) both;
   }
   .animate-pop {
-    animation: ios-pop 0.4s var(--ease-ios) both;
+    animation: ios-pop 0.4s var(--ease-out-soft) both;
   }
   .animate-fade {
     animation: ios-fade 0.35s ease both;
   }
   .animate-sheet {
-    animation: ios-sheet 0.42s var(--ease-ios) both;
+    animation: ios-sheet 0.42s var(--ease-out-soft) both;
   }
   .animate-stagger > * {
-    animation: ios-rise 0.5s var(--ease-ios) both;
+    animation: ios-rise 0.5s var(--ease-out-soft) both;
     animation-delay: calc(var(--i, 0) * 55ms);
   }
 
   .animate-score-pop {
-    animation: score-pop 0.5s var(--ease-ios) both;
+    animation: score-pop 0.5s var(--ease-spring) both;
   }
   .animate-score-bloom {
     animation: score-bloom 0.9s ease-out both;
   }
 
-  /* The stamp slams in: drops, overshoots, settles — with a tiny rotation. */
+  /* The verdict reveal: settles in with a confident overshoot. */
   .animate-stamp {
-    animation: stamp-in 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+    animation: stamp-in 0.5s var(--ease-spring) both;
+  }
+
+  /* Living score — a slow luminous breath behind the number. */
+  .animate-verdict-pulse {
+    animation: verdict-pulse 3.4s ease-in-out infinite;
   }
 
   .scanner-frame {
@@ -485,7 +471,7 @@
   }
 
   .animate-bar {
-    animation: bar-grow 0.85s var(--ease-ios) both;
+    animation: bar-grow 0.85s var(--ease-out-soft) both;
   }
 
   /* Light sweep across a prominent CTA — a glint, not a banner ad. */
@@ -579,18 +565,29 @@
     transform: scale(1.35);
   }
 }
+@keyframes verdict-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.06);
+  }
+}
 @keyframes stamp-in {
   0% {
     opacity: 0;
-    transform: scale(1.6) rotate(-8deg);
+    transform: scale(1.25);
   }
-  55% {
+  60% {
     opacity: 1;
-    transform: scale(0.96) rotate(-2deg);
+    transform: scale(0.97);
   }
   100% {
     opacity: 1;
-    transform: scale(1) rotate(-2deg);
+    transform: scale(1);
   }
 }
 @keyframes scanner-sweep {

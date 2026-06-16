@@ -3,10 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { AnimatedNumber } from '@/components/motion/AnimatedNumber';
-import { WaveLines } from '@/components/motion/WaveLines';
-import { Barcode } from '@/components/receipt/Barcode';
 import { LedgerRow } from '@/components/receipt/LedgerRow';
-import { Stamp, verdictStamp } from '@/components/receipt/Stamp';
+import { verdictStamp } from '@/components/receipt/Stamp';
 import { Sheet } from '@/components/ui/Sheet';
 import { plural } from '@/lib/format';
 
@@ -19,22 +17,39 @@ interface SignalPanelProps {
   ownerCount: number;
   experienceCount: number;
   signalStrength: string;
-  /** One calm sentence of context under the stamp. */
+  /** One calm sentence of context under the verdict. */
   subline: string;
 }
 
-const STAMP_TONE_TEXT = {
-  positive: 'text-[#7fd6a4]',
-  regret: 'text-[#f0a795]',
-  unsure: 'text-[#e3bc76]',
-  neutral: 'text-[#a4a193]',
+/** Fixed tone colors that read on the always-dark verdict panel (mode-proof). */
+const TONE_COLOR = {
+  positive: '#37d98d',
+  regret: '#f76c5e',
+  unsure: '#efb44a',
+  neutral: '#9b9fae',
 } as const;
 
+function StatRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-3 py-2.5">
+      <span className="text-[0.9rem] text-white/55">{label}</span>
+      <span
+        className="font-mono text-[0.9rem] tabular-nums"
+        style={{ color: strong ? '#34e39b' : '#eef0f5' }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 /**
- * The Wudly Signal as a Kassenbon — plus its "Dynamic Island": once the bon
- * scrolls out of view, the verdict condenses into a dark capsule that drops in
- * under the header. Tapping it morphs the capsule open into a mini receipt
- * (spring layout animation); "Zum Signal" floats you back to the bon.
+ * The Wudly Signal as a "Verdict" — a single, premium dark panel that stays dark
+ * in both color schemes so the score always pops. A giant Space Grotesk numeral
+ * with a living colored glow behind it, a clean verdict tag, and tidy data rows.
+ * Plus its "Signal Island": once the panel scrolls out of view the verdict
+ * condenses into a floating capsule that drops in under the header; tapping it
+ * morphs open into a mini summary (spring layout animation).
  */
 export function SignalPanel({
   productId,
@@ -53,7 +68,7 @@ export function SignalPanel({
   const [expanded, setExpanded] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
-  // The island appears only after the bon has scrolled up past the header.
+  // The island appears only after the panel has scrolled up past the header.
   useEffect(() => {
     const el = sectionRef.current;
     if (!el) return;
@@ -73,7 +88,7 @@ export function SignalPanel({
   const stamp = earlySignal
     ? ({ label: 'Im Aufbau', tone: 'unsure' } as const)
     : verdictStamp(score);
-
+  const toneColor = TONE_COLOR[stamp.tone];
   const scoreText = earlySignal ? 'Aufbau' : score !== null ? `${score}%` : '–';
 
   return (
@@ -81,82 +96,91 @@ export function SignalPanel({
       <section
         ref={sectionRef}
         id="signal"
-        className="card perf-bottom relative scroll-mt-20 overflow-visible"
+        className="premium-panel relative scroll-mt-20 overflow-hidden rounded-[var(--radius-xl)] shadow-elevated ring-1 ring-white/10"
         aria-label="Wudly Signal"
       >
-        <div className="relative overflow-hidden rounded-[var(--radius-lg)]">
-          <div aria-hidden className="absolute inset-x-0 top-0 h-[55%] text-accent">
-            <WaveLines opacity={0.1} />
-          </div>
+        {/* Living glow — a slow luminous breath in the verdict's color. */}
+        <span
+          aria-hidden
+          className="animate-verdict-pulse pointer-events-none absolute -left-10 top-10 h-48 w-48 rounded-full blur-3xl"
+          style={{ background: toneColor, opacity: 0.4 }}
+        />
 
-          <div className="relative px-5 pb-4 pt-4">
+        <div className="relative px-6 pb-6 pt-5">
+          {/* Overline: label + info, and a live signal pulse. */}
+          <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={() => {
                 navigator.vibrate?.(5);
                 setInfoOpen(true);
               }}
-              className="tap-dim flex w-full items-center justify-between"
+              className="tap-dim flex items-center gap-1.5 font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-white/55"
               aria-label="Was ist das Wudly Signal?"
             >
-              <span className="mono-data flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                Wudly Signal
-                <span className="grid h-4 w-4 place-items-center rounded-full bg-fill-2 text-[0.625rem] font-bold normal-case text-muted-foreground">
-                  i
-                </span>
-              </span>
-              <span className="mono-data text-[0.6875rem] uppercase tracking-[0.14em] text-faint">
-                Nr. {productId.slice(-6).toUpperCase()}
+              Wudly Signal
+              <span className="grid h-4 w-4 place-items-center rounded-full bg-white/10 text-[0.625rem] font-bold normal-case text-white/70">
+                i
               </span>
             </button>
-
-            {/* The verdict moment: giant serif score + stamp. */}
-            <div className="mt-2 flex items-end justify-between gap-3">
-              {earlySignal ? (
-                <p className="font-display text-[3.45rem] leading-[0.95] text-label sm:text-[4rem]">
-                  Aufbau
-                  <span className="block pt-1 text-[1rem] leading-snug text-muted-foreground">
-                    {earlyYesCount} von {ownerCount} Besitzern sagen ja
-                  </span>
-                </p>
-              ) : score !== null ? (
-                <p className="font-display text-[5.2rem] leading-[0.92] text-label">
-                  <AnimatedNumber value={score} duration={1.1} />
-                  <span className="text-[2.6rem]">%</span>
-                </p>
-              ) : (
-                <p className="font-display text-[5.2rem] leading-[0.92] text-label-3">–</p>
-              )}
-              <div className="pb-3">
-                <Stamp tone={stamp.tone}>{stamp.label}</Stamp>
-              </div>
-            </div>
-
-            <p className="font-display mt-1.5 max-w-[24rem] text-[1.25rem] italic leading-snug text-ink-soft">
-              {subline}
-            </p>
+            <span className="relative flex h-2.5 w-2.5" aria-hidden>
+              <span
+                className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-50"
+                style={{ background: '#34e39b' }}
+              />
+              <span
+                className="relative inline-flex h-2.5 w-2.5 rounded-full"
+                style={{ background: '#34e39b' }}
+              />
+            </span>
           </div>
 
-          <div className="rule-dashed relative mx-5" aria-hidden />
+          {/* The verdict moment. */}
+          <div className="mt-3 flex items-end justify-between gap-4">
+            {earlySignal ? (
+              <p className="font-display text-[3.1rem] font-semibold leading-[0.95] tracking-[-0.03em] text-white sm:text-[3.5rem]">
+                Aufbau
+                <span className="block pt-1.5 text-[0.95rem] font-normal leading-snug text-white/60">
+                  {earlyYesCount} von {ownerCount} Besitzern sagen ja
+                </span>
+              </p>
+            ) : score !== null ? (
+              <p className="font-display text-[5rem] font-semibold leading-[0.88] tracking-[-0.04em] text-white">
+                <AnimatedNumber value={score} duration={1.1} />
+                <span className="text-[2.4rem]">%</span>
+              </p>
+            ) : (
+              <p className="font-display text-[5rem] font-semibold leading-[0.88] text-white/25">–</p>
+            )}
+            <div className="pb-3">
+              <span
+                className="animate-stamp inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 font-mono text-[0.7rem] font-bold uppercase tracking-[0.16em]"
+                style={{ borderColor: 'rgba(255,255,255,0.18)', color: toneColor }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: toneColor }} />
+                {stamp.label}
+              </span>
+            </div>
+          </div>
 
-          <div className="relative space-y-2 px-5 pb-4 pt-4">
-            <LedgerRow
+          <p className="mt-3 max-w-[26rem] text-[1.05rem] leading-snug text-white/70">{subline}</p>
+
+          {/* Clean data rows — no dotted leaders, no barcode. */}
+          <div className="mt-5 divide-y divide-white/[0.07] rounded-[var(--radius-md)] bg-white/[0.03]">
+            <StatRow
               label="Datenbasis"
               value={`${experienceCount} ${plural(experienceCount, 'Bewertung', 'Bewertungen')}`}
             />
-            <LedgerRow
+            <StatRow
               label="Besitzer"
               value={`${ownerCount} ${plural(ownerCount, 'Person', 'Personen')}`}
             />
-            <LedgerRow label="Signalstärke" value={signalStrength} strong />
+            <StatRow label="Signalstärke" value={signalStrength} strong />
           </div>
 
-          <div className="relative px-5 pb-5">
-            <Barcode seed={productId} className="h-7 text-label/70" />
-            <p className="mono-data mt-1.5 text-center text-[0.625rem] uppercase tracking-[0.3em] text-faint">
-              Echte Besitzer · Nach Nutzung
-            </p>
-          </div>
+          <p className="mt-4 text-center font-mono text-[0.625rem] uppercase tracking-[0.3em] text-white/40">
+            Echte Besitzer · Nach Nutzung
+          </p>
         </div>
       </section>
 
@@ -178,21 +202,30 @@ export function SignalPanel({
                 setExpanded((v) => !v);
               }}
               transition={{ type: 'spring', stiffness: 420, damping: 36 }}
-              className="pointer-events-auto overflow-hidden rounded-[1.5rem] bg-[#1a1a16] text-[#f1efe6] shadow-[0_14px_40px_-10px_rgba(0,0,0,0.55)]"
+              className="pointer-events-auto overflow-hidden rounded-[1.5rem] bg-[#15161d] text-white shadow-[0_18px_50px_-12px_rgba(0,0,0,0.7)] ring-1 ring-white/10"
               style={{ width: expanded ? 'min(100%, 22rem)' : 'auto' }}
               aria-expanded={expanded}
               aria-label={`Wudly Signal ${scoreText} — ${stamp.label}`}
             >
               <motion.div layout="position" className="flex items-center gap-2.5 px-4 py-2">
-                <span className="font-display text-[1.45rem] leading-none">{scoreText}</span>
+                <span className="font-display text-[1.45rem] font-semibold leading-none">
+                  {scoreText}
+                </span>
                 <span
-                  className={`mono-data text-[0.625rem] font-bold uppercase tracking-[0.18em] ${STAMP_TONE_TEXT[stamp.tone]}`}
+                  className="font-mono text-[0.625rem] font-bold uppercase tracking-[0.18em]"
+                  style={{ color: toneColor }}
                 >
                   {stamp.label}
                 </span>
                 <span className="relative ml-auto flex h-2 w-2 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#7fd6a4] opacity-60" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#7fd6a4]" />
+                  <span
+                    className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+                    style={{ background: '#34e39b' }}
+                  />
+                  <span
+                    className="relative inline-flex h-2 w-2 rounded-full"
+                    style={{ background: '#34e39b' }}
+                  />
                 </span>
               </motion.div>
 
@@ -203,17 +236,17 @@ export function SignalPanel({
                   transition={{ delay: 0.1, duration: 0.2 }}
                   className="px-4 pb-3.5 text-left"
                 >
-                  <p className="border-t border-dashed border-[#f1efe630] pt-2.5 text-[0.8125rem] leading-snug text-[#f1efe6cc]">
+                  <p className="border-t border-white/15 pt-2.5 text-[0.8125rem] leading-snug text-white/80">
                     {productName}
                   </p>
-                  <div className="mono-data mt-2 space-y-1 text-[0.6875rem] uppercase tracking-[0.1em] text-[#f1efe699]">
+                  <div className="mt-2 space-y-1 font-mono text-[0.6875rem] uppercase tracking-[0.1em] text-white/60">
                     <p className="flex justify-between gap-4">
                       <span>Datenbasis</span>
-                      <span className="text-[#f1efe6]">{experienceCount} Bew.</span>
+                      <span className="text-white">{experienceCount} Bew.</span>
                     </p>
                     <p className="flex justify-between gap-4">
                       <span>Signalstärke</span>
-                      <span className="text-[#f1efe6]">{signalStrength}</span>
+                      <span className="text-white">{signalStrength}</span>
                     </p>
                   </div>
                   <span
@@ -231,7 +264,7 @@ export function SignalPanel({
                         sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }
                     }}
-                    className="mono-data mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#f1efe61a] px-3 py-1.5 text-[0.625rem] font-bold uppercase tracking-[0.16em] text-[#f1efe6]"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 font-mono text-[0.625rem] font-bold uppercase tracking-[0.16em] text-white"
                   >
                     ↑ Zum Signal
                   </span>
@@ -246,11 +279,11 @@ export function SignalPanel({
       <Sheet open={infoOpen} onClose={() => setInfoOpen(false)} ariaLabel="Was ist das Wudly Signal?">
         <div className="space-y-5 pb-2">
           <div>
-            <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            <p className="font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
               Wudly Signal
             </p>
-            <h2 className="font-display mt-2 text-[2rem] leading-tight text-label">
-              Eine Zahl, der du <em className="text-accent-ink">trauen</em> kannst.
+            <h2 className="font-display mt-2 text-[2rem] font-semibold leading-tight text-label">
+              Eine Zahl, der du <span className="text-accent-ink">trauen</span> kannst.
             </h2>
             <p className="mt-3 text-[1rem] leading-snug text-muted-foreground">
               Das Signal zählt nur eines: Wie viele echte Besitzer würden das Produkt nach echter
@@ -260,7 +293,7 @@ export function SignalPanel({
           </div>
 
           <div className="card space-y-2.5 p-4">
-            <p className="mono-data text-[0.625rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            <p className="font-mono text-[0.625rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               Signalstärke
             </p>
             <LedgerRow label="Signalstatus" value="Signal im Aufbau" />

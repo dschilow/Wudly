@@ -8,7 +8,7 @@ const toneClasses: Record<Tone, string> = {
   positive: 'bg-positive-soft text-positive-ink',
   negative: 'bg-regret-soft text-regret-ink',
   unsure: 'bg-unsure-soft text-unsure-ink',
-  accent: 'bg-accent-soft text-accent',
+  accent: 'bg-accent-soft text-accent-ink',
 };
 
 export interface PillProps extends HTMLAttributes<HTMLSpanElement> {

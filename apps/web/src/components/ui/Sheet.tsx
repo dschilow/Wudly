@@ -46,7 +46,7 @@ export function Sheet({
         <div className="fixed inset-0 z-50 flex flex-col justify-end" role="presentation">
           <motion.button
             aria-label="Schließen"
-            className="absolute inset-0 bg-[#14141166] backdrop-blur-[2px]"
+            className="absolute inset-0 bg-[#05060a]/55 backdrop-blur-[3px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -57,7 +57,7 @@ export function Sheet({
             role="dialog"
             aria-modal="true"
             aria-label={ariaLabel}
-            className="relative mx-auto flex max-h-[88dvh] w-full max-w-2xl flex-col rounded-t-[1.4rem] bg-canvas shadow-[0_-12px_48px_rgba(0,0,0,0.28)]"
+            className="relative mx-auto flex max-h-[88dvh] w-full max-w-2xl flex-col rounded-t-[1.5rem] border-t border-border bg-canvas shadow-[0_-20px_60px_-12px_rgba(0,0,0,0.55)]"
             initial={reduced ? { opacity: 0 } : { y: '100%' }}
             animate={reduced ? { opacity: 1 } : { y: 0 }}
             exit={reduced ? { opacity: 0 } : { y: '100%' }}
