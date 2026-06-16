@@ -275,8 +275,8 @@ export const api = {
     playgroundTargets: (opts?: RequestOptions) =>
       apiFetch<AiPlaygroundTarget[]>('/ai/playground/targets', opts),
     /** Admin-only: send one prompt to one target and get the answer + metrics. */
-    playgroundChat: (input: AiPlaygroundChatRequest) =>
-      apiFetch<AiPlaygroundReply>('/ai/playground/chat', { method: 'POST', json: input }),
+    playgroundChat: (input: AiPlaygroundChatRequest, opts?: RequestOptions) =>
+      apiFetch<AiPlaygroundReply>('/ai/playground/chat', { ...opts, method: 'POST', json: input }),
   },
 
   admin: {

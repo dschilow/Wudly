@@ -190,11 +190,61 @@ export class AiPlaygroundService {
       model: result.model || model,
       ok: result.ok,
       text: result.text ?? '',
-      error: result.error,
+      error: result.ok ? undefined : this.explainError(provider, result.error, latencyMs),
       latencyMs,
       usage: result.usage,
       tokensPerSecond: result.tokensPerSecond,
     };
+  }
+
+  /**
+   * Turn a raw client error into an actionable German hint for the admin UI —
+   * the self-hosted Gemma failures (timeout/connection) are otherwise opaque.
+   */
+  private explainError(
+    provider: 'openrouter' | 'ollama',
+    raw: string | undefined,
+    latencyMs: number,
+  ): string {
+    const msg = (raw ?? 'Unbekannter Fehler').trim();
+    const lower = msg.toLowerCase();
+    const isTimeout =
+      lower.includes('aborted') || lower.includes('timeout') || lower.includes('timed out');
+    const isConn =
+      lower.includes('fetch failed') ||
+      lower.includes('econnrefused') ||
+      lower.includes('enotfound') ||
+      lower.includes('eai_again') ||
+      lower.includes('network') ||
+      lower.includes('socket');
+    const notFound = lower.includes('not found') || lower.includes('404');
+    const secs = (latencyMs / 1000).toFixed(0);
+
+    if (provider === 'ollama') {
+      if (isTimeout) {
+        return (
+          `Zeitüberschreitung nach ${secs}s. Gemma läuft auf CPU (Cold Start ist langsam) ODER ` +
+          `der Dienst ist nicht erreichbar. Prüfe: Lauscht Ollama auf IPv6 [::] (Railway Private ` +
+          `Network)? Stimmt OLLAMA_BASE_URL? (${msg})`
+        );
+      }
+      if (isConn) {
+        return (
+          `Verbindung zum Gemma-Dienst fehlgeschlagen. Prüfe OLLAMA_BASE_URL und ob der ` +
+          `Service läuft (IPv6-Binding [::]). (${msg})`
+        );
+      }
+      if (notFound) {
+        return (
+          `Modell nicht gefunden. Prüfe OLLAMA_MODEL (z. B. gemma4:e4b / gemma4:e2b) und ob es ` +
+          `gepullt wurde. (${msg})`
+        );
+      }
+      return msg;
+    }
+
+    if (isTimeout) return `Zeitüberschreitung nach ${secs}s. (${msg})`;
+    return msg;
   }
 
   private fail(

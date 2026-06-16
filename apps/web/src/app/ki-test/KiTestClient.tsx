@@ -115,7 +115,7 @@ export function KiTestClient() {
         maxTokens: 800,
       };
       return api.ai
-        .playgroundChat(request)
+        .playgroundChat(request, { signal: AbortSignal.timeout(195_000) })
         .then((reply) => {
           setTurns((prev) =>
             prev.map((t) =>
@@ -132,7 +132,11 @@ export function KiTestClient() {
         })
         .catch((err) => {
           const message =
-            err instanceof ApiError ? err.displayMessage : 'Anfrage fehlgeschlagen.';
+            err instanceof ApiError
+              ? err.displayMessage
+              : err instanceof DOMException && err.name === 'TimeoutError'
+                ? 'Zeitüberschreitung (über 3 Min). Self-Hosted Gemma ist auf CPU evtl. zu langsam oder nicht erreichbar.'
+                : 'Anfrage fehlgeschlagen.';
           setTurns((prev) =>
             prev.map((t) =>
               t.id !== turnId
@@ -280,6 +284,13 @@ export function KiTestClient() {
             {temperature.toFixed(1)}
           </span>
         </label>
+
+        {(compare || selected !== 'openrouter') && (
+          <p className="text-[0.75rem] leading-snug text-muted-foreground">
+            Self-Hosted-Modelle (Gemma) laufen auf CPU — der erste Aufruf nach einem Deploy/Leerlauf
+            kann 1–3&nbsp;Min dauern (Cold Start), danach bleibt das Modell ~30&nbsp;Min warm.
+          </p>
+        )}
       </Card>
 
       {/* Transcript */}

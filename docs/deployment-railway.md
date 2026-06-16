@@ -36,6 +36,8 @@ der Dockerfile-Build ueber die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
 | `OPENROUTER_APP_TITLE` | `Wudly` |
 | `OLLAMA_BASE_URL` | nur bei Gemma-Test: `http://wudly-gemma.railway.internal:11434` oder `http://wudly-gemma-e2b.railway.internal:11434` |
 | `OLLAMA_MODEL` | nur bei Gemma-Test: `gemma4:e4b` oder `gemma4:e2b` |
+| `OLLAMA_2B_BASE_URL` | nur fuer `/ki-test`-Playground: `http://wudly-gemma-e2b.railway.internal:11434` |
+| `OLLAMA_2B_MODEL` | nur fuer `/ki-test`-Playground: `gemma4:e2b` |
 | `ICECAT_USERNAME` | optional, Open-Icecat-Account |
 | `ICECAT_API_TOKEN` | optional |
 | `GOOGLE_CSE_KEY` / `GOOGLE_CSE_ID` | optional, Google Programmable Search |
@@ -141,6 +143,37 @@ nutzen (`researchProduct`, `suggestProducts`, `researchExternalRatings`), fallen
 automatisch auf den Dummy-/Fallback-Pfad zurueck. Fuer den Vergleich mit Gemini
 sind vor allem Produktnormalisierung, Erfahrungstext-Normalisierung, Fragevorschlaege
 und AI-Zusammenfassungen aussagekraeftig.
+
+## Admin-Playground `/ki-test`
+
+Die Seite `/ki-test` (nur fuer ADMIN sichtbar) ruft alle drei Modelle direkt auf
+(OpenRouter Flash Lite, Gemma 4B, Gemma 2B) und misst Latenz, Tokens und tok/s.
+Sie ist **unabhaengig** von `AI_PROVIDER` — `AI_PROVIDER=openrouter` kann fuer die
+App aktiv bleiben. Auf `wudly-api` setzen, damit alle drei Ziele funktionieren:
+
+```bash
+railway variables --service wudly-api --set "OPENROUTER_API_KEY=..."
+railway variables --service wudly-api --set "OLLAMA_BASE_URL=http://wudly-gemma.railway.internal:11434"
+railway variables --service wudly-api --set "OLLAMA_MODEL=gemma4:e4b"
+railway variables --service wudly-api --set "OLLAMA_2B_BASE_URL=http://wudly-gemma-e2b.railway.internal:11434"
+railway variables --service wudly-api --set "OLLAMA_2B_MODEL=gemma4:e2b"
+```
+
+## Fehlersuche: Gemma antwortet nicht / Timeout
+
+Laeuft Flash Lite, aber Gemma 4B/2B laufen in eine Zeitueberschreitung, ist fast
+immer das **IPv6-Binding** schuld. Railways Private Network (`*.railway.internal`)
+ist **IPv6-only** — Ollama muss auf `[::]` lauschen, nicht auf `0.0.0.0`. Das
+uebernimmt `apps/gemma/start-ollama.sh` (`OLLAMA_HOST=[::]:${PORT}`); nach einem
+Deploy mit dieser Aenderung muessen `wudly-gemma` **und** `wudly-gemma-e2b` neu
+gebaut werden.
+
+Weitere Checks:
+
+- `OLLAMA_BASE_URL`/`OLLAMA_2B_BASE_URL` zeigen auf den richtigen Service und Port `11434` (= `PORT` der Gemma-Services).
+- Beide Gemma-Services laufen im **selben Projekt/Environment** wie `wudly-api` (sonst kein Private Network).
+- Erster Aufruf nach Deploy/Leerlauf ist langsam (CPU Cold Start, bis ~1-3 Min); danach haelt `OLLAMA_KEEP_ALIVE=30m` das Modell warm.
+- Logs: `railway logs --service wudly-gemma` — die Zeile `Ollama is serving ... on [::]:11434` bestaetigt das IPv6-Binding.
 
 ## Deployen
 

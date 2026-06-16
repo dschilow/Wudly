@@ -1,11 +1,20 @@
 #!/bin/sh
 set -eu
 
-export OLLAMA_HOST="0.0.0.0:${PORT:-11434}"
+# Railway's private network (*.railway.internal) is IPv6-only. Ollama MUST listen
+# on IPv6 ([::]) — binding to 0.0.0.0 (IPv4-only) makes wudly-api's requests to
+# wudly-gemma.railway.internal hang until they time out. On Linux [::] is dual-stack,
+# so Railway's healthcheck and this script's local CLI (over loopback) still work.
+PORT_VALUE="${PORT:-11434}"
+SERVE_HOST="[::]:${PORT_VALUE}"
 MODEL="${GEMMA_MODEL:-gemma4:e4b}"
 
-ollama serve &
+# Serve on all interfaces (IPv6 + IPv4 via dual-stack)...
+OLLAMA_HOST="${SERVE_HOST}" ollama serve &
 OLLAMA_PID="$!"
+
+# ...but let the CLI calls below (list/pull/run) reach the server over IPv4 loopback.
+export OLLAMA_HOST="127.0.0.1:${PORT_VALUE}"
 
 ready=0
 for _ in $(seq 1 120); do
@@ -39,5 +48,5 @@ else
   echo "Model preload complete"
 fi
 
-echo "Ollama is serving ${MODEL} on ${OLLAMA_HOST}"
+echo "Ollama is serving ${MODEL} on ${SERVE_HOST} (local CLI via ${OLLAMA_HOST})"
 wait "${OLLAMA_PID}"
