@@ -6,6 +6,7 @@ import type {
   AiPlaygroundReply,
   AiPlaygroundTarget,
   AiPlaygroundTargetId,
+  AiPlaygroundWarmup,
 } from '@wudly/shared';
 import { OpenRouterClient, type ChatMessage, type ChatTextResult } from './openrouter.client';
 import { OllamaClient } from './ollama.client';
@@ -191,6 +192,32 @@ export class AiPlaygroundService {
     };
   }
 
+  /**
+   * Preload a target's model into memory so the next chat is generation-only
+   * (no cold-start load). For the cloud model this is a no-op (always warm).
+   */
+  async warmUp(targetId: AiPlaygroundTargetId): Promise<AiPlaygroundWarmup> {
+    const started = Date.now();
+
+    if (targetId === 'openrouter') {
+      const client = this.getOpenRouter();
+      if (!client) {
+        return { targetId, ok: false, loadMs: 0, error: 'OPENROUTER_API_KEY ist nicht gesetzt.' };
+      }
+      return { targetId, ok: true, loadMs: 0, alreadyWarm: true };
+    }
+
+    const client = targetId === 'gemma-2b' ? this.getGemma2b() : this.getGemma4b();
+    const res = await client.preload();
+    const loadMs = Date.now() - started;
+    return {
+      targetId,
+      ok: res.ok,
+      loadMs,
+      error: res.ok ? undefined : this.explainError('ollama', res.error, loadMs),
+    };
+  }
+
   /** Run one prompt against one target and return the answer + metrics. */
   async chat(req: AiPlaygroundChatRequest): Promise<AiPlaygroundReply> {
     const messages: ChatMessage[] = [
@@ -222,12 +249,12 @@ export class AiPlaygroundService {
       }
       case 'gemma-4b': {
         model = this.gemma4bModel;
-        result = await this.getGemma4b().chat(messages, opts);
+        result = await this.getGemma4b().chat(messages, { ...opts, timeoutMs: 260_000 });
         break;
       }
       case 'gemma-2b': {
         model = this.gemma2bModel;
-        result = await this.getGemma2b().chat(messages, opts);
+        result = await this.getGemma2b().chat(messages, { ...opts, timeoutMs: 260_000 });
         break;
       }
       default:
@@ -277,9 +304,9 @@ export class AiPlaygroundService {
     if (provider === 'ollama') {
       if (isTimeout) {
         return (
-          `Zeitüberschreitung nach ${secs}s. Gemma läuft auf CPU (Cold Start ist langsam) ODER ` +
-          `der Dienst ist nicht erreichbar. Prüfe: Lauscht Ollama auf IPv6 [::] (Railway Private ` +
-          `Network)? Stimmt OLLAMA_BASE_URL? (${msg})`
+          `Zeitüberschreitung nach ${secs}s. Das Modell war wahrscheinlich nicht geladen ` +
+          `(CPU Cold Start). Klicke zuerst „Modell aufwärmen“ und sende dann erneut — danach ` +
+          `bleibt es ~30 Min warm. Auf CPU ist die Generierung generell langsam. (${msg})`
         );
       }
       if (isConn) {

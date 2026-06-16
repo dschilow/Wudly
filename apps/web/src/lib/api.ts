@@ -62,6 +62,7 @@ import type {
   AiPlaygroundReply,
   AiPlaygroundChatRequest,
   AiPlaygroundPing,
+  AiPlaygroundWarmup,
   AiPlaygroundTargetId,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
@@ -282,6 +283,13 @@ export const api = {
     /** Admin-only: fast reachability probe for one target (Gemma: /api/tags). */
     playgroundPing: (target: AiPlaygroundTargetId, opts?: RequestOptions) =>
       apiFetch<AiPlaygroundPing>(`/ai/playground/ping?target=${encodeURIComponent(target)}`, opts),
+    /** Admin-only: preload a target's model into memory (Gemma cold-start). */
+    playgroundWarmup: (target: AiPlaygroundTargetId, opts?: RequestOptions) =>
+      apiFetch<AiPlaygroundWarmup>('/ai/playground/warmup', {
+        ...opts,
+        method: 'POST',
+        json: { targetId: target },
+      }),
   },
 
   admin: {

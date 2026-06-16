@@ -6,6 +6,7 @@ import type {
   AiPlaygroundReply,
   AiPlaygroundTarget,
   AiPlaygroundTargetId,
+  AiPlaygroundWarmup,
 } from '@wudly/shared';
 import { AiPlaygroundService } from './ai-playground.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -31,6 +32,8 @@ const playgroundChatSchema = z.object({
 });
 
 const pingTargetSchema = z.enum(TARGET_IDS);
+
+const warmupSchema = z.object({ targetId: z.enum(TARGET_IDS) });
 
 /**
  * Admin-only model playground. Proxies a free-form prompt to a chosen model so
@@ -58,6 +61,17 @@ export class AiController {
     @Query('target', new ZodValidationPipe(pingTargetSchema)) target: AiPlaygroundTargetId,
   ): Promise<AiPlaygroundPing> {
     return this.playground.ping(target);
+  }
+
+  /** Preload a target's model into memory (Gemma cold-start), so the next chat is fast. */
+  @Post('warmup')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 20, windowMs: 60_000 })
+  warmup(
+    @Body(new ZodValidationPipe(warmupSchema)) body: { targetId: AiPlaygroundTargetId },
+  ): Promise<AiPlaygroundWarmup> {
+    return this.playground.warmUp(body.targetId);
   }
 
   @Post('chat')

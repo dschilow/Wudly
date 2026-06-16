@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, Send, Trash2, Zap, AlertCircle, ChevronDown, Wifi } from 'lucide-react';
+import { Loader2, Send, Trash2, Zap, AlertCircle, ChevronDown, Wifi, Flame } from 'lucide-react';
 import type {
   AiPlaygroundChatRequest,
   AiPlaygroundMessage,
@@ -11,6 +11,7 @@ import type {
   AiPlaygroundReply,
   AiPlaygroundTarget,
   AiPlaygroundTargetId,
+  AiPlaygroundWarmup,
 } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
@@ -38,6 +39,7 @@ interface Turn {
 }
 
 type PingState = AiPlaygroundPing & { loading?: boolean };
+type WarmState = AiPlaygroundWarmup & { loading?: boolean };
 
 function formatLatency(ms: number): string {
   if (!ms) return '—';
@@ -69,6 +71,8 @@ export function KiTestClient() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [pings, setPings] = useState<Record<string, PingState>>({});
   const [pinging, setPinging] = useState(false);
+  const [warms, setWarms] = useState<Record<string, WarmState>>({});
+  const [warming, setWarming] = useState(false);
 
   const isAdmin = user?.role === 'ADMIN';
   const scrollAnchor = useRef<HTMLDivElement>(null);
@@ -117,10 +121,10 @@ export function KiTestClient() {
         targetId: id,
         messages: buildHistory(id, prompt),
         temperature,
-        maxTokens: 800,
+        maxTokens: 512,
       };
       return api.ai
-        .playgroundChat(request, { signal: AbortSignal.timeout(195_000) })
+        .playgroundChat(request, { signal: AbortSignal.timeout(280_000) })
         .then((reply) => {
           setTurns((prev) =>
             prev.map((t) =>
@@ -205,6 +209,40 @@ export function KiTestClient() {
           ),
       ),
     ).finally(() => setPinging(false));
+  }, [compare, selected]);
+
+  const warmUp = useCallback(() => {
+    const ids = (compare ? ALL_TARGET_IDS : [selected]).filter((id) => id !== 'openrouter');
+    if (ids.length === 0) return;
+    setWarming(true);
+    setWarms((prev) => {
+      const next = { ...prev };
+      for (const id of ids) next[id] = { targetId: id, ok: false, loadMs: 0, loading: true };
+      return next;
+    });
+    Promise.allSettled(
+      ids.map((id) =>
+        api.ai
+          .playgroundWarmup(id, { signal: AbortSignal.timeout(250_000), cache: 'no-store' })
+          .then((res) => setWarms((prev) => ({ ...prev, [id]: res })))
+          .catch((err) =>
+            setWarms((prev) => ({
+              ...prev,
+              [id]: {
+                targetId: id,
+                ok: false,
+                loadMs: 0,
+                error:
+                  err instanceof ApiError
+                    ? err.displayMessage
+                    : err instanceof DOMException && err.name === 'TimeoutError'
+                      ? 'Zeitüberschreitung beim Laden — Modell zu groß für den RAM oder Instanz zu langsam.'
+                      : 'Aufwärmen fehlgeschlagen.',
+              },
+            })),
+          ),
+      ),
+    ).finally(() => setWarming(false));
   }, [compare, selected]);
 
   if (loading || (isAdmin && !targetsLoaded)) return <LoadingState />;
@@ -320,24 +358,38 @@ export function KiTestClient() {
 
         {(compare || selected !== 'openrouter') && (
           <p className="text-[0.75rem] leading-snug text-muted-foreground">
-            Self-Hosted-Modelle (Gemma) laufen auf CPU — der erste Aufruf nach einem Deploy/Leerlauf
-            kann 1–3&nbsp;Min dauern (Cold Start), danach bleibt das Modell ~30&nbsp;Min warm.
+            Self-Hosted-Modelle (Gemma) laufen auf CPU. Klicke nach einem Deploy/Leerlauf zuerst
+            <strong className="text-label"> „Modell aufwärmen“</strong> (lädt das Modell in den RAM,
+            kann 1–2&nbsp;Min dauern) — danach antwortet das Chatten deutlich schneller und das Modell
+            bleibt ~30&nbsp;Min warm.
           </p>
         )}
 
         <div className="flex flex-col gap-2 border-t border-separator pt-3">
-          <button
-            onClick={testReachability}
-            disabled={pinging}
-            className="inline-flex w-fit items-center gap-1.5 rounded-full bg-fill-2 px-3.5 py-1.5 text-[0.8125rem] font-semibold text-label transition-opacity disabled:opacity-50"
-          >
-            {pinging ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Wifi className="h-4 w-4" />
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={testReachability}
+              disabled={pinging}
+              className="inline-flex w-fit items-center gap-1.5 rounded-full bg-fill-2 px-3.5 py-1.5 text-[0.8125rem] font-semibold text-label transition-opacity disabled:opacity-50"
+            >
+              {pinging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wifi className="h-4 w-4" />}
+              Erreichbarkeit testen
+            </button>
+            {(compare || selected !== 'openrouter') && (
+              <button
+                onClick={warmUp}
+                disabled={warming}
+                className="inline-flex w-fit items-center gap-1.5 rounded-full bg-fill-2 px-3.5 py-1.5 text-[0.8125rem] font-semibold text-label transition-opacity disabled:opacity-50"
+              >
+                {warming ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Flame className="h-4 w-4" />
+                )}
+                Modell aufwärmen
+              </button>
             )}
-            Erreichbarkeit testen
-          </button>
+          </div>
           {(compare ? ALL_TARGET_IDS : [selected]).map((id) => {
             const p = pings[id];
             if (!p) return null;
@@ -370,6 +422,39 @@ export function KiTestClient() {
               </div>
             );
           })}
+          {(compare ? ALL_TARGET_IDS : [selected])
+            .filter((id) => id !== 'openrouter')
+            .map((id) => {
+              const w = warms[id];
+              if (!w) return null;
+              return (
+                <div
+                  key={`w-${id}`}
+                  className="flex items-start gap-2 text-[0.78rem] leading-snug"
+                  aria-live="polite"
+                >
+                  {w.loading ? (
+                    <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                  ) : w.ok ? (
+                    <Flame className="mt-px h-3.5 w-3.5 shrink-0 text-positive" />
+                  ) : (
+                    <span className="mt-px shrink-0 text-regret">✗</span>
+                  )}
+                  <span className="min-w-0">
+                    <span className="font-semibold text-label">{labelFor(targets, id)}</span>{' '}
+                    {w.loading ? (
+                      <span className="text-muted-foreground">wärmt auf… (kann 1–2&nbsp;Min dauern)</span>
+                    ) : w.ok ? (
+                      <span className="text-muted-foreground">
+                        warm ({formatLatency(w.loadMs)}) — jetzt senden
+                      </span>
+                    ) : (
+                      <span className="text-regret">{w.error ?? 'Aufwärmen fehlgeschlagen'}</span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
         </div>
       </Card>
 

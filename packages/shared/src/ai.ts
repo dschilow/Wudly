@@ -131,6 +131,21 @@ export interface AiPlaygroundPing {
   error?: string;
 }
 
+/**
+ * Result of warming up (preloading) a target's model into memory. For Gemma
+ * this loads the weights so the next chat pays only generation cost, not the
+ * cold-start load. Cloud models are always warm (`alreadyWarm`).
+ */
+export interface AiPlaygroundWarmup {
+  targetId: AiPlaygroundTargetId;
+  ok: boolean;
+  /** Wall-clock time to load the model into memory (ms). */
+  loadMs: number;
+  /** True for cloud models that need no preloading. */
+  alreadyWarm?: boolean;
+  error?: string;
+}
+
 /** Live web research result used to auto-create a product the catalog lacks. */
 export interface ResearchedProduct {
   canonicalName: string;

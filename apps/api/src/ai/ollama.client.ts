@@ -66,6 +66,31 @@ export class OllamaClient implements JsonChatClient {
   }
 
   /**
+   * Load the model into memory without generating (Ollama preload: `/api/generate`
+   * with no prompt). This pays the cold-start cost once; with `keep_alive` the
+   * model then stays warm, so the next real chat is generation-only. Returns once
+   * the weights are resident (can take a while on a cold CPU instance).
+   */
+  async preload(timeoutMs = 240_000): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: this.options.model, keep_alive: '30m', stream: false }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        return { ok: false, error: `HTTP ${response.status} ${truncate(text)}` };
+      }
+      await response.json().catch(() => undefined);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  /**
    * Cheap reachability probe: lists the service's models via `/api/tags` without
    * loading/running any model. Confirms the Ollama service is reachable (and
    * whether the configured model is pulled) in seconds, even on a cold instance.
