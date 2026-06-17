@@ -293,9 +293,10 @@ export class ProductsService {
     ]);
 
     // No cached photo yet → trigger a background hunt so the next page load has it.
-    if (!product.cachedImage) {
-      void this.rehuntImage(id).catch(() => undefined);
-    }
+    // Check via a lightweight count instead of loading the image bytes.
+    void this.prisma.productImage.findUnique({ where: { productId: id }, select: { productId: true } })
+      .then((img) => { if (!img) void this.rehuntImage(id).catch(() => undefined); })
+      .catch(() => undefined);
 
     return toProductDetailDto(product, insights, externalRatings);
   }

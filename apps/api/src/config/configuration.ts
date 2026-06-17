@@ -48,6 +48,7 @@ const envSchema = z.object({
   // search ON) → copy its cx id. Optional: without both, this step is skipped.
   GOOGLE_CSE_KEY: z.string().optional(),
   GOOGLE_CSE_ID: z.string().optional(),
+  BING_IMAGE_KEY: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

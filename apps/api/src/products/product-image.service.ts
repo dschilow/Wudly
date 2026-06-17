@@ -31,7 +31,7 @@ export class ProductImageService {
   ) {
     this.cseKey = config.get('GOOGLE_CSE_KEY', { infer: true })?.trim() || null;
     this.cseId = config.get('GOOGLE_CSE_ID', { infer: true })?.trim() || null;
-    this.bingKey = config.get('BING_IMAGE_KEY', { infer: true })?.trim() || null;
+    this.bingKey = (config.get('BING_IMAGE_KEY', { infer: true }) as string | undefined)?.trim() || null;
   }
 
   /** Cached bytes for serving, or throw 404. */
