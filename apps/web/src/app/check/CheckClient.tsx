@@ -63,9 +63,11 @@ function RecentProduct({ product }: { product: ProductSummaryDto }) {
 export function CheckClient({
   categories,
   featured,
+  freshlyAdded = [],
 }: {
   categories: CategoryDto[];
   featured: ProductSummaryDto[];
+  freshlyAdded?: ProductSummaryDto[];
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -499,6 +501,21 @@ export function CheckClient({
                   <RecentProduct key={product.id} product={product} />
                 ))}
               </div>
+            </motion.section>
+          )}
+
+          {freshlyAdded.length > 0 && (
+            <motion.section variants={rise} className="space-y-3">
+              <div className="px-1">
+                <h2 className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Frisch im Katalog
+                </h2>
+                <p className="mt-1 text-[0.8125rem] text-muted-foreground">
+                  Neu hinzugefügt — noch ohne Wudly-Stimmen. Bis echte Besitzer urteilen,
+                  zeigt der graue Netz-Wert, was andere Plattformen sagen.
+                </p>
+              </div>
+              <ProductList products={freshlyAdded.slice(0, 6)} />
             </motion.section>
           )}
 

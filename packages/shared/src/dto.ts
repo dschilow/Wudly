@@ -73,6 +73,13 @@ export interface ProductSummaryDto {
   experienceCount: number;
   /** "Wudly-empfohlen" quality seal (auto-awarded). */
   wudlySeal: boolean;
+  /**
+   * "Netz-Konsens": average of external ratings normalized to 0–100, or null when
+   * none. External facts only — shown separately, never part of the Wudly Signal.
+   */
+  externalAvgPercent: number | null;
+  /** How many external sources back {@link externalAvgPercent}. */
+  externalSourceCount: number;
 }
 
 export interface ProductInsightsDto {

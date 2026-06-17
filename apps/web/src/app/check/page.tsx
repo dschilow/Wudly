@@ -21,16 +21,17 @@ async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
 }
 
 export default async function CheckPage() {
-  const [categories, popular] = await Promise.all([
+  const [categories, popular, freshlyAdded] = await Promise.all([
     safe(api.categories.list({ next: { revalidate: 300 } }), [] as CategoryDto[]),
     safe(api.rankings.topRebuy(6, { next: { revalidate: 60 } }), [] as RankingEntryDto[]),
+    safe(api.products.newest(6, { next: { revalidate: 120 } }), [] as ProductSummaryDto[]),
   ]);
 
   const featured: ProductSummaryDto[] = popular.map((e) => e.product);
 
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <CheckClient categories={categories} featured={featured} />
+      <CheckClient categories={categories} featured={featured} freshlyAdded={freshlyAdded} />
     </Suspense>
   );
 }

@@ -127,6 +127,14 @@ export class ProductsController {
     return this.products.listMine(user.id);
   }
 
+  /** "Frisch im Katalog" — newest products, those with a Netz-Konsens first. */
+  @Get('newest')
+  listNewest(
+    @Query(new ZodValidationPipe(paginationQuerySchema)) query: { take: number },
+  ): Promise<ProductSummaryDto[]> {
+    return this.products.listNewest(query.take);
+  }
+
   @Get('image/:normalizedName')
   @Header('Content-Type', 'image/svg+xml; charset=utf-8')
   @Header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')

@@ -6,6 +6,7 @@ import { isEarlySignal } from '@/lib/verdict';
 import { Thumb } from './Thumb';
 import { ScoreBadge } from './ScoreBadge';
 import { SealBadge } from './SealBadge';
+import { NetConsensusBadge } from './NetConsensusBadge';
 
 interface ProductRowProps {
   product: ProductSummaryDto;
@@ -80,6 +81,10 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
               {product.experienceCount === 1 ? 'Erfahrung' : 'Erfahrungen'}
             </span>
             {product.wudlySeal && <SealBadge />}
+            <NetConsensusBadge
+              avgPercent={product.externalAvgPercent}
+              sourceCount={product.externalSourceCount}
+            />
           </div>
           {earlySignal && yesCount !== null && !showRegret && (
             <p className="mt-1 truncate text-[0.75rem] font-medium text-positive-ink">

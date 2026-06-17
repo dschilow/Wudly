@@ -520,6 +520,11 @@ model ProductInsightSnapshot {
   insteadOfHighlights Json     @default("[]")
   // "Wudly-empfohlen" seal — auto-awarded, recomputed with every snapshot.
   wudlySeal           Boolean  @default(false)
+  // Cached "Netz-Konsens": average of external ratings normalized to 0–100, plus
+  // how many sources back it. NOT part of the Wudly Signal — purely external facts,
+  // precomputed here so product cards don't have to join ExternalRating per render.
+  externalAvgPercent  Int?
+  externalSourceCount Int      @default(0)
   // AI-generated summary (OpenRouter). Null until generated / when AI is disabled.
   aiHeadline          String?
   aiSuitedFor         Json     @default("[]")

@@ -870,6 +870,40 @@ export class ProductsService {
       .map(toProductSummaryDto);
   }
 
+  /**
+   * "Frisch im Katalog": recently added products, surfaced so newcomers with an
+   * empty Wudly Signal still have something to show — their "Netz-Konsens" from
+   * external ratings bridges the cold start. Products that already carry external
+   * ratings are floated to the front, since the summary is the whole point here.
+   */
+  async listNewest(take = 8): Promise<ProductSummaryDto[]> {
+    const rows = await this.prisma.product.findMany({
+      where: { status: 'ACTIVE' },
+      include: PRODUCT_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+      // Over-fetch so the moderation filter + "has external ratings" sort still
+      // leave a full row of results.
+      take: take * 4,
+    });
+    return rows
+      .filter(
+        (p) =>
+          !isExcludedFromRankings({
+            canonicalName: p.canonicalName,
+            categorySlug: p.category?.slug ?? null,
+          }),
+      )
+      .sort((a, b) => {
+        // Products with a Netz-Konsens first; within each group keep recency.
+        const aHas = (a.insightSnapshot?.externalSourceCount ?? 0) > 0 ? 1 : 0;
+        const bHas = (b.insightSnapshot?.externalSourceCount ?? 0) > 0 ? 1 : 0;
+        if (aHas !== bHas) return bHas - aHas;
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      })
+      .slice(0, take)
+      .map(toProductSummaryDto);
+  }
+
   /** The current user's products, split into owned vs. added (created). */
   async listMine(userId: string): Promise<{
     owned: ProductSummaryDto[];

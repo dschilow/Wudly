@@ -98,6 +98,9 @@ export const api = {
   products: {
     list: (params: { take?: number; skip?: number } = {}, opts?: RequestOptions) =>
       apiFetch<PaginatedDto<ProductSummaryDto>>(`/products${qs(params)}`, opts),
+    /** "Frisch im Katalog": newest products, those with a Netz-Konsens first. */
+    newest: (take = 8, opts?: RequestOptions) =>
+      apiFetch<ProductSummaryDto[]>(`/products/newest${qs({ take })}`, opts),
     search: (q: string, take = 10, opts?: RequestOptions) =>
       apiFetch<ProductSummaryDto[]>(`/products/search${qs({ q, take })}`, opts),
     /** Real-market name suggestions (no AI) when the catalog has no hits. */

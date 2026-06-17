@@ -60,3 +60,52 @@ export function formatExternalRating(rating: ExternalRatingValue): string {
 export function formatRatingCount(count: number): string {
   return new Intl.NumberFormat('de-DE').format(count);
 }
+
+/** A single external rating reduced to what the aggregate needs. */
+export interface ExternalRatingForAggregate extends ExternalRatingValue {
+  /** Number of ratings behind the value, if the source reports it. */
+  count?: number | null;
+}
+
+/** The "Netz-Konsens" aggregate shown on cards: one number + how many sources. */
+export interface ExternalConsensus {
+  /** Weighted average normalized to 0–100, or null when nothing aggregable. */
+  avgPercent: number | null;
+  /** How many sources contributed a usable value. */
+  sourceCount: number;
+}
+
+/**
+ * Aggregate several external ratings into one "Netz-Konsens" number.
+ *
+ * Each rating is normalized to 0–100 (via {@link externalRatingPercent}) and the
+ * average is weighted by each source's rating count when known — a source backed
+ * by 5.000 ratings should outweigh one backed by 3 — falling back to equal weight
+ * when no counts are given. Ratings that can't be normalized are ignored but still
+ * left out of the source count, so the badge never overstates how much is behind it.
+ *
+ * Still external facts only: this never enters the Wudly Signal.
+ */
+export function aggregateExternalConsensus(
+  ratings: readonly ExternalRatingForAggregate[],
+): ExternalConsensus {
+  let weightedSum = 0;
+  let weightTotal = 0;
+  let sourceCount = 0;
+  for (const rating of ratings) {
+    const percent = externalRatingPercent(rating);
+    if (percent === null) continue;
+    sourceCount += 1;
+    // Weight by count when the source reports one; otherwise every source counts
+    // the same. A count of 0/negative/NaN falls back to weight 1, not 0.
+    const reported = rating.count;
+    const weight =
+      typeof reported === 'number' && Number.isFinite(reported) && reported > 0 ? reported : 1;
+    weightedSum += percent * weight;
+    weightTotal += weight;
+  }
+  return {
+    avgPercent: weightTotal > 0 ? Math.round(weightedSum / weightTotal) : null,
+    sourceCount,
+  };
+}

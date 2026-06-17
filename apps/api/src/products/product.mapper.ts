@@ -43,6 +43,8 @@ export function toProductSummaryDto(product: ProductWithRelations): ProductSumma
     ownerCount: snap?.ownerCount ?? 0,
     experienceCount: snap?.experienceCount ?? 0,
     wudlySeal: snap?.wudlySeal ?? false,
+    externalAvgPercent: snap?.externalAvgPercent ?? null,
+    externalSourceCount: snap?.externalSourceCount ?? 0,
   };
 }
 

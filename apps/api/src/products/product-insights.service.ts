@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
 import {
   buildInsightSnapshot,
+  aggregateExternalConsensus,
   AI_SERVICE,
   type AiService,
   type InsightExperienceInput,
@@ -75,6 +76,14 @@ export class ProductInsightsService {
 
     const snapshot = buildInsightSnapshot(inputs, ownerCount, invitedVotes);
 
+    // "Netz-Konsens": precompute the external-rating aggregate so cards don't have
+    // to join ExternalRating per render. External facts only — never the Signal.
+    const externalRatings = await this.prisma.externalRating.findMany({
+      where: { productId },
+      select: { kind: true, value: true, maxValue: true, count: true },
+    });
+    const consensus = aggregateExternalConsensus(externalRatings);
+
     const data = {
       ownerCount: snapshot.ownerCount,
       experienceCount: snapshot.experienceCount,
@@ -88,6 +97,8 @@ export class ProductInsightsService {
       insteadOfShare: snapshot.insteadOfShare,
       insteadOfHighlights: snapshot.insteadOfHighlights as unknown as Prisma.InputJsonValue,
       wudlySeal: snapshot.wudlySeal,
+      externalAvgPercent: consensus.avgPercent,
+      externalSourceCount: consensus.sourceCount,
     };
 
     const persisted = await this.prisma.productInsightSnapshot.upsert({
