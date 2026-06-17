@@ -63,6 +63,8 @@ import type {
   ReorderBlocksInput,
   ExternalRatingDto,
   UpsertExternalRatingInput,
+  ImagelessProductDto,
+  ImageBackfillReportDto,
   AiPlaygroundTarget,
   AiPlaygroundReply,
   AiPlaygroundChatRequest,
@@ -335,5 +337,11 @@ export const api = {
       }),
     deleteExternalRating: (id: string) =>
       apiFetch<{ success: true }>(`/admin/external-ratings/${id}`, { method: 'DELETE' }),
+
+    // Product images: "fehlt warum" overview + on-demand backfill.
+    imagelessProducts: (opts?: RequestOptions) =>
+      apiFetch<ImagelessProductDto[]>('/admin/products/imageless', opts),
+    backfillImages: () =>
+      apiFetch<ImageBackfillReportDto>('/admin/products/backfill-images', { method: 'POST' }),
   },
 };

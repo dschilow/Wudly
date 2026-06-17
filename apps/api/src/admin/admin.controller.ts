@@ -14,12 +14,15 @@ import {
   type MergeCandidateDto,
   type ExternalRatingDto,
   type UpsertExternalRatingInput,
+  type ImagelessProductDto,
+  type ImageBackfillReportDto,
 } from '@wudly/shared';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/roles.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ExternalRatingsService } from '../products/external-ratings.service';
+import { ProductsService } from '../products/products.service';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -28,6 +31,7 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly externalRatings: ExternalRatingsService,
+    private readonly products: ProductsService,
   ) {}
 
   @Get('merge-candidates')
@@ -68,5 +72,23 @@ export class AdminController {
   async deleteExternalRating(@Param('id') id: string): Promise<{ success: true }> {
     await this.externalRatings.remove(id);
     return { success: true };
+  }
+
+  /* --- Product images: "fehlt warum" overview + on-demand backfill --- */
+
+  /** Products with no cached photo yet, oldest first (the "fehlt warum" list). */
+  @Get('products/imageless')
+  listImageless(): Promise<ImagelessProductDto[]> {
+    return this.products.listImagelessProducts(50);
+  }
+
+  /**
+   * Re-hunt photos for the oldest imageless products. One small batch per call
+   * (the Google CSE quota is shared/daily); run repeatedly until `remaining` is 0.
+   */
+  @Post('products/backfill-images')
+  @HttpCode(HttpStatus.OK)
+  backfillImages(): Promise<ImageBackfillReportDto> {
+    return this.products.backfillMissingImages(10);
   }
 }

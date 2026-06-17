@@ -15,6 +15,7 @@ import { Pill } from '@/components/ui/Pill';
 import { LoadingState, EmptyState } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
 import { ExternalRatingsAdmin } from './ExternalRatingsAdmin';
+import { ImageBackfillAdmin } from './ImageBackfillAdmin';
 
 export function AdminClient() {
   const router = useRouter();
@@ -148,6 +149,8 @@ export function AdminClient() {
           ))}
         </div>
       )}
+
+      <ImageBackfillAdmin />
 
       <ExternalRatingsAdmin />
     </div>

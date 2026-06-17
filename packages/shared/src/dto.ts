@@ -270,6 +270,43 @@ export interface MergeCandidateDto {
   resolvedAt: string | null;
 }
 
+/** A product that has no cached photo yet — the admin "fehlt warum" overview. */
+export interface ImagelessProductDto {
+  id: string;
+  canonicalName: string;
+  brand: string | null;
+  categoryName: string | null;
+  /** When the product was added (so the oldest gaps are obvious). */
+  createdAt: string;
+  /** Whether a previous hunt left a (broken / external) imageUrl behind. */
+  hasStaleImageUrl: boolean;
+}
+
+/** One product's result inside an image-backfill run. */
+export interface ImageBackfillResultDto {
+  productId: string;
+  name: string;
+  /** The hunt stage that produced the stored image (e.g. "google-images"), or null. */
+  storedVia: string | null;
+  /** Whether a real photo was found and cached in this pass. */
+  found: boolean;
+  /** Short reason when nothing was found (e.g. "cse-off", "no-candidates"). */
+  reason: string | null;
+}
+
+/** Summary of an image-backfill run over the imageless products. */
+export interface ImageBackfillReportDto {
+  /** How many products were attempted in this pass. */
+  attempted: number;
+  /** How many ended up with a freshly cached photo. */
+  found: number;
+  /** True when Google CSE isn't configured (the most reliable hunt stage is off). */
+  cseConfigured: boolean;
+  /** How many imageless products remain after this pass (capped count). */
+  remaining: number;
+  results: ImageBackfillResultDto[];
+}
+
 export interface ProfileSummaryDto {
   user: UserDto;
   productCount: number;

@@ -22,6 +22,9 @@ import {
   type QuickVoteResultDto,
   type ExternalProductSuggestionDto,
   type ProductFindResultDto,
+  type ImagelessProductDto,
+  type ImageBackfillReportDto,
+  type ImageBackfillResultDto,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
@@ -555,6 +558,86 @@ export class ProductsService {
       pageUrl: aiPageUrl,
     });
     return { productId, name: product.canonicalName, imageQuery, aiImageUrl, aiPageUrl, report };
+  }
+
+  /**
+   * Admin "fehlt warum" overview: products with no cached photo yet. A product is
+   * imageless when it has no `ProductImage` row — `imageUrl` alone is unreliable
+   * (it may point at a generated SVG or a stale external url). Oldest first, so
+   * long-standing gaps surface before fresh additions that are still hunting.
+   */
+  async listImagelessProducts(limit = 50): Promise<ImagelessProductDto[]> {
+    const rows = await this.prisma.product.findMany({
+      where: { status: { not: 'HIDDEN' }, cachedImage: null },
+      include: { category: { select: { name: true } } },
+      orderBy: { createdAt: 'asc' },
+      take: Math.min(Math.max(limit, 1), 200),
+    });
+    return rows.map((p) => ({
+      id: p.id,
+      canonicalName: p.canonicalName,
+      brand: p.brand,
+      categoryName: p.category?.name ?? null,
+      createdAt: p.createdAt.toISOString(),
+      // A stored imageUrl that isn't our cached-photo path is a stale/external
+      // lead a prior hunt left behind — worth flagging since it can render broken.
+      hasStaleImageUrl: Boolean(p.imageUrl) && !p.imageUrl!.includes('/photo'),
+    }));
+  }
+
+  /**
+   * Backfill photos for products that never got one. Re-hunts the oldest imageless
+   * products SEQUENTIALLY (the Google CSE quota is per-day and shared — parallel
+   * hunts would burn it and trip rate limits), caching the first real image found
+   * for each. Returns a per-product report plus how many gaps remain, so the admin
+   * can run it again until the catalog is fully covered.
+   */
+  async backfillMissingImages(limit = 10): Promise<ImageBackfillReportDto> {
+    const batchSize = Math.min(Math.max(limit, 1), 30);
+    const products = await this.prisma.product.findMany({
+      where: { status: { not: 'HIDDEN' }, cachedImage: null },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+      take: batchSize,
+    });
+
+    const results: ImageBackfillResultDto[] = [];
+    let cseConfigured = false;
+    for (const { id } of products) {
+      try {
+        const { name, report } = await this.rehuntImage(id);
+        cseConfigured = report.cseConfigured;
+        results.push({
+          productId: id,
+          name,
+          storedVia: report.storedVia,
+          found: Boolean(report.storedVia),
+          reason: report.storedVia
+            ? null
+            : !report.cseConfigured && report.aiCount === 0 && !report.ogFound
+              ? 'cse-off'
+              : report.tried.length === 0
+                ? 'no-candidates'
+                : 'all-candidates-failed',
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Backfill hunt failed for ${id}: ${err instanceof Error ? err.message : err}`,
+        );
+        results.push({ productId: id, name: id, storedVia: null, found: false, reason: 'error' });
+      }
+    }
+
+    const remaining = await this.prisma.product.count({
+      where: { status: { not: 'HIDDEN' }, cachedImage: null },
+    });
+    return {
+      attempted: results.length,
+      found: results.filter((r) => r.found).length,
+      cseConfigured,
+      remaining,
+      results,
+    };
   }
 
   /**
