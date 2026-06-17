@@ -202,6 +202,8 @@ function DecisionBrief({
 
 function TrustPanel({ insights }: { insights: ProductInsightsDto }) {
   const verification = insights.verification;
+  // Degrade gracefully if the trust breakdown is missing rather than crashing the page.
+  if (!verification) return null;
   const hasOwners = verification.total > 0;
   const level =
     !hasOwners
@@ -283,7 +285,7 @@ function TrustMetric({
 
 function QuickSignalPanel({ insights }: { insights: ProductInsightsDto }) {
   const quick = insights.quickVotes;
-  if (quick.count === 0) return null;
+  if (!quick || quick.count === 0) return null;
 
   return (
     <section>
