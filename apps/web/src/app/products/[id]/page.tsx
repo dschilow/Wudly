@@ -36,7 +36,7 @@ import { Reveal } from '@/components/motion/Reveal';
 import { ScoreTrend } from '@/components/ScoreTrend';
 import { Thumb } from '@/components/Thumb';
 import { UsageDurationChart } from '@/components/UsageDurationChart';
-import { ExperienceCard } from '@/components/ExperienceCard';
+import { ExperienceTimeline } from '@/components/ExperienceTimeline';
 import { ExternalRatingsCard } from '@/components/ExternalRatingsCard';
 import { AiInsightCard } from '@/components/AiInsightCard';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
@@ -552,11 +552,7 @@ export default async function ProductPage({ params }: PageProps) {
 
   const stimmenTab =
     experiences.length > 0 ? (
-      <div className="space-y-3">
-        {experiences.map((exp) => (
-          <ExperienceCard key={exp.id} experience={exp} />
-        ))}
-      </div>
+      <ExperienceTimeline experiences={experiences} />
     ) : (
       <div className="card">
         <EmptyState
