@@ -11,6 +11,7 @@ import { InsightsModule } from './products/insights.module';
 import { ProductsModule } from './products/products.module';
 import { ExperiencesModule } from './experiences/experiences.module';
 import { QuestionsModule } from './questions/questions.module';
+import { InvitesModule } from './invites/invites.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OwnershipModule } from './ownership/ownership.module';
 import { RankingsModule } from './rankings/rankings.module';
@@ -34,6 +35,7 @@ import { HealthModule } from './health/health.module';
     InsightsModule,
     ExperiencesModule,
     QuestionsModule,
+    InvitesModule,
     NotificationsModule,
     ProductsModule,
     OwnershipModule,

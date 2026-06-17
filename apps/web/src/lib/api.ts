@@ -21,6 +21,11 @@ import type {
   NotificationListDto,
   PushTestResultDto,
   OpenQuestionDto,
+  RatingInviteDto,
+  PublicInviteDto,
+  InvitedVoteDto,
+  InvitedVotesSummaryDto,
+  InviteRatingInput,
   RegisterInput,
   LoginInput,
   CreateProductInput,
@@ -155,6 +160,19 @@ export const api = {
       apiFetch<AnswerDto>(`/questions/${questionId}/answers`, { method: 'POST', json: input }),
     markHelpful: (answerId: string) =>
       apiFetch<AnswerDto>(`/answers/${answerId}/helpful`, { method: 'PATCH' }),
+  },
+
+  invites: {
+    create: (productId: string) =>
+      apiFetch<RatingInviteDto>(`/products/${productId}/invites`, { method: 'POST' }),
+    forProduct: (productId: string, opts?: RequestOptions) =>
+      apiFetch<InvitedVotesSummaryDto>(`/products/${productId}/invited-votes`, opts),
+    publicInvite: (token: string, opts?: RequestOptions) =>
+      apiFetch<PublicInviteDto>(`/e/${token}`, opts),
+    rate: (token: string, input: InviteRatingInput) =>
+      apiFetch<InvitedVoteDto>(`/e/${token}/rate`, { method: 'POST', json: input }),
+    claim: (token: string) =>
+      apiFetch<{ claimed: number }>(`/e/${token}/claim`, { method: 'POST' }),
   },
 
   ownership: {

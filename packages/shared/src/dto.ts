@@ -344,6 +344,49 @@ export interface OpenQuestionDto {
   product: ProductSummaryDto;
 }
 
+/* --- Invite-to-rate: ask an acquaintance to rate without an account --- */
+
+export interface RatingInviteDto {
+  token: string;
+  /** Ready-to-share absolute URL (…/e/<token>). */
+  url: string;
+  productId: string;
+  createdAt: string;
+}
+
+export interface PublicInviteProductDto {
+  id: string;
+  canonicalName: string;
+  brand: string | null;
+  imageUrl: string | null;
+}
+
+/** What the public, no-login rating page needs to render. */
+export interface PublicInviteDto {
+  token: string;
+  /** false when the link is used up / expired. */
+  active: boolean;
+  inviterName: string | null;
+  product: PublicInviteProductDto;
+}
+
+export interface InvitedVoteDto {
+  id: string;
+  productId: string;
+  guestName: string | null;
+  wouldBuyAgain: WouldBuyAgain;
+  comment: string | null;
+  /** true once the guest upgraded it to a real account vote. */
+  claimed: boolean;
+  createdAt: string;
+}
+
+export interface InvitedVotesSummaryDto {
+  count: number;
+  yesCount: number;
+  votes: InvitedVoteDto[];
+}
+
 /** Result of the camera KI fallback: a recognized product plus a ready search query. */
 export interface IdentifiedProductDto {
   brand: string | null;

@@ -195,6 +195,8 @@ model User {
   createdProducts   Product[]          @relation("CreatedProducts")
   pushSubscriptions PushSubscription[]
   professionalProfile ProfessionalProfile?
+  sentInvites         RatingInvite[]       @relation("SentInvites")
+  claimedInvitedVotes InvitedVote[]        @relation("ClaimedInvitedVotes")
 
   @@index([role])
 }
@@ -263,6 +265,8 @@ model Product {
   showcases         ProductShowcase[]
   externalRatings   ExternalRating[]
   cachedImage       ProductImage?
+  ratingInvites     RatingInvite[]
+  invitedVotes      InvitedVote[]
 
   @@index([normalizedName])
   @@index([categoryId])
@@ -717,4 +721,53 @@ model ProductTemplate {
   category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([categoryId])
+}
+
+/* ----------------------------------------------------------------- *
+ * Invite-to-rate — ask an acquaintance to rate a product they own,
+ * without an account. Guest voices are clearly marked and weighted DOWN
+ * in the Signal; they can be upgraded to a full vote on login/register.
+ * ----------------------------------------------------------------- */
+
+/// A shareable invite link for a specific product. Optionally capped + expiring.
+model RatingInvite {
+  id            String    @id @default(cuid())
+  token         String    @unique
+  productId     String
+  inviterUserId String?
+  maxUses       Int       @default(1)
+  uses          Int       @default(0)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inviter User?         @relation("SentInvites", fields: [inviterUserId], references: [id], onDelete: SetNull)
+  votes   InvitedVote[]
+
+  @@index([productId])
+  @@index([inviterUserId])
+}
+
+/// A rating left via an invite link (no, or not-yet, account). Marked as an
+/// invited voice and weighted DOWN in the signal; `claimedByUserId` upgrades it
+/// to a full vote once the guest logs in or registers.
+model InvitedVote {
+  id              String        @id @default(cuid())
+  inviteId        String?
+  productId       String
+  guestName       String?
+  wouldBuyAgain   WouldBuyAgain
+  comment         String?
+  /// Signal weight 0..1 (guest votes count less than verified owner experiences).
+  weight          Float         @default(0.4)
+  claimedByUserId String?
+  createdAt       DateTime      @default(now())
+
+  invite    RatingInvite? @relation(fields: [inviteId], references: [id], onDelete: SetNull)
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  claimedBy User?         @relation("ClaimedInvitedVotes", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([inviteId])
+  @@index([claimedByUserId])
 }

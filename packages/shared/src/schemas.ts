@@ -185,6 +185,14 @@ export const createAnswerSchema = z.object({
 });
 export type CreateAnswerInput = z.infer<typeof createAnswerSchema>;
 
+/** A guest rating left via an invite link (no account required). */
+export const inviteRatingSchema = z.object({
+  wouldBuyAgain: wouldBuyAgainSchema,
+  guestName: z.string().trim().max(60).optional(),
+  comment: z.string().trim().max(600).optional(),
+});
+export type InviteRatingInput = z.infer<typeof inviteRatingSchema>;
+
 /* ------------------------------------------------------------------ *
  * Product scan — camera KI fallback (no API key in the client)
  * ------------------------------------------------------------------ */

@@ -29,6 +29,7 @@ import { JsonLd } from '@/components/JsonLd';
 import { productJsonLd, breadcrumbJsonLd, absoluteUrl } from '@/lib/seo';
 import { ShareButton } from '@/components/ShareButton';
 import { SignalPanel } from '@/components/SignalPanel';
+import { InviteButton } from '@/components/InviteButton';
 import { dataConfidenceLabel } from '@/lib/verdict';
 import { ProductActionBar } from '@/components/ProductActionBar';
 import { ProductTabs } from '@/components/ProductTabs';
@@ -638,6 +639,8 @@ export default async function ProductPage({ params }: PageProps) {
         signalStrength={signalStrength}
         subline={subline}
       />
+
+      <InviteButton productId={product.id} productName={product.canonicalName} />
 
       {earlySignal && (
         <p className="px-1 text-[0.875rem] leading-snug text-muted-foreground">
