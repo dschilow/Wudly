@@ -23,6 +23,7 @@ export class ProductImageService {
   private readonly logger = new Logger(ProductImageService.name);
   private readonly cseKey: string | null;
   private readonly cseId: string | null;
+  private readonly bingKey: string | null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -30,6 +31,7 @@ export class ProductImageService {
   ) {
     this.cseKey = config.get('GOOGLE_CSE_KEY', { infer: true })?.trim() || null;
     this.cseId = config.get('GOOGLE_CSE_ID', { infer: true })?.trim() || null;
+    this.bingKey = config.get('BING_IMAGE_KEY', { infer: true })?.trim() || null;
   }
 
   /** Cached bytes for serving, or throw 404. */
@@ -130,8 +132,8 @@ export class ProductImageService {
       } else {
         this.logger.warn(
           `Image hunt EMPTY for ${productId} (q="${query}"): ` +
-            `google=${report.googleCount} og=${report.ogFound ? 'yes' : 'no'} ` +
-            `ai=${report.aiCount} cse=${this.cseKey && this.cseId ? 'configured' : 'OFF'}`,
+            `search=${report.googleCount} og=${report.ogFound ? 'yes' : 'no'} ` +
+            `ai=${report.aiCount} provider=${this.bingKey ? 'bing' : 'ddg'}`,
         );
       }
     });
@@ -156,7 +158,7 @@ export class ProductImageService {
   }> {
     const report = {
       storedVia: null as string | null,
-      cseConfigured: Boolean(this.cseKey && this.cseId),
+      cseConfigured: Boolean(this.bingKey || (this.cseKey && this.cseId)),
       googleCount: 0,
       ogFound: false,
       aiCount: 0,
@@ -165,10 +167,10 @@ export class ProductImageService {
     const candidates: Array<{ url: string; source: string }> = [];
 
     try {
-      // 1 · Google CSE first — it finds real, live image urls.
-      const googleUrls = await this.searchGoogleImages(query);
+      // 1 · Image search (Bing preferred; Google CSE as fallback if configured).
+      const googleUrls = await this.searchImages(query);
       report.googleCount = googleUrls.length;
-      for (const url of googleUrls) candidates.push({ url, source: 'google-images' });
+      for (const url of googleUrls) candidates.push({ url, source: 'bing-images' });
 
       // 2 · og:image of the AI-named product page.
       if (options.pageUrl) {
@@ -257,22 +259,104 @@ export class ProductImageService {
     }
   }
 
-  /** Top image-search hits for "<query>" (empty when CSE isn't configured). */
+  /** Top image-search hits for "<query>". Bing preferred, DuckDuckGo fallback, Google CSE last. */
+  private async searchImages(query: string): Promise<string[]> {
+    if (query.trim().length < 2) return [];
+    if (this.bingKey) return this.searchBingImages(query);
+    const ddg = await this.searchDuckDuckGoImages(query);
+    if (ddg.length > 0) return ddg;
+    if (this.cseKey && this.cseId) return this.searchGoogleImages(query);
+    return [];
+  }
+
+  private async searchBingImages(query: string): Promise<string[]> {
+    try {
+      const url =
+        `https://api.bing.microsoft.com/v7.0/images/search` +
+        `?q=${encodeURIComponent(query.trim())}&count=8&safeSearch=Moderate&imageType=Photo`;
+      const res = await fetch(url, {
+        headers: {
+          'Ocp-Apim-Subscription-Key': this.bingKey!,
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        this.logger.warn(`Bing Image Search HTTP ${res.status}: ${body.slice(0, 300)}`);
+        return [];
+      }
+      const data = (await res.json()) as { value?: Array<{ contentUrl?: string }> };
+      return (data.value ?? [])
+        .map((i) => this.absolutize(i.contentUrl?.trim() ?? ''))
+        .filter((u) => /^https?:\/\//i.test(u));
+    } catch (err) {
+      this.logger.warn(`Bing image search failed: ${err instanceof Error ? err.message : err}`);
+      return [];
+    }
+  }
+
+  /**
+   * DuckDuckGo image search — no API key required. Uses the same endpoint the
+   * DuckDuckGo web UI calls. Returns direct image URLs ready to download.
+   */
+  private async searchDuckDuckGoImages(query: string): Promise<string[]> {
+    try {
+      // Step 1: get a vqd token (required by DDG for the image endpoint).
+      const initRes = await fetch(
+        `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`,
+        {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            Accept: 'text/html',
+          },
+          signal: AbortSignal.timeout(8_000),
+        },
+      );
+      if (!initRes.ok) return [];
+      const html = await initRes.text();
+      const vqdMatch = /vqd=['"]([^'"]+)['"]/i.exec(html);
+      if (!vqdMatch?.[1]) return [];
+      const vqd = vqdMatch[1];
+
+      // Step 2: fetch image results using the token.
+      const imgRes = await fetch(
+        `https://duckduckgo.com/i.js?q=${encodeURIComponent(query)}&vqd=${encodeURIComponent(vqd)}&f=,,,,,&p=1`,
+        {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            Accept: 'application/json',
+            Referer: 'https://duckduckgo.com/',
+          },
+          signal: AbortSignal.timeout(8_000),
+        },
+      );
+      if (!imgRes.ok) return [];
+      const data = (await imgRes.json()) as { results?: Array<{ image?: string }> };
+      return (data.results ?? [])
+        .slice(0, 8)
+        .map((r) => this.absolutize(r.image?.trim() ?? ''))
+        .filter((u) => /^https?:\/\//i.test(u));
+    } catch (err) {
+      this.logger.warn(`DuckDuckGo image search failed: ${err instanceof Error ? err.message : err}`);
+      return [];
+    }
+  }
+
   private async searchGoogleImages(query: string): Promise<string[]> {
-    if (!this.cseKey || !this.cseId || query.trim().length < 2) return [];
+    if (!this.cseKey || !this.cseId) return [];
     try {
       const url =
         `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(this.cseKey)}` +
         `&cx=${encodeURIComponent(this.cseId)}&searchType=image&num=8&safe=active` +
-        // Bias towards usable product shots over tiny icons / huge banners.
         `&imgSize=large&q=${encodeURIComponent(query.trim())}`;
       const res = await fetch(url, {
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(8_000),
       });
       if (!res.ok) {
-        // Google returns a precise reason (bad key, CSE not enabled, quota) in
-        // the body — surface it, otherwise "no images" is unanswerable.
         const body = await res.text().catch(() => '');
         this.logger.warn(`Google CSE HTTP ${res.status}: ${body.slice(0, 300)}`);
         return [];
