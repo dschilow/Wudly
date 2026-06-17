@@ -6,9 +6,11 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import {
   ChevronRight,
+  LogOut,
   MessageCircle,
   Settings,
   Share2,
+  ShieldCheck,
   ShoppingBag,
   Star,
   Users,
@@ -68,7 +70,7 @@ function ListItem({
 
 export function ProfileClient() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [summary, setSummary] = useState<ProfileSummaryDto | null>(null);
   const [experiences, setExperiences] = useState<ExperienceDto[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -234,6 +236,33 @@ export function ProfileClient() {
             Deine Antworten helfen anderen, bessere Käufe zu machen.
           </p>
         </div>
+      </motion.section>
+
+      {user.role === 'ADMIN' && (
+        <motion.section className="card overflow-hidden" variants={rise}>
+          <ListItem
+            icon={ShieldCheck}
+            label="Admin-Bereich"
+            subtitle="Produkte, Bilder, Bewertungen verwalten"
+            href="/admin"
+            tone="accent"
+          />
+        </motion.section>
+      )}
+
+      <motion.section variants={rise}>
+        <button
+          onClick={async () => {
+            await logout();
+            router.replace('/login');
+          }}
+          className="flex w-full items-center gap-3.5 rounded-[var(--radius-lg)] px-4 py-3.5 text-left text-regret-ink active:opacity-60"
+        >
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.7rem] bg-regret-soft">
+            <LogOut className="h-[1.35rem] w-[1.35rem]" strokeWidth={2.1} />
+          </span>
+          <span className="text-[1.0625rem] font-semibold leading-tight">Abmelden</span>
+        </button>
       </motion.section>
     </motion.div>
   );
