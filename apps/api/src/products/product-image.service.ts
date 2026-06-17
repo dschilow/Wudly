@@ -24,6 +24,7 @@ export class ProductImageService {
   private readonly cseKey: string | null;
   private readonly cseId: string | null;
   private readonly bingKey: string | null;
+  private readonly braveKey: string | null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -32,6 +33,7 @@ export class ProductImageService {
     this.cseKey = config.get('GOOGLE_CSE_KEY', { infer: true })?.trim() || null;
     this.cseId = config.get('GOOGLE_CSE_ID', { infer: true })?.trim() || null;
     this.bingKey = (config.get('BING_IMAGE_KEY', { infer: true }) as string | undefined)?.trim() || null;
+    this.braveKey = (config.get('BRAVE_SEARCH_KEY', { infer: true }) as string | undefined)?.trim() || null;
   }
 
   /** Cached bytes for serving, or throw 404. */
@@ -133,7 +135,7 @@ export class ProductImageService {
         this.logger.warn(
           `Image hunt EMPTY for ${productId} (q="${query}"): ` +
             `search=${report.googleCount} og=${report.ogFound ? 'yes' : 'no'} ` +
-            `ai=${report.aiCount} provider=${this.bingKey ? 'bing' : 'ddg'}`,
+            `ai=${report.aiCount} provider=${this.searchProviderName()}`,
         );
       }
     });
@@ -167,10 +169,15 @@ export class ProductImageService {
     const candidates: Array<{ url: string; source: string }> = [];
 
     try {
-      // 1 · Image search (Bing preferred; Google CSE as fallback if configured).
-      const googleUrls = await this.searchImages(query);
-      report.googleCount = googleUrls.length;
-      for (const url of googleUrls) candidates.push({ url, source: 'bing-images' });
+      // 1 · Image search (Brave preferred; Bing/DDG/Google as fallbacks).
+      const searchUrls = await this.searchImages(query);
+      report.googleCount = searchUrls.length;
+      const searchSource = this.braveKey
+        ? 'brave-images'
+        : this.bingKey
+          ? 'bing-images'
+          : 'ddg-images';
+      for (const url of searchUrls) candidates.push({ url, source: searchSource });
 
       // 2 · og:image of the AI-named product page.
       if (options.pageUrl) {
@@ -207,6 +214,14 @@ export class ProductImageService {
       );
     }
     return report;
+  }
+
+  /** Which image-search provider the cascade will use first, for diagnostics. */
+  private searchProviderName(): string {
+    if (this.braveKey) return 'brave';
+    if (this.bingKey) return 'bing';
+    if (this.cseKey && this.cseId) return 'ddg→google';
+    return 'ddg';
   }
 
   /** Resolve protocol-relative (`//host/…`) urls to absolute https. */
@@ -259,14 +274,64 @@ export class ProductImageService {
     }
   }
 
-  /** Top image-search hits for "<query>". Bing preferred, DuckDuckGo fallback, Google CSE last. */
+  /**
+   * Top image-search hits for "<query>", most-reliable provider first:
+   *   1. Brave  — official keyed API, free tier, won't rot (preferred)
+   *   2. Bing   — only if a (legacy) key is configured
+   *   3. DuckDuckGo — keyless scrape, our fallback when no key is set
+   *   4. Google CSE — last resort (the "search entire web" mode is sunset)
+   * Each step is skipped when unconfigured, and we fall through on empty results.
+   */
   private async searchImages(query: string): Promise<string[]> {
     if (query.trim().length < 2) return [];
-    if (this.bingKey) return this.searchBingImages(query);
+    if (this.braveKey) {
+      const brave = await this.searchBraveImages(query);
+      if (brave.length > 0) return brave;
+    }
+    if (this.bingKey) {
+      const bing = await this.searchBingImages(query);
+      if (bing.length > 0) return bing;
+    }
     const ddg = await this.searchDuckDuckGoImages(query);
     if (ddg.length > 0) return ddg;
     if (this.cseKey && this.cseId) return this.searchGoogleImages(query);
     return [];
+  }
+
+  /**
+   * Brave Image Search — official endpoint, no scraping. The free "Data for
+   * Search" plan allows 2,000 queries/month at 1 req/sec, which comfortably
+   * covers product backfills. We prefer the original `properties.url` and fall
+   * back to the 500px proxy `thumbnail.src` so a result is never wasted.
+   */
+  private async searchBraveImages(query: string): Promise<string[]> {
+    try {
+      const url =
+        `https://api.search.brave.com/res/v1/images/search` +
+        `?q=${encodeURIComponent(query.trim())}&count=8&safesearch=strict&country=de&search_lang=de`;
+      const res = await fetch(url, {
+        headers: {
+          'X-Subscription-Token': this.braveKey!,
+          Accept: 'application/json',
+          'Accept-Encoding': 'gzip',
+        },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        this.logger.warn(`Brave Image Search HTTP ${res.status}: ${body.slice(0, 300)}`);
+        return [];
+      }
+      const data = (await res.json()) as {
+        results?: Array<{ properties?: { url?: string }; thumbnail?: { src?: string } }>;
+      };
+      return (data.results ?? [])
+        .map((r) => this.absolutize((r.properties?.url ?? r.thumbnail?.src ?? '').trim()))
+        .filter((u) => /^https?:\/\//i.test(u));
+    } catch (err) {
+      this.logger.warn(`Brave image search failed: ${err instanceof Error ? err.message : err}`);
+      return [];
+    }
   }
 
   private async searchBingImages(query: string): Promise<string[]> {

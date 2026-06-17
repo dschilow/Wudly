@@ -6,7 +6,9 @@ import {
   Battery,
   BadgeCheck,
   Bolt,
-  Lightbulb,  Minus,
+  GitCompareArrows,
+  Lightbulb,
+  Minus,
   PackageOpen,
   ScanBarcode,
   Sparkles,
@@ -605,6 +607,7 @@ export default async function ProductPage({ params }: PageProps) {
           className="h-28 w-28 shrink-0 sm:h-32 sm:w-32"
           rounded="rounded-[1rem]"
           pollForPhoto
+          fit="contain"
         />
         <div className="min-w-0 flex-1">
           <p className="mono-data flex flex-wrap items-center gap-x-2 text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -624,7 +627,16 @@ export default async function ProductPage({ params }: PageProps) {
               <h1 className="font-display text-balance text-[1.9rem] leading-[1.02] text-label">
                 {product.canonicalName}
               </h1>
-              {ins.wudlySeal && <SealBadge size="lg" className="mt-2" />}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {ins.wudlySeal && <SealBadge size="lg" />}
+                <Link
+                  href={`/compare?ids=${product.id}`}
+                  className="press inline-flex h-8 items-center gap-1.5 rounded-full bg-fill-2 px-3 text-[0.8125rem] font-semibold text-label shadow-[inset_0_0_0_1px_var(--color-border)]"
+                >
+                  <GitCompareArrows className="h-4 w-4 text-accent-ink" strokeWidth={2.3} />
+                  Vergleichen
+                </Link>
+              </div>
             </div>
             <ShareButton
               title={`${product.canonicalName} — Würdest du es wieder kaufen?`}

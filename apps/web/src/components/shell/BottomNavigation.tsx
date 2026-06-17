@@ -3,7 +3,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'motion/react';
-import { Box, Compass, FlaskConical, Search, User, type LucideIcon } from 'lucide-react';
+import {
+  Box,
+  Compass,
+  FlaskConical,
+  GitCompareArrows,
+  Search,
+  User,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { useNotifications } from '@/lib/notifications-context';
@@ -23,6 +31,12 @@ const BASE_ITEMS: NavItem[] = [
     label: 'Prüfen',
     icon: Search,
     match: (p) => p === '/' || p.startsWith('/check'),
+  },
+  {
+    href: '/compare',
+    label: 'Vergleich',
+    icon: GitCompareArrows,
+    match: (p) => p.startsWith('/compare'),
   },
   { href: '/rankings', label: 'Entdecken', icon: Compass, match: (p) => p.startsWith('/rankings') },
   {

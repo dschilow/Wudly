@@ -20,11 +20,13 @@ export function Thumb({
   className,
   rounded = 'rounded-[0.7rem]',
   pollForPhoto = false,
+  fit = 'cover',
 }: {
   product: ProductSummaryDto;
   className?: string;
   rounded?: string;
   pollForPhoto?: boolean;
+  fit?: 'cover' | 'contain';
 }) {
   const hasRealPhoto = Boolean(resolveProductImageUrl(product.imageUrl));
   const [src, setSrc] = useState(() => productThumbUrl(product));
@@ -78,7 +80,7 @@ export function Thumb({
         alt=""
         loading="lazy"
         decoding="async"
-        className="h-full w-full object-cover"
+        className={cn('h-full w-full', fit === 'contain' ? 'object-contain p-1' : 'object-cover')}
         onError={() => setSrc(productPreviewUrl(product.id))}
       />
       {/* subtle top sheen for depth */}

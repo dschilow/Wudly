@@ -9,7 +9,15 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { useNotifications } from '@/lib/notifications-context';
 
-const ROOT_ROUTES = new Set(['/', '/check', '/rankings', '/me/products', '/me', '/ki-test']);
+const ROOT_ROUTES = new Set([
+  '/',
+  '/check',
+  '/compare',
+  '/rankings',
+  '/me/products',
+  '/me',
+  '/ki-test',
+]);
 interface DesktopItem {
   href: string;
   label: string;
@@ -17,6 +25,7 @@ interface DesktopItem {
 }
 const BASE_DESKTOP_ITEMS: DesktopItem[] = [
   { href: '/check', label: 'Prüfen', match: (p: string) => p === '/' || p.startsWith('/check') },
+  { href: '/compare', label: 'Vergleichen', match: (p: string) => p.startsWith('/compare') },
   { href: '/rankings', label: 'Entdecken', match: (p: string) => p.startsWith('/rankings') },
   { href: '/me/products', label: 'Besitzen', match: (p: string) => p.startsWith('/me/products') },
   {

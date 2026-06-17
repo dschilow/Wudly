@@ -49,6 +49,12 @@ const envSchema = z.object({
   GOOGLE_CSE_KEY: z.string().optional(),
   GOOGLE_CSE_ID: z.string().optional(),
   BING_IMAGE_KEY: z.string().optional(),
+  // Brave Image Search — official, keyed image API with a free tier (2,000
+  // queries/month, 1 req/sec). The most reliable free product-photo source:
+  // unlike the DuckDuckGo scrape it is a documented endpoint that won't rot.
+  // Get a key at api-dashboard.search.brave.com (free "Data for Search" plan).
+  // Optional: without it the image hunt falls back to DuckDuckGo.
+  BRAVE_SEARCH_KEY: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

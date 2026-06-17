@@ -64,6 +64,12 @@ import type {
   AiPlaygroundPing,
   AiPlaygroundWarmup,
   AiPlaygroundTargetId,
+  ImagelessProductDto,
+  ImageBackfillReportDto,
+  RatingBackfillReportDto,
+  RatingInviteDto,
+  PublicInviteDto,
+  InvitedVotesSummaryDto,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -137,6 +143,27 @@ export const api = {
     /** Record a swipe-deck quick vote; returns the live tally. */
     vote: (id: string, input: QuickVoteInput) =>
       apiFetch<QuickVoteResultDto>(`/products/${id}/vote`, { method: 'POST', json: input }),
+    /** Newest ACTIVE products (cold-start / "Frisch im Katalog"). */
+    newest: (take = 8, opts?: RequestOptions) =>
+      apiFetch<ProductSummaryDto[]>(`/products/newest${qs({ take })}`, opts),
+  },
+
+  invites: {
+    /** Create a one-time invite link for a product. */
+    create: (productId: string) =>
+      apiFetch<RatingInviteDto>(`/products/${productId}/invites`, { method: 'POST' }),
+    /** Load public invite data by token (no auth required). */
+    publicInvite: (token: string, opts?: RequestOptions) =>
+      apiFetch<PublicInviteDto>(`/e/${token}`, opts),
+    /** Submit a rating via invite token (no auth required). */
+    rate: (token: string, input: { wouldBuyAgain: string; guestName?: string; comment?: string }) =>
+      apiFetch<{ success: true }>(`/e/${token}/rate`, { method: 'POST', json: input }),
+    /** Claim an invite (link to authenticated account). */
+    claim: (token: string) =>
+      apiFetch<{ success: true }>(`/e/${token}/claim`, { method: 'POST' }),
+    /** Invited votes summary for a product. */
+    forProduct: (productId: string, opts?: RequestOptions) =>
+      apiFetch<InvitedVotesSummaryDto>(`/products/${productId}/invited-votes`, opts),
   },
 
   experiences: {
@@ -314,5 +341,15 @@ export const api = {
       }),
     deleteExternalRating: (id: string) =>
       apiFetch<{ success: true }>(`/admin/external-ratings/${id}`, { method: 'DELETE' }),
+
+    /** Products with no cached photo yet ("fehlt warum" list). */
+    imagelessProducts: (opts?: RequestOptions) =>
+      apiFetch<ImagelessProductDto[]>('/admin/products/imageless', opts),
+    /** Re-hunt photos for oldest imageless products (one batch per call). */
+    backfillImages: () =>
+      apiFetch<ImageBackfillReportDto>('/admin/products/backfill-images', { method: 'POST' }),
+    /** Research external ratings for products that have none (one batch per call). */
+    backfillRatings: () =>
+      apiFetch<RatingBackfillReportDto>('/admin/products/backfill-ratings', { method: 'POST' }),
   },
 };

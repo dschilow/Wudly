@@ -4,8 +4,9 @@ import { CompareClient } from './CompareClient';
 import { PageSkeleton } from '@/components/states/States';
 
 export const metadata: Metadata = {
-  title: 'Vergleichen',
-  description: 'Vergleiche Produkte nach Wiederkauf-Score, Stärken und Schwächen.',
+  title: 'Produktvergleich',
+  description:
+    'Vergleiche Produkte nach Wiederkauf, Regret-Risiko, Datenlage und echten Besitzerstimmen.',
 };
 
 export default function ComparePage() {

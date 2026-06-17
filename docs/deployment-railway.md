@@ -40,7 +40,8 @@ der Dockerfile-Build ueber die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
 | `OLLAMA_2B_MODEL` | nur fuer `/ki-test`-Playground: `gemma4:e2b` |
 | `ICECAT_USERNAME` | optional, Open-Icecat-Account |
 | `ICECAT_API_TOKEN` | optional |
-| `GOOGLE_CSE_KEY` / `GOOGLE_CSE_ID` | optional, Google Programmable Search |
+| `GOOGLE_CSE_KEY` / `GOOGLE_CSE_ID` | optional, Google Programmable Search (eingestellt) |
+| `BRAVE_SEARCH_KEY` | optional, bevorzugte Bildquelle; Free-Plan 2.000/Monat auf api-dashboard.search.brave.com |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | optional, Web Push |
 | `RAILWAY_DOCKERFILE_PATH` | `apps/api/Dockerfile` |
 
