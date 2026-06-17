@@ -25,6 +25,8 @@ import {
   type ImagelessProductDto,
   type ImageBackfillReportDto,
   type ImageBackfillResultDto,
+  type RatingBackfillReportDto,
+  type RatingBackfillResultDto,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
@@ -650,31 +652,89 @@ export class ProductsService {
     name: string,
     brand: string | null,
   ): void {
-    void (async () => {
+    void this.researchAndStoreRatings(productId, name, brand).catch((err) => {
+      this.logger.warn(
+        `Ratings research failed for ${productId}: ${err instanceof Error ? err.message : err}`,
+      );
+    });
+  }
+
+  /**
+   * Awaitable core of the rating research: ask the AI for aggregated rating FACTS
+   * (average + count + link — never review texts) and upsert them. Returns how many
+   * were stored. Shared by the create-time background enrichment and the admin
+   * backfill. No-op (returns 0) with the dummy/local provider, which can't web-search.
+   */
+  private async researchAndStoreRatings(
+    productId: string,
+    name: string,
+    brand: string | null,
+  ): Promise<number> {
+    const ratings = await this.ai.researchExternalRatings(name, brand);
+    let stored = 0;
+    for (const rating of ratings) {
+      if (rating.url.length > 500) continue;
+      await this.externalRatings.upsert(productId, {
+        source: rating.source,
+        sourceLabel: rating.sourceLabel,
+        url: rating.url,
+        kind: rating.kind,
+        value: rating.value,
+        maxValue: rating.maxValue,
+        count: rating.count,
+        note: null,
+      });
+      stored += 1;
+    }
+    if (stored > 0) {
+      this.logger.log(`External ratings researched for ${productId}: ${stored}`);
+    }
+    return stored;
+  }
+
+  /**
+   * Admin backfill: research external ratings for existing products that have none
+   * yet. Runs SEQUENTIALLY (the AI web search is rate-limited and shared), oldest
+   * first, in small batches — run repeatedly until `remaining` reaches 0. Mirrors
+   * the image backfill. Returns a per-product report.
+   */
+  async backfillMissingRatings(limit = 8): Promise<RatingBackfillReportDto> {
+    const batchSize = Math.min(Math.max(limit, 1), 25);
+    const products = await this.prisma.product.findMany({
+      where: { status: { not: 'HIDDEN' }, externalRatings: { none: {} } },
+      select: { id: true, canonicalName: true, brand: true },
+      orderBy: { createdAt: 'asc' },
+      take: batchSize,
+    });
+
+    const results: RatingBackfillResultDto[] = [];
+    for (const p of products) {
       try {
-        const ratings = await this.ai.researchExternalRatings(name, brand);
-        for (const rating of ratings) {
-          if (rating.url.length > 500) continue;
-          await this.externalRatings.upsert(productId, {
-            source: rating.source,
-            sourceLabel: rating.sourceLabel,
-            url: rating.url,
-            kind: rating.kind,
-            value: rating.value,
-            maxValue: rating.maxValue,
-            count: rating.count,
-            note: null,
-          });
-        }
-        if (ratings.length > 0) {
-          this.logger.log(`External ratings researched for ${productId}: ${ratings.length}`);
-        }
+        const stored = await this.researchAndStoreRatings(p.id, p.canonicalName, p.brand);
+        results.push({ productId: p.id, name: p.canonicalName, found: stored, error: null });
       } catch (err) {
         this.logger.warn(
-          `Ratings research failed for ${productId}: ${err instanceof Error ? err.message : err}`,
+          `Rating backfill failed for ${p.id}: ${err instanceof Error ? err.message : err}`,
         );
+        results.push({
+          productId: p.id,
+          name: p.canonicalName,
+          found: 0,
+          error: err instanceof Error ? err.message : 'error',
+        });
       }
-    })();
+    }
+
+    const remaining = await this.prisma.product.count({
+      where: { status: { not: 'HIDDEN' }, externalRatings: { none: {} } },
+    });
+    return {
+      attempted: results.length,
+      withRatings: results.filter((r) => r.found > 0).length,
+      totalFound: results.reduce((sum, r) => sum + r.found, 0),
+      remaining,
+      results,
+    };
   }
 
   private async attachIdentifier(productId: string, ean: string): Promise<void> {

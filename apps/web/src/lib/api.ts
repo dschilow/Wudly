@@ -65,6 +65,7 @@ import type {
   UpsertExternalRatingInput,
   ImagelessProductDto,
   ImageBackfillReportDto,
+  RatingBackfillReportDto,
   AiPlaygroundTarget,
   AiPlaygroundReply,
   AiPlaygroundChatRequest,
@@ -343,5 +344,7 @@ export const api = {
       apiFetch<ImagelessProductDto[]>('/admin/products/imageless', opts),
     backfillImages: () =>
       apiFetch<ImageBackfillReportDto>('/admin/products/backfill-images', { method: 'POST' }),
+    backfillRatings: () =>
+      apiFetch<RatingBackfillReportDto>('/admin/products/backfill-ratings', { method: 'POST' }),
   },
 };

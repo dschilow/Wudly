@@ -307,6 +307,29 @@ export interface ImageBackfillReportDto {
   results: ImageBackfillResultDto[];
 }
 
+/** One product's result inside an external-ratings backfill run. */
+export interface RatingBackfillResultDto {
+  productId: string;
+  name: string;
+  /** How many rating facts were researched + stored for this product. */
+  found: number;
+  /** Error message when the AI research threw, else null. */
+  error: string | null;
+}
+
+/** Summary of an external-ratings backfill run over products that had none. */
+export interface RatingBackfillReportDto {
+  /** How many products were attempted in this pass. */
+  attempted: number;
+  /** How many products ended up with at least one rating. */
+  withRatings: number;
+  /** Total rating facts stored across all attempted products. */
+  totalFound: number;
+  /** How many products without ratings remain after this pass. */
+  remaining: number;
+  results: RatingBackfillResultDto[];
+}
+
 export interface ProfileSummaryDto {
   user: UserDto;
   productCount: number;

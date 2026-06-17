@@ -16,6 +16,7 @@ import {
   type UpsertExternalRatingInput,
   type ImagelessProductDto,
   type ImageBackfillReportDto,
+  type RatingBackfillReportDto,
 } from '@wudly/shared';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -90,5 +91,15 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   backfillImages(): Promise<ImageBackfillReportDto> {
     return this.products.backfillMissingImages(10);
+  }
+
+  /**
+   * Research external rating facts for products that have none yet. One small
+   * batch per call (the AI web search is rate-limited); run until `remaining` is 0.
+   */
+  @Post('products/backfill-ratings')
+  @HttpCode(HttpStatus.OK)
+  backfillRatings(): Promise<RatingBackfillReportDto> {
+    return this.products.backfillMissingRatings(8);
   }
 }

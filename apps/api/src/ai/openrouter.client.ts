@@ -90,9 +90,14 @@ export class OpenRouterClient implements JsonChatClient {
 
     for (const model of this.models) {
       let res = await this.callModel(model, messages, opts, 'json');
-      // A 4xx on the structured request often means the model/route rejected
-      // response_format — retry once in plain mode before giving up on it.
-      if (!res.ok && res.status && [400, 404, 415, 422, 501].includes(res.status)) {
+      // Retry the same model in plain mode when the structured request failed in a
+      // way that's typically caused by `response_format: json_object`:
+      //  - a 4xx (the model/route rejected the param), or
+      //  - empty content, which the web-search (`:online`) plugin commonly returns
+      //    under strict JSON mode — it answers with cited prose, not a JSON object.
+      const rejectedJson = res.status && [400, 404, 415, 422, 501].includes(res.status);
+      const emptyUnderJson = !res.ok && !res.status && res.error === 'empty content';
+      if (!res.ok && (rejectedJson || emptyUnderJson)) {
         res = await this.callModel(model, messages, opts, 'plain');
       }
       if (res.ok && res.content) return res.content;
