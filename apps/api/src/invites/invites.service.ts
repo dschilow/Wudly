@@ -9,6 +9,7 @@ import type {
 } from '@wudly/shared';
 import type { InvitedVote } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProductInsightsService } from '../products/product-insights.service';
 
 function toInvitedVoteDto(v: InvitedVote): InvitedVoteDto {
   return {
@@ -29,7 +30,10 @@ function toInvitedVoteDto(v: InvitedVote): InvitedVoteDto {
  */
 @Injectable()
 export class InvitesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly insights: ProductInsightsService,
+  ) {}
 
   async createInvite(productId: string, userId: string): Promise<RatingInviteDto> {
     const product = await this.prisma.product.findUnique({
@@ -101,6 +105,7 @@ export class InvitesService {
       where: { id: invite.id },
       data: { uses: { increment: 1 } },
     });
+    void this.insights.regenerate(invite.productId).catch(() => {});
     return toInvitedVoteDto(vote);
   }
 
@@ -117,17 +122,29 @@ export class InvitesService {
     };
   }
 
-  /** Upgrade a guest's invited votes to full account votes after they authenticate. */
+  /**
+   * Upgrade a guest's invited votes to full account votes after they authenticate,
+   * and make them a real owner of the product — so they join the owner pool: their
+   * voice counts fully and they can be asked questions like any other owner.
+   */
   async claim(token: string, userId: string): Promise<{ claimed: number }> {
     const invite = await this.prisma.ratingInvite.findUnique({
       where: { token },
-      select: { id: true },
+      select: { id: true, productId: true },
     });
     if (!invite) return { claimed: 0 };
     const res = await this.prisma.invitedVote.updateMany({
       where: { inviteId: invite.id, claimedByUserId: null },
       data: { claimedByUserId: userId, weight: 1 },
     });
+    if (res.count > 0) {
+      await this.prisma.ownership.upsert({
+        where: { userId_productId: { userId, productId: invite.productId } },
+        create: { userId, productId: invite.productId },
+        update: {},
+      });
+      void this.insights.regenerate(invite.productId).catch(() => {});
+    }
     return { claimed: res.count };
   }
 

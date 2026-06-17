@@ -494,8 +494,8 @@ export function CheckClient({
                   Alle
                 </Link>
               </div>
-              <div className="space-y-2.5">
-                {featured.slice(0, 3).map((product) => (
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {featured.slice(0, 4).map((product) => (
                   <RecentProduct key={product.id} product={product} />
                 ))}
               </div>

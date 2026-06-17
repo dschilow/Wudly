@@ -61,6 +61,8 @@ export interface ScorableExperience {
   experienceMood: ExperienceMoodType;
   /** Optional trust driver. Omitted → counted at full weight (back-compatible). */
   verificationStatus?: VerificationStatusType;
+  /** Override the computed weight entirely (e.g. invited guest votes at 0.4). */
+  scoreWeight?: number;
 }
 
 export interface ScoreResult {
@@ -101,7 +103,7 @@ export function computeScores(experiences: readonly ScorableExperience[]): Score
     const trustWeight = exp.verificationStatus
       ? (VERIFICATION_WEIGHT[exp.verificationStatus] ?? 1.0)
       : 1.0;
-    const weight = durationWeight * trustWeight;
+    const weight = exp.scoreWeight ?? durationWeight * trustWeight;
     totalWeight += weight;
 
     rebuyWeighted += REBUY_VALUE[exp.wouldBuyAgain] * weight;

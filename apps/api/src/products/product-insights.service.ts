@@ -59,7 +59,21 @@ export class ProductInsightsService {
     }));
 
     const ownerCount = await this.prisma.ownership.count({ where: { productId } });
-    const snapshot = buildInsightSnapshot(inputs, ownerCount);
+
+    // Invited (guest) ratings fold into the score at their own weight (0.4 guest /
+    // 1 once claimed) — marked, never counted as owner experiences.
+    const invited = await this.prisma.invitedVote.findMany({
+      where: { productId },
+      select: { wouldBuyAgain: true, weight: true },
+    });
+    const invitedVotes = invited.map((v) => ({
+      wouldBuyAgain: v.wouldBuyAgain,
+      usageDuration: 'ONE_TO_SIX_MONTHS' as const,
+      experienceMood: 'OKAY' as const,
+      scoreWeight: v.weight,
+    }));
+
+    const snapshot = buildInsightSnapshot(inputs, ownerCount, invitedVotes);
 
     const data = {
       ownerCount: snapshot.ownerCount,

@@ -117,8 +117,12 @@ export function qualifiesForWudlySeal(input: {
 export function buildInsightSnapshot(
   experiences: readonly InsightExperienceInput[],
   ownerCount: number,
+  invitedVotes: readonly ScorableExperience[] = [],
 ): InsightSnapshotData {
-  const scores = computeScores(experiences);
+  // Invited (guest) votes fold into the score at their own weight, but never into
+  // the experience count, aspects, highlights or the seal — those stay owner-only.
+  const scores = computeScores([...experiences, ...invitedVotes]);
+  const experienceCount = experiences.length;
   const usageDurationStats = computeUsageDurationStats(experiences);
 
   const positiveTally = new Map<string, AspectStat>();
@@ -159,20 +163,20 @@ export function buildInsightSnapshot(
     .map((e) => e.insteadOfText?.trim())
     .filter((t): t is string => Boolean(t && t.length > 0));
   const insteadOfShare =
-    scores.experienceCount > 0
-      ? Math.round((insteadOfTexts.length / scores.experienceCount) * 100)
+    experienceCount > 0
+      ? Math.round((insteadOfTexts.length / experienceCount) * 100)
       : 0;
   const insteadOfHighlights = topByFrequency(insteadOfTexts, MAX_INSTEAD_OF);
 
   const wudlySeal = qualifiesForWudlySeal({
-    experienceCount: scores.experienceCount,
+    experienceCount,
     rebuyScore: scores.rebuyScore,
     usageDurationStats,
   });
 
   return {
     ownerCount,
-    experienceCount: scores.experienceCount,
+    experienceCount,
     rebuyScore: scores.rebuyScore,
     regretScore: scores.regretScore,
     unsureScore: scores.unsureScore,
