@@ -291,6 +291,12 @@ export class ProductsService {
       this.insights.getInsights(id),
       this.externalRatings.listForProduct(id),
     ]);
+
+    // No cached photo yet → trigger a background hunt so the next page load has it.
+    if (!product.cachedImage) {
+      void this.rehuntImage(id).catch(() => undefined);
+    }
+
     return toProductDetailDto(product, insights, externalRatings);
   }
 

@@ -41,14 +41,13 @@ const envSchema = z.object({
   // and the EAN chain continues with the other free databases.
   ICECAT_USERNAME: z.string().optional(),
   ICECAT_API_TOKEN: z.string().optional(),
-  // Google Programmable Search (image mode). Kept for backwards compatibility
-  // but "Search entire web" was sunset by Google — Bing is now the primary source.
+  // Google Programmable Search (image mode) — the most reliable product-photo
+  // source for products no EAN database covers. 100 queries/day free:
+  // console.cloud.google.com → enable "Custom Search API" + create API key;
+  // programmablesearchengine.google.com → engine ("Search entire web", image
+  // search ON) → copy its cx id. Optional: without both, this step is skipped.
   GOOGLE_CSE_KEY: z.string().optional(),
   GOOGLE_CSE_ID: z.string().optional(),
-  // Bing Image Search (Azure Cognitive Services, replaces Google CSE).
-  // Free tier: 1000 queries/month. Create at portal.azure.com → "Bing Search v7".
-  // Optional: without this the image-search step is skipped.
-  BING_IMAGE_KEY: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

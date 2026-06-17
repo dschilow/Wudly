@@ -21,11 +21,6 @@ import type {
   NotificationListDto,
   PushTestResultDto,
   OpenQuestionDto,
-  RatingInviteDto,
-  PublicInviteDto,
-  InvitedVoteDto,
-  InvitedVotesSummaryDto,
-  InviteRatingInput,
   RegisterInput,
   LoginInput,
   CreateProductInput,
@@ -63,9 +58,6 @@ import type {
   ReorderBlocksInput,
   ExternalRatingDto,
   UpsertExternalRatingInput,
-  ImagelessProductDto,
-  ImageBackfillReportDto,
-  RatingBackfillReportDto,
   AiPlaygroundTarget,
   AiPlaygroundReply,
   AiPlaygroundChatRequest,
@@ -101,9 +93,6 @@ export const api = {
   products: {
     list: (params: { take?: number; skip?: number } = {}, opts?: RequestOptions) =>
       apiFetch<PaginatedDto<ProductSummaryDto>>(`/products${qs(params)}`, opts),
-    /** "Frisch im Katalog": newest products, those with a Netz-Konsens first. */
-    newest: (take = 8, opts?: RequestOptions) =>
-      apiFetch<ProductSummaryDto[]>(`/products/newest${qs({ take })}`, opts),
     search: (q: string, take = 10, opts?: RequestOptions) =>
       apiFetch<ProductSummaryDto[]>(`/products/search${qs({ q, take })}`, opts),
     /** Real-market name suggestions (no AI) when the catalog has no hits. */
@@ -166,19 +155,6 @@ export const api = {
       apiFetch<AnswerDto>(`/questions/${questionId}/answers`, { method: 'POST', json: input }),
     markHelpful: (answerId: string) =>
       apiFetch<AnswerDto>(`/answers/${answerId}/helpful`, { method: 'PATCH' }),
-  },
-
-  invites: {
-    create: (productId: string) =>
-      apiFetch<RatingInviteDto>(`/products/${productId}/invites`, { method: 'POST' }),
-    forProduct: (productId: string, opts?: RequestOptions) =>
-      apiFetch<InvitedVotesSummaryDto>(`/products/${productId}/invited-votes`, opts),
-    publicInvite: (token: string, opts?: RequestOptions) =>
-      apiFetch<PublicInviteDto>(`/e/${token}`, opts),
-    rate: (token: string, input: InviteRatingInput) =>
-      apiFetch<InvitedVoteDto>(`/e/${token}/rate`, { method: 'POST', json: input }),
-    claim: (token: string) =>
-      apiFetch<{ claimed: number }>(`/e/${token}/claim`, { method: 'POST' }),
   },
 
   ownership: {
@@ -338,13 +314,5 @@ export const api = {
       }),
     deleteExternalRating: (id: string) =>
       apiFetch<{ success: true }>(`/admin/external-ratings/${id}`, { method: 'DELETE' }),
-
-    // Product images: "fehlt warum" overview + on-demand backfill.
-    imagelessProducts: (opts?: RequestOptions) =>
-      apiFetch<ImagelessProductDto[]>('/admin/products/imageless', opts),
-    backfillImages: () =>
-      apiFetch<ImageBackfillReportDto>('/admin/products/backfill-images', { method: 'POST' }),
-    backfillRatings: () =>
-      apiFetch<RatingBackfillReportDto>('/admin/products/backfill-ratings', { method: 'POST' }),
   },
 };
