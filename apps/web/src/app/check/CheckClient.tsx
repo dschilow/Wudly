@@ -25,6 +25,7 @@ import type {
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { dataConfidenceLabel } from '@/lib/verdict';
+import { OnboardingIntro } from '@/components/OnboardingIntro';
 import { ProductList } from '@/components/ProductList';
 import { Thumb } from '@/components/Thumb';
 import { WaveLines } from '@/components/motion/WaveLines';
@@ -271,6 +272,7 @@ export function CheckClient({
       initial="hidden"
       animate="show"
     >
+      <OnboardingIntro />
       <CameraScanner
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}

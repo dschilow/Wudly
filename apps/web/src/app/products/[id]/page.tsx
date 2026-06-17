@@ -22,6 +22,7 @@ import type {
   ProductInsightsDto,
   QuestionDto,
   ShowcaseSummaryDto,
+  InvitedVotesSummaryDto,
 } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
@@ -30,6 +31,7 @@ import { productJsonLd, breadcrumbJsonLd, absoluteUrl } from '@/lib/seo';
 import { ShareButton } from '@/components/ShareButton';
 import { SignalPanel } from '@/components/SignalPanel';
 import { InviteButton } from '@/components/InviteButton';
+import { InvitedVotesCard } from '@/components/InvitedVotesCard';
 import { dataConfidenceLabel } from '@/lib/verdict';
 import { ProductActionBar } from '@/components/ProductActionBar';
 import { ProductTabs } from '@/components/ProductTabs';
@@ -336,10 +338,15 @@ export default async function ProductPage({ params }: PageProps) {
     throw err;
   }
 
-  const [experiences, questions, showcases] = await Promise.all([
+  const [experiences, questions, showcases, invitedVotes] = await Promise.all([
     safe(api.products.experiences(id, { next: { revalidate: 20 } }), [] as ExperienceDto[]),
     safe(api.products.questions(id, { next: { revalidate: 20 } }), [] as QuestionDto[]),
     safe(api.showcase.forProduct(id, { next: { revalidate: 60 } }), [] as ShowcaseSummaryDto[]),
+    safe(api.invites.forProduct(id, { next: { revalidate: 30 } }), {
+      count: 0,
+      yesCount: 0,
+      votes: [],
+    } as InvitedVotesSummaryDto),
   ]);
 
   const ins = product.insights;
@@ -553,18 +560,21 @@ export default async function ProductPage({ params }: PageProps) {
     </>
   );
 
-  const stimmenTab =
-    experiences.length > 0 ? (
-      <ExperienceTimeline experiences={experiences} />
-    ) : (
-      <div className="card">
-        <EmptyState
-          icon={<PackageOpen className="h-7 w-7" strokeWidth={1.8} />}
-          title="Noch keine Stimmen"
-          description="Sei der erste Besitzer und teile deine Erfahrung."
-        />
-      </div>
-    );
+  const stimmenTab = (
+    <div className="space-y-7">
+      {experiences.length > 0 && <ExperienceTimeline experiences={experiences} />}
+      <InvitedVotesCard data={invitedVotes} />
+      {experiences.length === 0 && invitedVotes.count === 0 && (
+        <div className="card">
+          <EmptyState
+            icon={<PackageOpen className="h-7 w-7" strokeWidth={1.8} />}
+            title="Noch keine Stimmen"
+            description="Sei der erste Besitzer und teile deine Erfahrung."
+          />
+        </div>
+      )}
+    </div>
+  );
 
   const fragenTab = (
     <>
