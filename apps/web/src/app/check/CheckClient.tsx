@@ -119,16 +119,11 @@ export function CheckClient({
         // Extra debounce: external quotas + AI calls only for settled queries.
         deepDebounceRef.current = setTimeout(async () => {
           try {
+            // The deep find already merges market DBs + AI candidates server-side
+            // (deduped, one list) — no separate AI round-trip needed anymore.
             const deep = await api.products.find(q, true, { cache: 'no-store' });
             if (seq !== seqRef.current) return;
-            if (deep.market.length > 0) {
-              setSuggestions(deep.market);
-              return;
-            }
-            // Market DBs empty → the AI names the product (same list, same look).
-            const ai = await api.products.aiCandidates(q, { cache: 'no-store' });
-            if (seq !== seqRef.current) return;
-            setSuggestions(ai);
+            setSuggestions(deep.market);
           } catch {
             if (seq === seqRef.current) setSuggestions([]);
           } finally {

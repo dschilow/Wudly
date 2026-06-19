@@ -62,19 +62,41 @@ interface UpcItem {
   images?: string[];
 }
 
+/** Fold German umlauts to their ASCII digraphs — UPCitemdb indexes ASCII titles. */
+function foldUmlauts(s: string): string {
+  return s
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss');
+}
+
 /**
  * Cheap spelling rewrites for the strict market search. Order matters — the
  * caller stops at the first variant with enough hits. Deduplicated, capped.
+ *
+ * UPCitemdb matches on raw ASCII spelling, so the same product appears under
+ * spaced/glued model names ("magic 5 pro" vs "magic5 pro") and German umlauts
+ * never match the (ASCII) titles in its index ("kärcher" → "karcher"/"kaercher").
+ * The brand-only variant is a last resort: when the full query misses, the bare
+ * first word ("kärcher") still surfaces the maker's lineup to pick from.
  */
 function spellingVariants(q: string): string[] {
-  const out = [q];
+  const folded = foldUmlauts(q);
+  // Plain umlaut-drop ("kärcher" → "karcher") matches catalogs that strip,
+  // rather than expand, the umlaut — common for brand names.
+  const stripped = q.replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss');
+  const out = [q, folded, stripped];
   // "magic 5 pro" → "magic5 pro" (glue a letter-word to a following number)
-  out.push(q.replace(/([a-zäöü]) (\d)/gi, '$1$2'));
+  out.push(folded.replace(/([a-z]) (\d)/gi, '$1$2'));
   // "magic5 pro" → "magic 5 pro" (split a number off a letter-word)
-  out.push(q.replace(/([a-zäöü])(\d)/gi, '$1 $2'));
-  // collapsed: drop all spaces ("honormagic5pro") — last resort
-  out.push(q.replace(/\s+/g, ''));
-  return [...new Set(out.map((s) => s.trim()).filter((s) => s.length >= 3))].slice(0, 4);
+  out.push(folded.replace(/([a-z])(\d)/gi, '$1 $2'));
+  // collapsed: drop all spaces ("honormagic5pro")
+  out.push(folded.replace(/\s+/g, ''));
+  // Brand-only last resort: the first word alone (≥3 chars), umlauts folded.
+  const firstWord = folded.split(/\s+/)[0];
+  if (firstWord && firstWord.length >= 3 && firstWord !== folded) out.push(firstWord);
+  return [...new Set(out.map((s) => s.trim()).filter((s) => s.length >= 3))].slice(0, 6);
 }
 
 /**
@@ -148,6 +170,35 @@ function buildImageQuery(brand: string | null | undefined, name: string): string
   if (!b) return n;
   if (n.toLowerCase().startsWith(b.toLowerCase())) return n;
   return `${b} ${n}`;
+}
+
+/**
+ * Merge two suggestion lists (market first, AI as filler) dropping duplicates.
+ * Two entries are the "same" product when they share an EAN or their titles
+ * normalize to the same token soup — so the AI doesn't re-list what UPCitemdb
+ * already returned. Capped to keep the picker short.
+ */
+function mergeSuggestions(
+  primary: ExternalProductSuggestionDto[],
+  filler: ExternalProductSuggestionDto[],
+  cap: number,
+): ExternalProductSuggestionDto[] {
+  const seenEans = new Set<string>();
+  const seenTitles = new Set<string>();
+  const normTitle = (t: string) => t.toLowerCase().replace(/[^a-z0-9äöüß]+/g, ' ').trim();
+  const out: ExternalProductSuggestionDto[] = [];
+
+  for (const item of [...primary, ...filler]) {
+    if (out.length >= cap) break;
+    const ean = item.ean?.trim();
+    if (ean && seenEans.has(ean)) continue;
+    const norm = normTitle(item.title);
+    if (norm && seenTitles.has(norm)) continue;
+    if (ean) seenEans.add(ean);
+    if (norm) seenTitles.add(norm);
+    out.push(item);
+  }
+  return out;
 }
 
 /** Coerce a product's JSON `specs` column back into typed pairs. */
@@ -238,7 +289,7 @@ export class ProductsService {
 
     const market =
       deep && !hasStrongMatch && query.trim().length >= 3
-        ? await this.externalSuggestions(query)
+        ? await this.marketAndAiSuggestions(query)
         : [];
 
     return {
@@ -246,6 +297,39 @@ export class ProductsService {
       market,
       hasStrongMatch,
     };
+  }
+
+  /**
+   * The deep "noch nicht auf Wudly" list: real-market hits (UPCitemdb, EAN-rich
+   * → Icecat-quality path) COMPLEMENTED by AI candidates. Previously a single
+   * weak market hit (e.g. one surviving accessory) blocked the AI step entirely,
+   * so German queries UPCitemdb indexes poorly returned almost nothing. Now the
+   * AI always runs when the market list is thin (< 3), and both feed one merged,
+   * deduplicated list — market first (it carries EANs), AI as filler.
+   */
+  private async marketAndAiSuggestions(query: string): Promise<ExternalProductSuggestionDto[]> {
+    const market = await this.externalSuggestions(query);
+    const merged =
+      market.length >= 3 ? market : mergeSuggestions(market, await this.aiCandidates(query), 6);
+    return this.fillSuggestionImages(merged);
+  }
+
+  /**
+   * Give image-less suggestions a thumbnail (hotlink, not cached — there's no
+   * product row yet). UPCitemdb often omits images and AI candidates never carry
+   * one, so the picker would otherwise show a text-only row. Best-effort and
+   * parallel; the image search is memo-cached so repeats are free.
+   */
+  private async fillSuggestionImages(
+    suggestions: ExternalProductSuggestionDto[],
+  ): Promise<ExternalProductSuggestionDto[]> {
+    return Promise.all(
+      suggestions.map(async (s) => {
+        if (s.image) return s;
+        const image = await this.images.previewImageUrl(buildImageQuery(s.brand, s.title));
+        return image ? { ...s, image } : s;
+      }),
+    );
   }
 
   /**

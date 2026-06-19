@@ -8,6 +8,8 @@ const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const ALLOWED_MIME = /^image\/(jpeg|png|webp|gif|avif)$/i;
 /** Cap for HTML downloads when extracting og:image from a product page. */
 const MAX_HTML_BYTES = 400 * 1024;
+/** Preview-thumbnail URLs barely change — cache generously to spare the quota. */
+const PREVIEW_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 
 /**
  * Downloads external product images ONCE and serves them from our own DB,
@@ -282,6 +284,31 @@ export class ProductImageService {
    *   4. Google CSE — last resort (the "search entire web" mode is sunset)
    * Each step is skipped when unconfigured, and we fall through on empty results.
    */
+  /**
+   * Best-effort thumbnail URL for a query — a single image-search hit returned
+   * as a *hotlink* (NOT downloaded/cached; there's no product row yet). Used to
+   * give search suggestions (market/AI) a picture before the user picks one.
+   * Returns null on miss; never throws. Memo-cached to spare the image quota,
+   * since the same query is searched on every keystroke-settled deep search.
+   */
+  async previewImageUrl(query: string): Promise<string | null> {
+    const key = query.trim().toLowerCase();
+    if (key.length < 2) return null;
+    const cached = this.previewCache.get(key);
+    if (cached && Date.now() - cached.at < PREVIEW_CACHE_TTL_MS) return cached.url;
+    let url: string | null = null;
+    try {
+      url = (await this.searchImages(query)).find((u) => /^https?:\/\//i.test(u)) ?? null;
+    } catch {
+      url = null;
+    }
+    if (this.previewCache.size > 500) this.previewCache.clear();
+    this.previewCache.set(key, { at: Date.now(), url });
+    return url;
+  }
+
+  private readonly previewCache = new Map<string, { at: number; url: string | null }>();
+
   private async searchImages(query: string): Promise<string[]> {
     if (query.trim().length < 2) return [];
     if (this.braveKey) {
