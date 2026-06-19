@@ -21,6 +21,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { DummyAiService } from './dummy-ai.service';
 import { parseJsonObject, type ChatMessage, type JsonChatClient } from './openrouter.client';
+import { BraveSearchService } from './brave-search.service';
 
 /* ----- Zod schemas to validate model output (never trust it raw) ----- */
 
@@ -129,7 +130,45 @@ export class OpenRouterAiService implements AiService {
     private readonly client: JsonChatClient,
     private readonly fallback: DummyAiService,
     private readonly prisma: PrismaService,
+    private readonly brave: BraveSearchService,
   ) {}
+
+  /**
+   * When Brave is configured, ground research in real search results we fetch
+   * ourselves rather than the model's blind `:online` web plugin. Returns the
+   * context block to inject, whether `:online` is still needed as fallback, and
+   * `grounded` — true only when we actually have web context in hand.
+   *
+   * `grounded` lets the caller decide what to do in the "Brave keyed but empty"
+   * case: a gated path (ratings) can let the model answer from memory, but a
+   * path that would otherwise invent names (suggestProducts) must return nothing
+   * rather than guess unverifiably.
+   */
+  private async groundedSearch(
+    query: string,
+    count = 6,
+  ): Promise<{ contextMessages: ChatMessage[]; online: boolean; grounded: boolean }> {
+    if (!this.brave.enabled) return { contextMessages: [], online: true, grounded: false };
+    const context = await this.brave.context(query, count);
+    if (!context) {
+      // Key present but no hits for this query. Don't re-enable `:online`: Brave
+      // is our web layer now (and a local Ollama model can't do `:online` at all).
+      // `grounded: false` tells callers there is nothing to verify against.
+      return { contextMessages: [], online: false, grounded: false };
+    }
+    return {
+      online: false,
+      grounded: true,
+      contextMessages: [
+        {
+          role: 'system',
+          content:
+            'Aktuelle Websuche-Ergebnisse (nutze NUR diese als Quelle; jede Zahl/URL muss hier ' +
+            `belegt sein, sonst weglassen):\n\n${context}`,
+        },
+      ],
+    };
+  }
 
   async extractProductCandidate(input: ProductInput): Promise<ProductCandidate> {
     const messages: ChatMessage[] = [
@@ -413,9 +452,14 @@ export class OpenRouterAiService implements AiService {
       { role: 'user', content: `Produkt: ${name}` },
     ];
 
+    const grounding = await this.groundedSearch(`${name} Produkt Test technische Daten`);
     const parsed = researchSchema.safeParse(
       parseJsonObject(
-        await this.client.completeJson(messages, { temperature: 0.2, maxTokens: 600, online: true }),
+        await this.client.completeJson([...grounding.contextMessages, ...messages], {
+          temperature: 0.2,
+          maxTokens: 600,
+          online: grounding.online,
+        }),
       ),
     );
     if (!parsed.success) return this.fallback.researchProduct(name, categorySlugs);
@@ -443,7 +487,10 @@ export class OpenRouterAiService implements AiService {
         content:
           'Du bist die Produktsuche von Wudly. Der Nutzer sucht ein Konsumprodukt per Freitext. ' +
           'Nenne bis zu 3 real existierende, konkrete Produkte (offizielle Modellnamen mit Marke), ' +
-          'die der Nutzer höchstwahrscheinlich meint — über die Websuche verifiziert. ' +
+          'die der Nutzer höchstwahrscheinlich meint. WENN dir oben Websuche-Ergebnisse vorliegen, ' +
+          'dürfen die Modellnamen NUR aus diesen Ergebnissen stammen — niemals einen Modellnamen ' +
+          'erfinden oder kombinieren, der dort nicht wörtlich vorkommt. Taucht in den Ergebnissen ' +
+          'kein passendes konkretes Modell auf, liefere eine leere Liste. ' +
           'Keine Erfindungen, keine Zubehörartikel. "ean" (8–14 Ziffern) nur angeben, wenn du die ' +
           'GTIN sicher kennst, sonst null. Findest du nichts Eindeutiges, liefere eine leere Liste. ' +
           'Antworte ausschließlich als valides JSON ohne Markdown: ' +
@@ -452,9 +499,19 @@ export class OpenRouterAiService implements AiService {
       { role: 'user', content: `Suchanfrage: ${query}` },
     ];
 
+    const grounding = await this.groundedSearch(`${query} Modell kaufen Test`, 8);
+    // Brave is our web layer but found nothing for this query: don't ask the
+    // model to name products from memory — there's no code gate on suggestions,
+    // so an invented model name would leak. No web evidence → no suggestions.
+    if (this.brave.enabled && !grounding.grounded) return [];
+
     const parsed = suggestProductsSchema.safeParse(
       parseJsonObject(
-        await this.client.completeJson(messages, { temperature: 0.2, maxTokens: 400, online: true }),
+        await this.client.completeJson([...grounding.contextMessages, ...messages], {
+          temperature: 0.2,
+          maxTokens: 400,
+          online: grounding.online,
+        }),
       ),
     );
     if (!parsed.success) return [];
@@ -487,9 +544,14 @@ export class OpenRouterAiService implements AiService {
       { role: 'user', content: `Produkt: ${label}` },
     ];
 
+    const grounding = await this.groundedSearch(`${label} Bewertungen Sterne Test Erfahrungen`, 8);
     const parsed = externalRatingsSchema.safeParse(
       parseJsonObject(
-        await this.client.completeJson(messages, { temperature: 0.1, maxTokens: 600, online: true }),
+        await this.client.completeJson([...grounding.contextMessages, ...messages], {
+          temperature: 0.1,
+          maxTokens: 600,
+          online: grounding.online,
+        }),
       ),
     );
     if (!parsed.success) return [];

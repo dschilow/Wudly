@@ -5,6 +5,7 @@ import { DummyAiService } from './dummy-ai.service';
 import { OpenRouterAiService } from './openrouter-ai.service';
 import { OpenRouterClient } from './openrouter.client';
 import { OllamaClient } from './ollama.client';
+import { BraveSearchService } from './brave-search.service';
 import { AiHealthService } from './ai-health.service';
 import { AiPlaygroundService } from './ai-playground.service';
 import { AiController } from './ai.controller';
@@ -44,6 +45,14 @@ import { resolveAiProvider, type AppConfig } from '../config/configuration';
         const apiKey = config.get('OPENROUTER_API_KEY', { infer: true });
         const model = config.get('OPENROUTER_MODEL', { infer: true });
 
+        // Brave web search grounds research in real, current results instead of
+        // the model's blind `:online` plugin. Disabled (degrades to `:online`)
+        // until BRAVE_SEARCH_KEY is set.
+        const braveKey =
+          (config.get('BRAVE_SEARCH_KEY', { infer: true }) as string | undefined)?.trim() || null;
+        const brave = new BraveSearchService(braveKey);
+        if (braveKey) logger.log('Brave web search: enabled (grounding active)');
+
         if (provider === 'openrouter') {
           if (!apiKey) {
             logger.error('Provider openrouter but OPENROUTER_API_KEY is missing → using dummy AI');
@@ -57,7 +66,7 @@ import { resolveAiProvider, type AppConfig } from '../config/configuration';
           });
           const autoNote = process.env.AI_PROVIDER?.trim() ? '' : ' [auto-enabled: key present]';
           logger.log(`AI provider: OpenRouter (model=${model})${autoNote}`);
-          return new OpenRouterAiService(client, dummy, prisma);
+          return new OpenRouterAiService(client, dummy, prisma, brave);
         }
 
         if (provider === 'ollama') {
@@ -67,7 +76,7 @@ import { resolveAiProvider, type AppConfig } from '../config/configuration';
             model: ollamaModel,
           });
           logger.log(`AI provider: Ollama (model=${ollamaModel})`);
-          return new OpenRouterAiService(client, dummy, prisma);
+          return new OpenRouterAiService(client, dummy, prisma, brave);
         }
 
         if (apiKey) {
