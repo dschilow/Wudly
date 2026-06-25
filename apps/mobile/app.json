@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Wudly",
+    "slug": "wudly",
+    "version": "0.1.0",
+    "scheme": "wudly",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0c0d12"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "net.wudly.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Wudly nutzt die Kamera, um Barcodes zu scannen und Produkte zu erkennen."
+      }
+    },
+    "android": {
+      "package": "net.wudly.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0c0d12"
+      },
+      "permissions": ["CAMERA"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Wudly nutzt die Kamera, um Barcodes zu scannen und Produkte zu erkennen."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#ffffff",
+          "dark": { "backgroundColor": "#0c0d12" },
+          "image": "./assets/splash.png",
+          "resizeMode": "contain"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiUrl": "https://wudly-api-production.up.railway.app/api"
+    }
+  }
+}

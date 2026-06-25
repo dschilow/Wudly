@@ -1,0 +1,20 @@
+# Expo / RN
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+/android
+/ios
+
+# Metro
+.metro-health-check*
+
+# Misc
+*.log
+.DS_Store
+*.orig.*
+
+# Local env
+.env*.local
