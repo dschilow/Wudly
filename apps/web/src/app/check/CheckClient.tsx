@@ -24,7 +24,8 @@ import type {
 } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
-import { dataConfidenceLabel } from '@/lib/verdict';
+import { cn } from '@/lib/utils';
+import { dataConfidenceLabel, isEarlySignal } from '@/lib/verdict';
 import { OnboardingIntro } from '@/components/OnboardingIntro';
 import { ProductList } from '@/components/ProductList';
 import { Thumb } from '@/components/Thumb';
@@ -40,7 +41,10 @@ const rise = {
 
 /** A recently-checked product as a compact row: name · data confidence ····· score. */
 function RecentProduct({ product }: { product: ProductSummaryDto }) {
-  const scoreText = product.rebuyScore === null ? '–' : `${product.rebuyScore}%`;
+  // Below the early-signal threshold a percentage would over-claim ("100%" next
+  // to "Zu wenige Bewertungen"). Show a neutral dash until the signal is real.
+  const early = isEarlySignal(product.experienceCount);
+  const scoreText = product.rebuyScore === null || early ? '–' : `${product.rebuyScore}%`;
 
   return (
     <Link href={`/products/${product.id}`} className="card press flex items-center gap-3.5 p-3">
@@ -53,7 +57,12 @@ function RecentProduct({ product }: { product: ProductSummaryDto }) {
           {dataConfidenceLabel(product.experienceCount)}
         </p>
       </div>
-      <span className="font-display shrink-0 text-[1.75rem] leading-none text-accent-ink">
+      <span
+        className={cn(
+          'font-display shrink-0 text-[1.75rem] leading-none',
+          early ? 'text-faint' : 'text-accent-ink',
+        )}
+      >
         {scoreText}
       </span>
     </Link>

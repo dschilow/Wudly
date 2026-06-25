@@ -34,6 +34,10 @@ der Dockerfile-Build ueber die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
 | `OPENROUTER_MODEL` | `google/gemini-3.1-flash-lite` |
 | `OPENROUTER_SITE_URL` | `https://wudly-web-production.up.railway.app` |
 | `OPENROUTER_APP_TITLE` | `Wudly` |
+| `PRODUCT_RESEARCH_SEARCH_PROVIDER` | `brave` (bestehend) oder `openrouter` |
+| `OPENROUTER_WEB_SEARCH_ENGINE` | `perplexity` fuer Perplexity Search API ueber OpenRouter |
+| `OPENROUTER_WEB_SEARCH_MAX_RESULTS` | `5` (1-10; weniger Sprach-/Haendlerrauschen) |
+| `OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS` | `youtube.com,ebay.com,ebay.de,allegro.pl` |
 | `OLLAMA_BASE_URL` | nur bei Gemma-Test: `http://wudly-gemma.railway.internal:11434` oder `http://wudly-gemma-e2b.railway.internal:11434` |
 | `OLLAMA_MODEL` | nur bei Gemma-Test: `gemma4:e4b` oder `gemma4:e2b` |
 | `OLLAMA_2B_BASE_URL` | nur fuer `/ki-test`-Playground: `http://wudly-gemma-e2b.railway.internal:11434` |
@@ -55,6 +59,49 @@ der Dockerfile-Build ueber die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
 
 `NEXT_PUBLIC_API_URL` wird zur Build-Zeit in das Client-Bundle gebacken. Nach
 einer Aenderung dieser Variable muss `wudly-web` neu gebaut werden.
+
+### Produkt-Recherche: Brave oder Perplexity Search
+
+Die Extraktion bleibt in beiden Varianten bei Gemini Flash Lite und wird weiter
+per Zod validiert. Nur die Suchschicht wird gewechselt:
+
+```bash
+# Bestehender Pfad: Brave-Ergebnisse als expliziter Gemini-Kontext
+railway variables --service wudly-api --set "PRODUCT_RESEARCH_SEARCH_PROVIDER=brave"
+railway variables --service wudly-api --set "BRAVE_SEARCH_KEY=..."
+
+# Neuer Pfad: Perplexity Search API als OpenRouter-Web-Plugin
+railway variables --service wudly-api --set "PRODUCT_RESEARCH_SEARCH_PROVIDER=openrouter"
+railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_ENGINE=perplexity"
+railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_MAX_RESULTS=5"
+railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS=youtube.com,ebay.com,ebay.de,allegro.pl"
+```
+
+Lokaler A/B-Benchmark mit identischem Modell und Prompt:
+
+```bash
+pnpm --filter @wudly/api benchmark:product-search
+# schneller Smoke-Test mit zwei Produkten:
+pnpm --filter @wudly/api benchmark:product-search -- --limit=2
+```
+
+Der vollstaendige Vergleich benoetigt `OPENROUTER_API_KEY` und
+`BRAVE_SEARCH_KEY`. Ohne Brave-Key wird nur der Perplexity-Teil ausgefuehrt.
+
+### Kostenoptimierte Research-Pipeline
+
+Produktfakten und der externe Netz-Konsens verwenden dieselbe gestufte Strategie:
+
+1. vorhandener Katalog, EAN und Icecat (keine LLM-Kosten),
+2. 12-Stunden-Cache fuer Suchvorschlaege bzw. 90-Tage-Cache fuer Netz-Konsens,
+3. Perplexity Search + Gemini Flash Lite als primaerer Web-Research-Pfad,
+4. Brave Search + Gemini nur bei ungueltigem oder unvollstaendigem Primaerergebnis.
+
+Der Netz-Konsens kombiniert Bewertungszahlen und wiederkehrende positive/negative
+Erfahrungsthemen in einem einzigen Research-Aufruf. Themen werden nur gespeichert,
+wenn mindestens zwei konkrete Quellseiten sie belegen. Leere Ergebnisse werden
+ebenfalls 90 Tage gecacht, damit schwer auffindbare Produkte keine wiederholten
+Kosten verursachen. Externe Daten bleiben vollstaendig vom Wudly Signal getrennt.
 
 ### `wudly-gemma` (optional, Gemma 4 E4B Test)
 

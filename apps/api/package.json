@@ -17,6 +17,11 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:reset": "prisma migrate reset --force",
     "prisma:seed": "tsx prisma/seed.ts",
+    "cleanup:seed": "tsx prisma/cleanup-seed.ts",
+    "resync:snapshots": "tsx prisma/resync-snapshots.ts",
+    "benchmark:product-search": "tsx scripts/benchmark-product-search.ts",
+    "benchmark:sonar": "tsx scripts/benchmark-sonar-vs-search-gemini.ts",
+    "catalog:rebuild-researched": "tsx scripts/rebuild-researched-catalog.ts",
     "prisma:studio": "prisma studio"
   },
   "prisma": {

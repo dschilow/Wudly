@@ -44,14 +44,17 @@ import { resolveAiProvider, type AppConfig } from '../config/configuration';
         const provider = resolveAiProvider(process.env);
         const apiKey = config.get('OPENROUTER_API_KEY', { infer: true });
         const model = config.get('OPENROUTER_MODEL', { infer: true });
+        const researchSearchProvider = config.get('PRODUCT_RESEARCH_SEARCH_PROVIDER', {
+          infer: true,
+        });
 
         // Brave web search grounds research in real, current results instead of
         // the model's blind `:online` plugin. Disabled (degrades to `:online`)
         // until BRAVE_SEARCH_KEY is set.
-        const braveKey =
+        const configuredBraveKey =
           (config.get('BRAVE_SEARCH_KEY', { infer: true }) as string | undefined)?.trim() || null;
-        const brave = new BraveSearchService(braveKey);
-        if (braveKey) logger.log('Brave web search: enabled (grounding active)');
+        const brave = new BraveSearchService(configuredBraveKey);
+        if (configuredBraveKey) logger.log('Brave web search: enabled (primary or fallback)');
 
         if (provider === 'openrouter') {
           if (!apiKey) {
@@ -63,10 +66,24 @@ import { resolveAiProvider, type AppConfig } from '../config/configuration';
             model,
             siteUrl: config.get('OPENROUTER_SITE_URL', { infer: true }),
             appTitle: config.get('OPENROUTER_APP_TITLE', { infer: true }),
+            webSearchEngine: config.get('OPENROUTER_WEB_SEARCH_ENGINE', { infer: true }),
+            webSearchMaxResults: config.get('OPENROUTER_WEB_SEARCH_MAX_RESULTS', { infer: true }),
+            webSearchPrompt:
+              'Aktuelle Webquellen zur faktischen Produktprüfung. Nutze die Inhalte als ' +
+              'Recherchekontext. Füge keine Markdown-Zitate in die Antwort ein; befolge das ' +
+              'vom Nutzer verlangte Ausgabeformat exakt.',
+            webSearchExcludeDomains: config.get('OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS', {
+              infer: true,
+            }),
           });
           const autoNote = process.env.AI_PROVIDER?.trim() ? '' : ' [auto-enabled: key present]';
           logger.log(`AI provider: OpenRouter (model=${model})${autoNote}`);
-          return new OpenRouterAiService(client, dummy, prisma, brave);
+          logger.log(
+            researchSearchProvider === 'brave'
+              ? `Product research search: Brave${configuredBraveKey ? '' : ' unavailable; OpenRouter fallback'}`
+              : `Product research search: OpenRouter/${config.get('OPENROUTER_WEB_SEARCH_ENGINE', { infer: true })}`,
+          );
+          return new OpenRouterAiService(client, dummy, prisma, brave, researchSearchProvider);
         }
 
         if (provider === 'ollama') {
@@ -76,7 +93,7 @@ import { resolveAiProvider, type AppConfig } from '../config/configuration';
             model: ollamaModel,
           });
           logger.log(`AI provider: Ollama (model=${ollamaModel})`);
-          return new OpenRouterAiService(client, dummy, prisma, brave);
+          return new OpenRouterAiService(client, dummy, prisma, brave, 'brave');
         }
 
         if (apiKey) {

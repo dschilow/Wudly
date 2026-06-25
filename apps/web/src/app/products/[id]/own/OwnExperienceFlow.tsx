@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'motion/react';
-import { Check } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import type {
   CategoryAspectDto,
   WouldBuyAgain,
@@ -22,7 +22,6 @@ import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { OptionGrid, MultiSelectChips } from '@/components/OptionGrid';
-import { AuthGate } from '@/components/AuthGate';
 
 interface FlowProps {
   productId: string;
@@ -31,6 +30,20 @@ interface FlowProps {
 }
 
 const TOTAL_STEPS = 4;
+
+/** Everything captured in the wizard — persisted so a sign-in detour never loses it. */
+interface ExperienceDraft {
+  buyAgain: WouldBuyAgain;
+  duration: UsageDuration;
+  mood: ExperienceMood;
+  wish: string;
+  insteadOf: string;
+  positives: string[];
+  negatives: string[];
+  isPublic: boolean;
+}
+
+const draftKey = (productId: string) => `wudly:own-draft:${productId}`;
 
 export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps) {
   const router = useRouter();
@@ -42,6 +55,8 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** True while auto-saving a draft that survived a sign-in detour. */
+  const [resuming, setResuming] = useState(false);
 
   const [buyAgain, setBuyAgain] = useState<WouldBuyAgain | null>(null);
   const [duration, setDuration] = useState<UsageDuration | null>(null);
@@ -55,44 +70,117 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   const positiveAspects = aspects.filter((a) => a.type !== 'NEGATIVE');
   const negativeAspects = aspects.filter((a) => a.type !== 'POSITIVE');
 
-  const toggle = (list: string[], setList: (v: string[]) => void, key: string) => {
-    setList(list.includes(key) ? list.filter((k) => k !== key) : [...list, key]);
+  /**
+   * Selecting a neutral aspect (e.g. "Update-Politik") on one side clears it on
+   * the other — the same dimension can please or annoy, but never both at once.
+   */
+  const togglePositive = (key: string) => {
+    setNegatives((n) => n.filter((k) => k !== key));
+    setPositives((p) => (p.includes(key) ? p.filter((k) => k !== key) : [...p, key]));
+  };
+  const toggleNegative = (key: string) => {
+    setPositives((p) => p.filter((k) => k !== key));
+    setNegatives((n) => (n.includes(key) ? n.filter((k) => k !== key) : [...n, key]));
   };
 
   const canNext =
     (step === 1 && buyAgain) || (step === 2 && duration) || (step === 3 && mood) || step === 4;
 
-  const submit = async () => {
-    if (!buyAgain || !duration || !mood) return;
+  /** Persist the experience. Pulls from an explicit draft so the resume path
+   *  (after sign-in) never races React state that hasn't rehydrated yet. */
+  const submitDraft = async (draft: ExperienceDraft) => {
     setSubmitting(true);
     setError(null);
     try {
       await api.experiences.create(productId, {
-        wouldBuyAgain: buyAgain,
-        usageDuration: duration,
-        experienceMood: mood,
-        wishKnownText: wish.trim() || undefined,
-        insteadOfText: insteadOf.trim() || undefined,
-        positiveAspects: positives.length ? positives : undefined,
-        negativeAspects: negatives.length ? negatives : undefined,
-        isPublic,
+        wouldBuyAgain: draft.buyAgain,
+        usageDuration: draft.duration,
+        experienceMood: draft.mood,
+        wishKnownText: draft.wish.trim() || undefined,
+        insteadOfText: draft.insteadOf.trim() || undefined,
+        positiveAspects: draft.positives.length ? draft.positives : undefined,
+        negativeAspects: draft.negatives.length ? draft.negatives : undefined,
+        isPublic: draft.isPublic,
       });
+      try {
+        sessionStorage.removeItem(draftKey(productId));
+      } catch {
+        /* private mode — nothing to clean up */
+      }
       setDone(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.displayMessage : 'Speichern fehlgeschlagen.');
+      return false;
     } finally {
       setSubmitting(false);
     }
+    return true;
   };
 
-  /* ----- Auth gate ----- */
-  if (!authLoading && !user) {
+  const submit = async () => {
+    if (!buyAgain || !duration || !mood) return;
+    const draft: ExperienceDraft = {
+      buyAgain,
+      duration,
+      mood,
+      wish,
+      insteadOf,
+      positives,
+      negatives,
+      isPublic,
+    };
+    // No cold signup wall: the rating is already done. Keep the answers and ask
+    // to sign in only now, then auto-save on return.
+    if (!user) {
+      try {
+        sessionStorage.setItem(draftKey(productId), JSON.stringify(draft));
+      } catch {
+        /* private mode — fall through to the auth detour anyway */
+      }
+      router.push(`/login?redirect=${encodeURIComponent(`/products/${productId}/own`)}`);
+      return;
+    }
+    await submitDraft(draft);
+  };
+
+  /* ----- Resume: a draft survived the sign-in detour → save it automatically. */
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (authLoading || !user || resumedRef.current || done) return;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(draftKey(productId));
+    } catch {
+      raw = null;
+    }
+    if (!raw) return;
+    resumedRef.current = true;
+    let draft: ExperienceDraft | null = null;
+    try {
+      draft = JSON.parse(raw) as ExperienceDraft;
+    } catch {
+      draft = null;
+    }
+    if (!draft?.buyAgain || !draft.duration || !draft.mood) {
+      try {
+        sessionStorage.removeItem(draftKey(productId));
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    setResuming(true);
+    void submitDraft(draft).finally(() => setResuming(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user, done, productId]);
+
+  /* ----- Resuming: saving a draft after sign-in ----- */
+  if (resuming && !done) {
     return (
-      <AuthGate
-        title="Kurz anmelden"
-        description="Damit deine Erfahrung dir zugeordnet werden kann, brauchst du ein kostenloses Konto."
-        redirect={`/products/${productId}/own`}
-      />
+      <div className="mx-auto max-w-md px-2 pt-24 text-center">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-accent" strokeWidth={2.2} aria-hidden />
+        <p className="mt-4 text-[1.0625rem] text-muted-foreground">Deine Bewertung wird gespeichert …</p>
+      </div>
     );
   }
 
@@ -105,7 +193,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
         </div>
         <h1 className="mt-5 text-[1.75rem] font-bold text-label">Danke!</h1>
         <p className="mx-auto mt-2 max-w-sm text-pretty text-[1.0625rem] leading-snug text-muted-foreground">
-          Deine Erfahrung hilft anderen, bessere Kaufentscheidungen zu treffen.
+          Deine Erfahrung mit {productName} zählt jetzt zum Wudly Signal — und in dein Kaufprofil.
         </p>
         <div className="mt-8 space-y-2.5">
           <Link
@@ -115,12 +203,18 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
             Produktseite ansehen
           </Link>
           <Link
-            href="/check"
+            href="/check?own=1"
             className="tap-dim flex h-[3.125rem] items-center justify-center rounded-[var(--radius-md)] bg-fill-2 text-[1.0625rem] font-semibold text-label"
           >
-            Weiteres Produkt prüfen
+            Weiteres Produkt bewerten
           </Link>
         </div>
+        <Link
+          href="/me"
+          className="tap-dim mt-5 inline-block text-[0.9375rem] font-medium text-accent"
+        >
+          Dein Kaufprofil ansehen →
+        </Link>
       </div>
     );
   }
@@ -219,7 +313,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
                 <MultiSelectChips
                   options={positiveAspects}
                   selected={positives}
-                  onToggle={(k) => toggle(positives, setPositives, k)}
+                  onToggle={togglePositive}
                   tone="positive"
                 />
               </div>
@@ -233,7 +327,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
                 <MultiSelectChips
                   options={negativeAspects}
                   selected={negatives}
-                  onToggle={(k) => toggle(negatives, setNegatives, k)}
+                  onToggle={toggleNegative}
                   tone="negative"
                 />
               </div>

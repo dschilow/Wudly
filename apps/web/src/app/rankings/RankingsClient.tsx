@@ -387,7 +387,7 @@ export function RankingsClient({
                   </div>
                 </motion.section>
               )}
-              {!hero && !topRegret && <NoSignal />}
+              {!hero && !topRegret && discussed.length === 0 && <NoSignal />}
             </>
           ) : (
             /* ── Per-tab ranked list (Bereuen / Diskutiert / Langzeit) ── */

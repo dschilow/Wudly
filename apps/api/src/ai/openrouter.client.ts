@@ -2,11 +2,21 @@ import { Logger } from '@nestjs/common';
 
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
+export type OpenRouterWebSearchEngine = 'auto' | 'exa' | 'parallel' | 'perplexity';
+
 export interface OpenRouterOptions {
   apiKey: string;
   model: string;
   siteUrl?: string;
   appTitle: string;
+  webSearchEngine?: OpenRouterWebSearchEngine;
+  webSearchMaxResults?: number;
+  /** Replaces OpenRouter's citation-oriented default search system prompt. */
+  webSearchPrompt?: string;
+  /** Domains that should not enter the grounding context. */
+  webSearchExcludeDomains?: string[];
+  /** Benchmark/provider-isolation mode: never fall back to the Gemini defaults. */
+  exactModelOnly?: boolean;
 }
 
 /** A multimodal content part (OpenAI/OpenRouter format). */
@@ -34,6 +44,17 @@ export interface ChatUsage {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
+  costUsd?: number;
+}
+
+export interface JsonCompletionResult {
+  ok: boolean;
+  model: string;
+  content?: string;
+  error?: string;
+  status?: number;
+  usage?: ChatUsage;
+  citations: string[];
 }
 
 /** Result of a plain-text chat completion (used by the admin model playground). */
@@ -62,11 +83,13 @@ export class OpenRouterClient implements JsonChatClient {
   private readonly models: string[];
 
   constructor(private readonly options: OpenRouterOptions) {
-    this.models = uniqueStrings([
-      options.model,
-      'google/gemini-3.1-flash-lite',
-      'google/gemini-3.1-flash-lite-preview',
-    ]);
+    this.models = options.exactModelOnly
+      ? [options.model]
+      : uniqueStrings([
+          options.model,
+          'google/gemini-3.1-flash-lite',
+          'google/gemini-3.1-flash-lite-preview',
+        ]);
   }
 
   /** Models this client will try, in order. */
@@ -104,6 +127,40 @@ export class OpenRouterClient implements JsonChatClient {
 
     this.logger.error(`OpenRouter completion failed (all models). Last: ${lastError ?? 'unknown'}`);
     return null;
+  }
+
+  /** JSON completion plus metadata used by the search benchmark. */
+  async completeJsonDetailed(
+    messages: ChatMessage[],
+    opts: { temperature?: number; maxTokens?: number; online?: boolean; timeoutMs?: number } = {},
+  ): Promise<JsonCompletionResult> {
+    let lastError = 'unknown error';
+    let lastStatus: number | undefined;
+    for (const model of this.models) {
+      let result = await this.callModel(model, messages, opts, 'json');
+      if (!result.ok && result.status && [400, 404, 415, 422, 501].includes(result.status)) {
+        result = await this.callModel(model, messages, opts, 'plain');
+      }
+      if (result.ok && result.content) {
+        return {
+          ok: true,
+          model,
+          content: result.content,
+          usage: result.usage,
+          citations: result.citations ?? [],
+        };
+      }
+      lastError = result.error ?? 'unknown error';
+      lastStatus = result.status;
+      if (result.status === 401 || result.status === 403) break;
+    }
+    return {
+      ok: false,
+      model: this.models[0] ?? this.options.model,
+      error: lastError,
+      status: lastStatus,
+      citations: [],
+    };
   }
 
   /**
@@ -161,7 +218,12 @@ export class OpenRouterClient implements JsonChatClient {
 
       const data = (await response.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
-        usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+          cost?: number;
+        };
       };
       const content = data?.choices?.[0]?.message?.content ?? '';
       const usage = data.usage
@@ -169,6 +231,7 @@ export class OpenRouterClient implements JsonChatClient {
             promptTokens: data.usage.prompt_tokens,
             completionTokens: data.usage.completion_tokens,
             totalTokens: data.usage.total_tokens,
+            costUsd: data.usage.cost,
           }
         : undefined;
       if (!content.trim()) return { ok: false, model, error: 'empty content', usage };
@@ -183,15 +246,37 @@ export class OpenRouterClient implements JsonChatClient {
     messages: ChatMessage[],
     opts: { temperature?: number; maxTokens?: number; online?: boolean; timeoutMs?: number },
     mode: 'json' | 'plain',
-  ): Promise<{ ok: boolean; content?: string; status?: number; error?: string }> {
+  ): Promise<{
+    ok: boolean;
+    content?: string;
+    status?: number;
+    error?: string;
+    usage?: ChatUsage;
+    citations?: string[];
+  }> {
     try {
-      // `:online` enables OpenRouter's web-search plugin for live research.
+      const webSearchEngine = this.options.webSearchEngine ?? 'auto';
       const body: Record<string, unknown> = {
-        model: opts.online ? `${model}:online` : model,
+        model,
         messages,
         temperature: opts.temperature ?? 0.4,
         max_tokens: opts.maxTokens ?? 1200,
       };
+      if (opts.online) {
+        body.plugins = [
+          {
+            id: 'web',
+            ...(webSearchEngine === 'auto' ? {} : { engine: webSearchEngine }),
+            max_results: clamp(this.options.webSearchMaxResults ?? 6, 1, 10),
+            ...(this.options.webSearchPrompt
+              ? { search_prompt: this.options.webSearchPrompt }
+              : {}),
+            ...(this.options.webSearchExcludeDomains?.length
+              ? { exclude_domains: this.options.webSearchExcludeDomains }
+              : {}),
+          },
+        ];
+      }
       if (mode === 'json') {
         body.response_format = { type: 'json_object' };
         body.reasoning = { exclude: true };
@@ -215,16 +300,50 @@ export class OpenRouterClient implements JsonChatClient {
       }
 
       const data = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
+        choices?: Array<{
+          message?: {
+            content?: string;
+            annotations?: Array<{ type?: string; url_citation?: { url?: string } }>;
+          };
+        }>;
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+          cost?: number;
+        };
       };
-      const content = data?.choices?.[0]?.message?.content;
-      if (content && content.trim().length > 0) return { ok: true, content };
+      const responseMessage = data?.choices?.[0]?.message;
+      const content = responseMessage?.content;
+      if (content && content.trim().length > 0) {
+        return {
+          ok: true,
+          content,
+          usage: data.usage
+            ? {
+                promptTokens: data.usage.prompt_tokens,
+                completionTokens: data.usage.completion_tokens,
+                totalTokens: data.usage.total_tokens,
+                costUsd: data.usage.cost,
+              }
+            : undefined,
+          citations: uniqueStrings(
+            (responseMessage?.annotations ?? [])
+              .filter((annotation) => annotation.type === 'url_citation')
+              .map((annotation) => annotation.url_citation?.url),
+          ),
+        };
+      }
       return { ok: false, error: 'empty content' };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: message };
     }
   }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(Math.round(value), min), max);
 }
 
 function truncate(text: string, max = 200): string {

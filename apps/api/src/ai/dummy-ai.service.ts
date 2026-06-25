@@ -9,7 +9,7 @@ import {
   type RegretAssessment,
   type ResearchedProduct,
   type SuggestedProductCandidate,
-  type ResearchedExternalRating,
+  type ResearchedExternalConsensus,
   normalizeProductName,
   guessBrand,
   AspectSentiment,
@@ -111,11 +111,11 @@ export class DummyAiService implements AiService {
     return [];
   }
 
-  async researchExternalRatings(
+  async researchExternalConsensus(
     _name: string,
     _brand: string | null,
-  ): Promise<ResearchedExternalRating[]> {
+  ): Promise<ResearchedExternalConsensus> {
     // No web access → never invent rating facts.
-    return [];
+    return { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] };
   }
 }

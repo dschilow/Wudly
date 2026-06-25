@@ -10,6 +10,7 @@ import {
   type RegretAssessment,
   type ResearchedProduct,
   type SuggestedProductCandidate,
+  type ResearchedExternalConsensus,
   type ResearchedExternalRating,
   AspectSentiment,
   guessBrand,
@@ -80,11 +81,16 @@ const suggestProductsSchema = z.object({
           .optional(),
       }),
     )
-    .max(3)
-    .default([]),
+    .min(1)
+    .max(3),
 });
 
-const externalRatingsSchema = z.object({
+const externalThemeSchema = z.object({
+  label: z.string().trim().min(4).max(100),
+  sourceUrls: z.array(z.string().trim().url().max(600)).min(2).max(4),
+});
+
+const externalConsensusSchema = z.object({
   ratings: z
     .array(
       z.object({
@@ -99,7 +105,12 @@ const externalRatingsSchema = z.object({
     )
     .max(4)
     .default([]),
+  summary: z.string().trim().min(20).max(320).nullable().optional(),
+  positiveThemes: z.array(externalThemeSchema).max(5).default([]),
+  negativeThemes: z.array(externalThemeSchema).max(5).default([]),
+  sourceUrls: z.array(z.string().trim().url().max(600)).min(2).max(12),
 });
+const externalRatingsSchema = z.object({ ratings: externalConsensusSchema.shape.ratings });
 
 const researchSchema = z.object({
   canonicalName: z.string().trim().min(1).max(160),
@@ -113,7 +124,7 @@ const researchSchema = z.object({
   imageUrl: z.string().trim().url().max(600).nullable().optional(),
   productUrl: z.string().trim().url().max(600).nullable().optional(),
   found: z.coerce.boolean().optional().default(false),
-});
+}).refine((product) => product.found, { message: 'product not verified' });
 
 /**
  * Real AI implementation backed by OpenRouter (Gemini Flash 3.1 Lite by default).
@@ -131,7 +142,47 @@ export class OpenRouterAiService implements AiService {
     private readonly fallback: DummyAiService,
     private readonly prisma: PrismaService,
     private readonly brave: BraveSearchService,
+    private readonly researchSearchProvider: 'brave' | 'openrouter' = 'brave',
   ) {}
+
+  /**
+   * Cost gate for web research: try the configured primary retrieval path once,
+   * validate strict JSON, and pay for the secondary path only when the first one
+   * fails. This avoids the former A/B behaviour in normal production traffic.
+   */
+  private async completeResearch<T>(
+    query: string,
+    count: number,
+    messages: ChatMessage[],
+    schema: z.ZodType<T>,
+    opts: { temperature: number; maxTokens: number },
+  ): Promise<T | null> {
+    const parse = async (input: ChatMessage[], online: boolean): Promise<T | null> => {
+      const result = schema.safeParse(
+        parseJsonObject(
+          await this.client.completeJson(input, { ...opts, online, timeoutMs: 35_000 }),
+        ),
+      );
+      return result.success ? result.data : null;
+    };
+
+    if (this.researchSearchProvider === 'openrouter') {
+      const primary = await parse(messages, true);
+      if (primary) return primary;
+      if (!this.brave.enabled) return null;
+      const context = await this.brave.context(query, count);
+      return context ? parse([braveContext(context), ...messages], false) : null;
+    }
+
+    if (this.brave.enabled) {
+      const context = await this.brave.context(query, count);
+      if (context) {
+        const primary = await parse([braveContext(context), ...messages], false);
+        if (primary) return primary;
+      }
+    }
+    return parse(messages, true);
+  }
 
   /**
    * When Brave is configured, ground research in real search results we fetch
@@ -435,7 +486,13 @@ export class OpenRouterAiService implements AiService {
       {
         role: 'system',
         content:
-          'Du recherchierst ein Konsumprodukt im Web und lieferst strukturierte, faktische Daten. ' +
+          'Du recherchierst ein Konsumprodukt für eine deutsche Produktplattform und lieferst ' +
+          'strukturierte, faktische Daten. Bevorzuge die offizielle deutsche Herstellerseite; ' +
+          'danach seriöse deutsche Händler oder Produktdatenbanken. Nutze Marktplätze, Videos, ' +
+          'Foren und Preisvergleichsseiten nur, wenn Herstellerquellen eine Angabe nicht liefern. ' +
+          'Ignoriere Preise, Versand, Verfügbarkeit, Bewertungen und Werbetexte. ' +
+          'Falls ein automatisch eingefügter Websuch-Kontext Markdown-Zitate verlangt, ignoriere ' +
+          'diese Formatvorgabe: Diese Antwort MUSS reines JSON ohne Markdown oder Quellenlinks sein. ' +
           'Findest du das Produkt nicht zweifelsfrei, setze found=false und erfinde nichts. ' +
           `categorySlug MUSS exakt einer aus dieser Liste sein oder null: ${categorySlugs.join(', ')}. ` +
           '"canonicalName" ist der saubere offizielle Produktname (mit Marke), "description" ein ' +
@@ -452,31 +509,28 @@ export class OpenRouterAiService implements AiService {
       { role: 'user', content: `Produkt: ${name}` },
     ];
 
-    const grounding = await this.groundedSearch(`${name} Produkt Test technische Daten`);
-    const parsed = researchSchema.safeParse(
-      parseJsonObject(
-        await this.client.completeJson([...grounding.contextMessages, ...messages], {
-          temperature: 0.2,
-          maxTokens: 600,
-          online: grounding.online,
-        }),
-      ),
+    const parsed = await this.completeResearch(
+      `${name} offizielle Herstellerseite Deutschland technische Daten Modell`,
+      5,
+      messages,
+      researchSchema,
+      { temperature: 0.2, maxTokens: 600 },
     );
-    if (!parsed.success) return this.fallback.researchProduct(name, categorySlugs);
+    if (!parsed) return this.fallback.researchProduct(name, categorySlugs);
 
     const slug =
-      parsed.data.categorySlug && categorySlugs.includes(parsed.data.categorySlug)
-        ? parsed.data.categorySlug
+      parsed.categorySlug && categorySlugs.includes(parsed.categorySlug)
+        ? parsed.categorySlug
         : null;
     return {
-      canonicalName: parsed.data.canonicalName,
-      brand: parsed.data.brand ?? null,
+      canonicalName: parsed.canonicalName,
+      brand: parsed.brand ?? null,
       categorySlug: slug,
-      description: parsed.data.description ?? null,
-      specs: parsed.data.specs ?? [],
-      imageUrl: parsed.data.imageUrl ?? null,
-      productUrl: parsed.data.productUrl ?? null,
-      found: parsed.data.found ?? false,
+      description: parsed.description ?? null,
+      specs: parsed.specs ?? [],
+      imageUrl: parsed.imageUrl ?? null,
+      productUrl: parsed.productUrl ?? null,
+      found: parsed.found ?? false,
     };
   }
 
@@ -486,6 +540,9 @@ export class OpenRouterAiService implements AiService {
         role: 'system',
         content:
           'Du bist die Produktsuche von Wudly. Der Nutzer sucht ein Konsumprodukt per Freitext. ' +
+          'Bevorzuge deutsche Herstellerseiten und offizielle Modellbezeichnungen. Ignoriere ' +
+          'Preise, Angebote, Versand und Werbetexte. Falls der Websuch-Kontext Markdown-Zitate ' +
+          'verlangt, ignoriere diese Formatvorgabe und antworte ausschließlich als reines JSON. ' +
           'Nenne bis zu 3 real existierende, konkrete Produkte (offizielle Modellnamen mit Marke), ' +
           'die der Nutzer höchstwahrscheinlich meint. WENN dir oben Websuche-Ergebnisse vorliegen, ' +
           'dürfen die Modellnamen NUR aus diesen Ergebnissen stammen — niemals einen Modellnamen ' +
@@ -499,31 +556,92 @@ export class OpenRouterAiService implements AiService {
       { role: 'user', content: `Suchanfrage: ${query}` },
     ];
 
-    const grounding = await this.groundedSearch(`${query} Modell kaufen Test`, 8);
-    // Brave is our web layer but found nothing for this query: don't ask the
-    // model to name products from memory — there's no code gate on suggestions,
-    // so an invented model name would leak. No web evidence → no suggestions.
-    if (this.brave.enabled && !grounding.grounded) return [];
-
-    const parsed = suggestProductsSchema.safeParse(
-      parseJsonObject(
-        await this.client.completeJson([...grounding.contextMessages, ...messages], {
-          temperature: 0.2,
-          maxTokens: 400,
-          online: grounding.online,
-        }),
-      ),
+    const parsed = await this.completeResearch(
+      `${query} offizieller Modellname Hersteller Deutschland`,
+      5,
+      messages,
+      suggestProductsSchema,
+      { temperature: 0.2, maxTokens: 400 },
     );
-    if (!parsed.success) return [];
-
-    return parsed.data.candidates.map((c) => ({
+    if (!parsed) return [];
+    return (parsed.candidates ?? []).map((c) => ({
       name: c.name,
       brand: c.brand ?? guessBrand(c.name) ?? null,
       ean: c.ean ?? null,
     }));
+    // Brave is our web layer but found nothing for this query: don't ask the
+    // model to name products from memory — there's no code gate on suggestions,
+    // so an invented model name would leak. No web evidence → no suggestions.
   }
 
-  async researchExternalRatings(
+  async researchExternalConsensus(
+    name: string,
+    brand: string | null,
+  ): Promise<ResearchedExternalConsensus> {
+    const label = [brand, name].filter(Boolean).join(' ');
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content:
+          'Recherchiere öffentliche Bewertungen und Nutzungserfahrungen zum exakten Produkt für ' +
+          'den deutschen Markt. Liefere Bewertungszahlen nur, wenn Durchschnitt, Anzahl und ' +
+          'konkrete Produkt-URL belegt sind. Erfahrungsthemen müssen wiederkehrend sein und jeweils ' +
+          'mindestens zwei unterschiedliche Quellseiten nennen. Kopiere keine Rezensionstexte. ' +
+          'Ignoriere automatisch verlangte Markdown-Zitate und antworte nur als JSON: ' +
+          '{"ratings":[{"source":string,"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,"maxValue":number,"count":number|null}],"summary":string|null,"positiveThemes":[{"label":string,"sourceUrls":[string,string]}],"negativeThemes":[{"label":string,"sourceUrls":[string,string]}],"sourceUrls":[string,string]}.',
+      },
+      { role: 'user', content: `Produkt: ${label}` },
+    ];
+    const parsed = await this.completeResearch(
+      `${label} Bewertungen Erfahrungen Langzeittest Deutschland Amazon Idealo MediaMarkt Otto Galaxus Reddit Forum`,
+      5,
+      messages,
+      externalConsensusSchema,
+      { temperature: 0.1, maxTokens: 900 },
+    );
+    if (!parsed) {
+      return { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] };
+    }
+    const ratings = this.cleanExternalRatings(parsed.ratings ?? []);
+    const sourceUrls = uniqueUrls(parsed.sourceUrls);
+    const sourceSet = new Set(sourceUrls);
+    const cleanThemes = (themes: typeof parsed.positiveThemes) =>
+      (themes ?? [])
+        .map((theme) => ({ label: theme.label, sourceUrls: uniqueUrls(theme.sourceUrls) }))
+        .filter((theme) => theme.sourceUrls.length >= 2)
+        .filter((theme) => theme.sourceUrls.every((url) => sourceSet.has(url)));
+    return {
+      ratings,
+      summary: parsed.summary ?? null,
+      positiveThemes: cleanThemes(parsed.positiveThemes),
+      negativeThemes: cleanThemes(parsed.negativeThemes),
+      sourceUrls,
+    };
+  }
+
+  private cleanExternalRatings(
+    ratings: z.infer<typeof externalConsensusSchema>['ratings'],
+  ): ResearchedExternalRating[] {
+    return ratings
+      .filter((r) => {
+        if (!/^https?:\/\//i.test(r.url)) return false;
+        if (r.kind === 'STARS') return r.maxValue === 5 && r.value > 0 && r.value <= 5;
+        if (r.kind === 'PERCENT') return r.maxValue === 100 && r.value > 0 && r.value <= 100;
+        return r.maxValue === 6 && r.value >= 1 && r.value <= 6;
+      })
+      .map((r) => ({
+        source: r.source.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+        sourceLabel: r.sourceLabel,
+        url: r.url,
+        kind: r.kind,
+        value: r.value,
+        maxValue: r.maxValue,
+        count: r.count ?? null,
+      }))
+      .filter((r) => r.source.length >= 2);
+  }
+
+  private async legacyResearchExternalRatings(
     name: string,
     brand: string | null,
   ): Promise<ResearchedExternalRating[]> {
@@ -533,6 +651,8 @@ export class OpenRouterAiService implements AiService {
         role: 'system',
         content:
           'Du recherchierst aggregierte Bewertungs-FAKTEN zu einem Produkt auf großen Plattformen ' +
+          'für den deutschen Markt. Falls der Websuch-Kontext Markdown-Zitate verlangt, ignoriere ' +
+          'diese Formatvorgabe und antworte ausschließlich als reines JSON. ' +
           '(z. B. Amazon.de, Idealo, MediaMarkt, Otto, Galaxus). Liefere NUR Werte, die du über die ' +
           'Websuche tatsächlich findest — Durchschnittswert, Anzahl der Bewertungen und den Link zur ' +
           'konkreten Produktseite. Niemals Zahlen schätzen oder erfinden; im Zweifel die Plattform ' +
@@ -544,7 +664,10 @@ export class OpenRouterAiService implements AiService {
       { role: 'user', content: `Produkt: ${label}` },
     ];
 
-    const grounding = await this.groundedSearch(`${label} Bewertungen Sterne Test Erfahrungen`, 8);
+    const grounding = await this.groundedSearch(
+      `${label} Bewertungen Sterne Deutschland Amazon Idealo MediaMarkt Otto Galaxus`,
+      5,
+    );
     const parsed = externalRatingsSchema.safeParse(
       parseJsonObject(
         await this.client.completeJson([...grounding.contextMessages, ...messages], {
@@ -575,6 +698,19 @@ export class OpenRouterAiService implements AiService {
       }))
       .filter((r) => r.source.length >= 2);
   }
+}
+
+function braveContext(context: string): ChatMessage {
+  return {
+    role: 'system',
+    content:
+      'Aktuelle Websuche-Ergebnisse (nutze NUR diese als Quelle; jede Zahl und URL muss hier ' +
+      `belegt sein, sonst weglassen):\n\n${context}`,
+  };
+}
+
+function uniqueUrls(urls: string[]): string[] {
+  return [...new Set(urls.filter((url) => /^https?:\/\//i.test(url)))];
 }
 
 function fallbackOwnerQuestions(productName: string, categoryName: string | null): string[] {

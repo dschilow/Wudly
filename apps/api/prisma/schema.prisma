@@ -264,6 +264,7 @@ model Product {
   mergeCandidatesB  AdminMergeCandidate[]   @relation("ProductB")
   showcases         ProductShowcase[]
   externalRatings   ExternalRating[]
+  externalConsensus ExternalConsensus?
   cachedImage       ProductImage?
   ratingInvites     RatingInvite[]
   invitedVotes      InvitedVote[]
@@ -336,6 +337,24 @@ model ExternalRating {
 
   @@unique([productId, source])
   @@index([productId])
+}
+
+/// Source-backed themes distilled from public reviews and long-term reports.
+/// Orientation only: never contributes to the Wudly Signal or rankings.
+model ExternalConsensus {
+  id             String   @id @default(cuid())
+  productId      String   @unique
+  summary        String?
+  positiveThemes Json     @default("[]")
+  negativeThemes Json     @default("[]")
+  sourceUrls     Json     @default("[]")
+  fetchedAt      DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([fetchedAt])
 }
 
 /// Cached product image bytes (downloaded once from Icecat / EAN databases /

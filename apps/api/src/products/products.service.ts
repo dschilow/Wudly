@@ -371,9 +371,10 @@ export class ProductsService {
 
   async getDetail(id: string): Promise<ProductDetailDto> {
     const product = await this.findOrThrow(id);
-    const [insights, externalRatings] = await Promise.all([
+    const [insights, externalRatings, externalConsensus] = await Promise.all([
       this.insights.getInsights(id),
       this.externalRatings.listForProduct(id),
+      this.externalRatings.getConsensus(id),
     ]);
 
     // No cached photo yet → trigger a background hunt so the next page load has it.
@@ -382,7 +383,7 @@ export class ProductsService {
       .then((img) => { if (!img) void this.rehuntImage(id).catch(() => undefined); })
       .catch(() => undefined);
 
-    return toProductDetailDto(product, insights, externalRatings);
+    return toProductDetailDto(product, insights, externalRatings, externalConsensus);
   }
 
   /**
@@ -760,10 +761,13 @@ export class ProductsService {
     productId: string,
     name: string,
     brand: string | null,
-  ): Promise<number> {
-    const ratings = await this.ai.researchExternalRatings(name, brand);
+  ): Promise<{ ratings: number; themes: number; cached: boolean }> {
+    if (await this.externalRatings.isFresh(productId, 90)) {
+      return { ratings: 0, themes: 0, cached: true };
+    }
+    const research = await this.ai.researchExternalConsensus(name, brand);
     let stored = 0;
-    for (const rating of ratings) {
+    for (const rating of research.ratings) {
       if (rating.url.length > 500) continue;
       await this.externalRatings.upsert(productId, {
         source: rating.source,
@@ -777,10 +781,14 @@ export class ProductsService {
       });
       stored += 1;
     }
+    const themes = research.positiveThemes.length + research.negativeThemes.length;
+    // Persist even an empty result as a negative cache. Otherwise an unavailable
+    // product would burn another paid search on every admin backfill.
+    await this.externalRatings.storeResearch(productId, research);
     if (stored > 0) {
       this.logger.log(`External ratings researched for ${productId}: ${stored}`);
     }
-    return stored;
+    return { ratings: stored, themes, cached: false };
   }
 
   /**
@@ -791,8 +799,9 @@ export class ProductsService {
    */
   async backfillMissingRatings(limit = 8): Promise<RatingBackfillReportDto> {
     const batchSize = Math.min(Math.max(limit, 1), 25);
+    const staleIds = await this.externalRatings.staleProductIds(batchSize, 90);
     const products = await this.prisma.product.findMany({
-      where: { status: { not: 'HIDDEN' }, externalRatings: { none: {} } },
+      where: { id: { in: staleIds } },
       select: { id: true, canonicalName: true, brand: true },
       orderBy: { createdAt: 'asc' },
       take: batchSize,
@@ -802,7 +811,14 @@ export class ProductsService {
     for (const p of products) {
       try {
         const stored = await this.researchAndStoreRatings(p.id, p.canonicalName, p.brand);
-        results.push({ productId: p.id, name: p.canonicalName, found: stored, error: null });
+        results.push({
+          productId: p.id,
+          name: p.canonicalName,
+          found: stored.ratings,
+          themes: stored.themes,
+          cached: stored.cached,
+          error: null,
+        });
       } catch (err) {
         this.logger.warn(
           `Rating backfill failed for ${p.id}: ${err instanceof Error ? err.message : err}`,
@@ -811,14 +827,14 @@ export class ProductsService {
           productId: p.id,
           name: p.canonicalName,
           found: 0,
+          themes: 0,
+          cached: false,
           error: err instanceof Error ? err.message : 'error',
         });
       }
     }
 
-    const remaining = await this.prisma.product.count({
-      where: { status: { not: 'HIDDEN' }, externalRatings: { none: {} } },
-    });
+    const remaining = await this.externalRatings.staleProductCount(90);
     return {
       attempted: results.length,
       withRatings: results.filter((r) => r.found > 0).length,
@@ -1339,7 +1355,7 @@ export class ProductsService {
 
     // Create an (empty) snapshot so the product reads consistently from the start.
     const insights = await this.insights.regenerate(product.id);
-    return { created: true, product: toProductDetailDto(product, insights, []) };
+    return { created: true, product: toProductDetailDto(product, insights, [], null) };
   }
 
   async update(id: string, input: UpdateProductInput): Promise<ProductDetailDto> {
@@ -1368,11 +1384,12 @@ export class ProductsService {
     if (typeof data.imageUrl === 'string' && !data.imageUrl.startsWith('/')) {
       this.images.cacheInBackground(id, data.imageUrl, 'manual');
     }
-    const [insights, externalRatings] = await Promise.all([
+    const [insights, externalRatings, externalConsensus] = await Promise.all([
       this.insights.getInsights(id),
       this.externalRatings.listForProduct(id),
+      this.externalRatings.getConsensus(id),
     ]);
-    return toProductDetailDto(product, insights, externalRatings);
+    return toProductDetailDto(product, insights, externalRatings, externalConsensus);
   }
 
   private async findOrThrow(id: string): Promise<ProductWithRelations> {

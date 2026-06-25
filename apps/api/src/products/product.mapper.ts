@@ -4,6 +4,7 @@ import {
   type ProductDetailDto,
   type ProductInsightsDto,
   type ExternalRatingDto,
+  type ExternalConsensusDto,
   type CategoryDto,
   type ProductSpecDto,
   type AspectStatDto,
@@ -118,6 +119,7 @@ export function toProductDetailDto(
   product: ProductWithRelations,
   insights: ProductInsightsDto,
   externalRatings: ExternalRatingDto[],
+  externalConsensus: ExternalConsensusDto | null,
 ): ProductDetailDto {
   return {
     ...toProductSummaryDto(product),
@@ -125,6 +127,7 @@ export function toProductDetailDto(
     specs: asSpecDtos(product.specs),
     insights,
     externalRatings,
+    externalConsensus,
   };
 }
 

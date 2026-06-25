@@ -78,7 +78,11 @@ export function RatingsBackfillAdmin() {
                 />
                 <span className="min-w-0 flex-1 truncate text-label">{r.name}</span>
                 <span className="shrink-0 text-muted-foreground">
-                  {r.error ? 'Fehler' : r.found > 0 ? `${r.found} gefunden` : 'keine gefunden'}
+                  {r.error
+                    ? 'Fehler'
+                    : r.cached
+                      ? 'Cache aktuell'
+                      : `${r.found} Bewertungen · ${r.themes} Themen`}
                 </span>
               </li>
             ))}

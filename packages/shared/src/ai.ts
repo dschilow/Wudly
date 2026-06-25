@@ -186,6 +186,20 @@ export interface ResearchedExternalRating {
   count: number | null;
 }
 
+export interface ResearchedExternalTheme {
+  label: string;
+  /** At least two independent pages that support this recurring theme. */
+  sourceUrls: string[];
+}
+
+export interface ResearchedExternalConsensus {
+  ratings: ResearchedExternalRating[];
+  summary: string | null;
+  positiveThemes: ResearchedExternalTheme[];
+  negativeThemes: ResearchedExternalTheme[];
+  sourceUrls: string[];
+}
+
 export interface AiService {
   summarizeProductInsights(productId: string): Promise<ProductInsightSummary>;
   extractProductCandidate(input: ProductInput): Promise<ProductCandidate>;
@@ -221,7 +235,10 @@ export interface AiService {
    * Research aggregated rating FACTS (average + count + product-page link) for a
    * product on major platforms. Facts only — never review texts. Empty when unsure.
    */
-  researchExternalRatings(name: string, brand: string | null): Promise<ResearchedExternalRating[]>;
+  researchExternalConsensus(
+    name: string,
+    brand: string | null,
+  ): Promise<ResearchedExternalConsensus>;
 }
 
 /** DI token string for the AiService binding in the backend. */

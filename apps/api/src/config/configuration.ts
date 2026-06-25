@@ -23,6 +23,13 @@ const envSchema = z.object({
   OPENROUTER_MODEL: z.string().default('google/gemini-3.1-flash-lite'),
   OPENROUTER_SITE_URL: z.string().optional(),
   OPENROUTER_APP_TITLE: z.string().default('Wudly'),
+  OPENROUTER_WEB_SEARCH_ENGINE: z.enum(['auto', 'exa', 'parallel', 'perplexity']).default('perplexity'),
+  OPENROUTER_WEB_SEARCH_MAX_RESULTS: z.coerce.number().int().min(1).max(10).default(5),
+  OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS: z
+    .string()
+    .default('youtube.com,ebay.com,ebay.de,allegro.pl')
+    .transform((value) => value.split(',').map((domain) => domain.trim()).filter(Boolean)),
+  PRODUCT_RESEARCH_SEARCH_PROVIDER: z.enum(['brave', 'openrouter']).default('openrouter'),
   // Ollama-compatible local model service. Used when AI_PROVIDER=ollama.
   OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),
   OLLAMA_MODEL: z.string().default('gemma4:e4b'),

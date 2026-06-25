@@ -43,6 +43,8 @@ import { Thumb } from '@/components/Thumb';
 import { UsageDurationChart } from '@/components/UsageDurationChart';
 import { ExperienceTimeline } from '@/components/ExperienceTimeline';
 import { ExternalRatingsCard } from '@/components/ExternalRatingsCard';
+import { ExternalConsensusCard } from '@/components/ExternalConsensusCard';
+import { ExternalConsensusCard } from '@/components/ExternalConsensusCard';
 import { AiInsightCard } from '@/components/AiInsightCard';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
 import { ShowcaseCard } from '@/components/showcase/ShowcaseCard';
@@ -541,6 +543,32 @@ export default async function ProductPage({ params }: PageProps) {
           </p>
         </section>
       )}
+
+      {product.externalConsensus &&
+        (product.externalConsensus.positiveThemes.length > 0 ||
+          product.externalConsensus.negativeThemes.length > 0) && (
+          <section>
+            <SectionTitle>Erfahrungen im Netz</SectionTitle>
+            <ExternalConsensusCard consensus={product.externalConsensus} />
+            <p className="px-1 pt-2 text-[0.8125rem] leading-snug text-muted-foreground">
+              Wiederkehrende Themen aus mindestens zwei öffentlichen Quellen. Kein Ersatz für
+              echte Wudly-Besitzerberichte und kein Bestandteil des Wudly Signals.
+            </p>
+          </section>
+        )}
+
+      {product.externalConsensus &&
+        (product.externalConsensus.positiveThemes.length > 0 ||
+          product.externalConsensus.negativeThemes.length > 0) && (
+          <section>
+            <SectionTitle>Erfahrungen im Netz</SectionTitle>
+            <ExternalConsensusCard consensus={product.externalConsensus} />
+            <p className="px-1 pt-2 text-[0.8125rem] leading-snug text-muted-foreground">
+              Wiederkehrende Themen aus mindestens zwei öffentlichen Quellen. Kein Ersatz für
+              echte Wudly-Besitzerberichte und kein Bestandteil des Wudly Signals.
+            </p>
+          </section>
+        )}
 
       {hasData && publicExperiences.length >= 3 && (
         <section id="nutzung" className="scroll-mt-24">

@@ -3,6 +3,8 @@ import type { ExternalRating } from '@prisma/client';
 import {
   aggregateExternalConsensus,
   type ExternalRatingDto,
+  type ExternalConsensusDto,
+  type ResearchedExternalConsensus,
   type UpsertExternalRatingInput,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -23,6 +25,77 @@ export class ExternalRatingsService {
       orderBy: [{ count: { sort: 'desc', nulls: 'last' } }, { sourceLabel: 'asc' }],
     });
     return rows.map(toExternalRatingDto);
+  }
+
+  async getConsensus(productId: string): Promise<ExternalConsensusDto | null> {
+    const [row] = await this.prisma.$queryRaw<Array<{
+      summary: string | null;
+      positiveThemes: unknown;
+      negativeThemes: unknown;
+      sourceUrls: unknown;
+      fetchedAt: Date;
+    }>>`SELECT "summary", "positiveThemes", "negativeThemes", "sourceUrls", "fetchedAt"
+       FROM "ExternalConsensus" WHERE "productId" = ${productId} LIMIT 1`;
+    if (!row) return null;
+    return {
+      summary: row.summary,
+      positiveThemes: asThemes(row.positiveThemes),
+      negativeThemes: asThemes(row.negativeThemes),
+      sourceUrls: asUrls(row.sourceUrls),
+      fetchedAt: row.fetchedAt.toISOString(),
+    };
+  }
+
+  async isFresh(productId: string, maxAgeDays = 90): Promise<boolean> {
+    const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000);
+    const [consensus, rating] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "ExternalConsensus"
+        WHERE "productId" = ${productId} AND "fetchedAt" >= ${cutoff} LIMIT 1`,
+      this.prisma.externalRating.findFirst({
+        where: { productId, fetchedAt: { gte: cutoff } },
+        select: { id: true },
+      }),
+    ]);
+    return consensus.length > 0 || Boolean(rating);
+  }
+
+  async storeResearch(productId: string, research: ResearchedExternalConsensus): Promise<void> {
+    const sourceUrls = [...new Set(research.sourceUrls)].slice(0, 12);
+    const positives = JSON.stringify(research.positiveThemes);
+    const negatives = JSON.stringify(research.negativeThemes);
+    const sources = JSON.stringify(sourceUrls);
+    await this.prisma.$executeRaw`
+      INSERT INTO "ExternalConsensus"
+        ("id", "productId", "summary", "positiveThemes", "negativeThemes", "sourceUrls", "fetchedAt", "createdAt", "updatedAt")
+      VALUES
+        (${crypto.randomUUID()}, ${productId}, ${research.summary}, ${positives}::jsonb, ${negatives}::jsonb, ${sources}::jsonb, NOW(), NOW(), NOW())
+      ON CONFLICT ("productId") DO UPDATE SET
+        "summary" = EXCLUDED."summary",
+        "positiveThemes" = EXCLUDED."positiveThemes",
+        "negativeThemes" = EXCLUDED."negativeThemes",
+        "sourceUrls" = EXCLUDED."sourceUrls",
+        "fetchedAt" = NOW(),
+        "updatedAt" = NOW()`;
+  }
+
+  async staleProductIds(limit: number, maxAgeDays = 90): Promise<string[]> {
+    const cutoff = new Date(Date.now() - maxAgeDays * 86400000);
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT p."id" FROM "Product" p
+      LEFT JOIN "ExternalConsensus" c ON c."productId" = p."id"
+      WHERE p."status" <> 'HIDDEN' AND (c."id" IS NULL OR c."fetchedAt" < ${cutoff})
+      ORDER BY p."createdAt" ASC LIMIT ${limit}`;
+    return rows.map((row) => row.id);
+  }
+
+  async staleProductCount(maxAgeDays = 90): Promise<number> {
+    const cutoff = new Date(Date.now() - maxAgeDays * 86400000);
+    const [row] = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint AS "count" FROM "Product" p
+      LEFT JOIN "ExternalConsensus" c ON c."productId" = p."id"
+      WHERE p."status" <> 'HIDDEN' AND (c."id" IS NULL OR c."fetchedAt" < ${cutoff})`;
+    return Number(row?.count ?? 0);
   }
 
   /** Admin upsert, keyed per (product, source) so re-imports just refresh. */
@@ -79,6 +152,19 @@ export class ExternalRatingsService {
       },
     });
   }
+}
+
+function asThemes(value: unknown): ExternalConsensusDto['positiveThemes'] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is ExternalConsensusDto['positiveThemes'][number] => {
+    if (!item || typeof item !== 'object') return false;
+    const row = item as Record<string, unknown>;
+    return typeof row.label === 'string' && Array.isArray(row.sourceUrls);
+  });
+}
+
+function asUrls(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((url): url is string => typeof url === 'string') : [];
 }
 
 export function toExternalRatingDto(row: ExternalRating): ExternalRatingDto {

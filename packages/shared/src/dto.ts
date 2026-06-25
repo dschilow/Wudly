@@ -143,6 +143,20 @@ export interface ExternalRatingDto {
   fetchedAt: string;
 }
 
+export interface ExternalConsensusThemeDto {
+  label: string;
+  sourceUrls: string[];
+}
+
+/** Public-review themes, source-backed and strictly separate from Wudly owner data. */
+export interface ExternalConsensusDto {
+  summary: string | null;
+  positiveThemes: ExternalConsensusThemeDto[];
+  negativeThemes: ExternalConsensusThemeDto[];
+  sourceUrls: string[];
+  fetchedAt: string;
+}
+
 /** One technical fact about a product (e.g. "Modell" → "Magic5 Pro"). */
 export interface ProductSpecDto {
   label: string;
@@ -156,6 +170,8 @@ export interface ProductDetailDto extends ProductSummaryDto {
   insights: ProductInsightsDto;
   /** Aggregated rating facts from other platforms (may be empty). */
   externalRatings: ExternalRatingDto[];
+  /** Cached public-review themes; null until researched. */
+  externalConsensus: ExternalConsensusDto | null;
 }
 
 export interface ExperienceAspectDto {
@@ -313,6 +329,10 @@ export interface RatingBackfillResultDto {
   name: string;
   /** How many rating facts were researched + stored for this product. */
   found: number;
+  /** Number of recurring experience themes stored. */
+  themes: number;
+  /** True when a still-fresh cache avoided a paid research call. */
+  cached: boolean;
   /** Error message when the AI research threw, else null. */
   error: string | null;
 }
