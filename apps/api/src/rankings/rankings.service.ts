@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import {
   isExcludedFromRankings,
   type BlindSpotDto,
@@ -36,7 +36,7 @@ export interface RegretCardDto {
 
 @Injectable()
 export class RankingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   /** Highest rebuy score, among products with at least `minExperiences`. */
   async topRebuy(take: number, minExperiences: number): Promise<RankingEntryDto[]> {
@@ -66,7 +66,7 @@ export class RankingsService {
       where: {
         status: 'ACTIVE',
         insightSnapshot: {
-          is: { experienceCount: { gte: minExperiences }, regretScore: { not: null } },
+          is: { experienceCount: { gte: minExperiences }, regretScore: { gt: 0 } },
         },
       },
       include: PRODUCT_INCLUDE,
@@ -134,7 +134,7 @@ export class RankingsService {
       .slice(0, take);
   }
 
-  /** Top rebuy within a single category. */
+  /** Top products within a single category, including cold-start catalog entries. */
   async topByCategory(
     categorySlug: string,
     take: number,
@@ -147,19 +147,17 @@ export class RankingsService {
       where: {
         status: 'ACTIVE',
         categoryId: category.id,
-        insightSnapshot: { is: { experienceCount: { gte: minExperiences } } },
       },
       include: PRODUCT_INCLUDE,
-      orderBy: [
-        { insightSnapshot: { rebuyScore: 'desc' } },
-        { insightSnapshot: { experienceCount: 'desc' } },
-      ],
-      take: take * 3,
+      orderBy: [{ createdAt: 'desc' }],
+      take: Math.max(take * 6, take),
     });
-    return this.toEntries(
-      moderatePublic(products).slice(0, take),
-      (p) => p.insightSnapshot?.rebuyScore ?? 0,
+
+    const eligible = moderatePublic(products).filter(
+      (p) => (p.insightSnapshot?.experienceCount ?? 0) >= minExperiences,
     );
+
+    return this.toEntries(eligible.sort(compareCategoryDiscovery).slice(0, take), discoveryMetric);
   }
 
   /**
@@ -289,6 +287,57 @@ export class RankingsService {
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function discoveryTier(product: ProductWithRelations): number {
+  const snap = product.insightSnapshot;
+  if (
+    (snap?.experienceCount ?? 0) > 0 &&
+    snap?.rebuyScore !== null &&
+    snap?.rebuyScore !== undefined
+  ) {
+    return 3;
+  }
+  if (
+    (snap?.externalSourceCount ?? 0) > 0 &&
+    snap?.externalAvgPercent !== null &&
+    snap?.externalAvgPercent !== undefined
+  ) {
+    return 2;
+  }
+  return 1;
+}
+
+function discoveryMetric(product: ProductWithRelations): number {
+  const snap = product.insightSnapshot;
+  return snap?.rebuyScore ?? snap?.externalAvgPercent ?? snap?.experienceCount ?? 0;
+}
+
+function compareCategoryDiscovery(a: ProductWithRelations, b: ProductWithRelations): number {
+  const tierDiff = discoveryTier(b) - discoveryTier(a);
+  if (tierDiff !== 0) return tierDiff;
+
+  const aSnap = a.insightSnapshot;
+  const bSnap = b.insightSnapshot;
+  const tier = discoveryTier(a);
+
+  if (tier === 3) {
+    return (
+      (bSnap?.rebuyScore ?? 0) - (aSnap?.rebuyScore ?? 0) ||
+      (bSnap?.experienceCount ?? 0) - (aSnap?.experienceCount ?? 0) ||
+      b.createdAt.getTime() - a.createdAt.getTime()
+    );
+  }
+
+  if (tier === 2) {
+    return (
+      (bSnap?.externalAvgPercent ?? 0) - (aSnap?.externalAvgPercent ?? 0) ||
+      (bSnap?.externalSourceCount ?? 0) - (aSnap?.externalSourceCount ?? 0) ||
+      b.createdAt.getTime() - a.createdAt.getTime()
+    );
+  }
+
+  return b.createdAt.getTime() - a.createdAt.getTime();
 }
 
 /**

@@ -45,7 +45,13 @@ der Dockerfile-Build ueber die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
 | `ICECAT_USERNAME` | optional, Open-Icecat-Account |
 | `ICECAT_API_TOKEN` | optional |
 | `GOOGLE_CSE_KEY` / `GOOGLE_CSE_ID` | optional, Google Programmable Search (eingestellt) |
-| `BRAVE_SEARCH_KEY` | optional, bevorzugte Bildquelle; Free-Plan 2.000/Monat auf api-dashboard.search.brave.com |
+| `BRAVE_SEARCH_KEY` | optional fuer Bilder; Pflicht fuer Gemma-Webresearch, weil Ollama nicht selbst browsen kann |
+| `PRODUCT_RESEARCH_WORKER_ENABLED` | `false`; `true` aktiviert den Gemma-Hintergrundrefresh fuer Netz-Konsens |
+| `PRODUCT_RESEARCH_WORKER_TARGETS` | `gemma-4b,gemma-2b` (4B primaer, 2B Fallback ueber dieselbe Pipeline) |
+| `PRODUCT_RESEARCH_WORKER_BATCH_SIZE` | `2` (klein halten; Gemma auf CPU ist langsam) |
+| `PRODUCT_RESEARCH_WORKER_INTERVAL_MINUTES` | `360` (bei Bedarf z. B. `30`, um Modelle warm zu halten) |
+| `PRODUCT_RESEARCH_WORKER_MAX_AGE_DAYS` | `30` (Produkte mit aelterem/fehlendem Netz-Konsens werden aktualisiert) |
+| `PRODUCT_RESEARCH_WORKER_PRELOAD` | `true` laedt die Modelle vor jedem Lauf in Ollama (`keep_alive`) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | optional, Web Push |
 | `RAILWAY_DOCKERFILE_PATH` | `apps/api/Dockerfile` |
 
@@ -102,6 +108,35 @@ Erfahrungsthemen in einem einzigen Research-Aufruf. Themen werden nur gespeicher
 wenn mindestens zwei konkrete Quellseiten sie belegen. Leere Ergebnisse werden
 ebenfalls 90 Tage gecacht, damit schwer auffindbare Produkte keine wiederholten
 Kosten verursachen. Externe Daten bleiben vollstaendig vom Wudly Signal getrennt.
+
+### Gemma-Hintergrundrecherche fuer Produktbewertungen
+
+Der Worker laeuft im `wudly-api`-Prozess und nutzt die zwei Ollama-Services als
+Research-Modelle. Wichtig: Gemma/Ollama hat keine eigene Websuche. Aktuelle
+Quellen kommen ueber Brave Search; die Snippets werden dem Modell als Kontext
+gegeben und die Antwort laeuft durch dieselbe Zod-Validierung und
+`ExternalRating`/`ExternalConsensus`-Speicherung wie der Admin-Backfill.
+
+Empfohlene Railway-Variablen auf `wudly-api`:
+
+```bash
+railway variables --service wudly-api --set "BRAVE_SEARCH_KEY=..."
+railway variables --service wudly-api --set "OLLAMA_BASE_URL=http://wudly-gemma.railway.internal:11434"
+railway variables --service wudly-api --set "OLLAMA_MODEL=gemma4:e4b"
+railway variables --service wudly-api --set "OLLAMA_2B_BASE_URL=http://wudly-gemma-e2b.railway.internal:11434"
+railway variables --service wudly-api --set "OLLAMA_2B_MODEL=gemma4:e2b"
+railway variables --service wudly-api --set "PRODUCT_RESEARCH_WORKER_ENABLED=true"
+railway variables --service wudly-api --set "PRODUCT_RESEARCH_WORKER_TARGETS=gemma-4b,gemma-2b"
+railway variables --service wudly-api --set "PRODUCT_RESEARCH_WORKER_BATCH_SIZE=2"
+railway variables --service wudly-api --set "PRODUCT_RESEARCH_WORKER_INTERVAL_MINUTES=360"
+railway variables --service wudly-api --set "PRODUCT_RESEARCH_WORKER_MAX_AGE_DAYS=30"
+```
+
+`AI_PROVIDER` kann dabei weiter `openrouter` bleiben. Der Worker baut seine
+eigenen Gemma-Research-Instanzen und fasst nur Produkte an, deren Netz-Konsens
+fehlt oder aelter als `PRODUCT_RESEARCH_WORKER_MAX_AGE_DAYS` ist. Leere
+Rechercheergebnisse werden weiterhin gecacht, damit schlecht belegte Produkte
+nicht in jeder Runde erneut Brave-/Modellzeit verbrauchen.
 
 ### `wudly-gemma` (optional, Gemma 4 E4B Test)
 
@@ -186,11 +221,11 @@ railway up --service wudly-api --ci
 curl "https://<api-domain>/api/health/ai?test=1"
 ```
 
-Wichtig: Der Ollama-Pfad hat keine Websuche. Wudly-Funktionen, die `online: true`
-nutzen (`researchProduct`, `suggestProducts`, `researchExternalRatings`), fallen
-automatisch auf den Dummy-/Fallback-Pfad zurueck. Fuer den Vergleich mit Gemini
-sind vor allem Produktnormalisierung, Erfahrungstext-Normalisierung, Fragevorschlaege
-und AI-Zusammenfassungen aussagekraeftig.
+Wichtig: Der Ollama-Pfad hat keine eigene Websuche. Recherchefunktionen wie
+`researchProduct`, `suggestProducts` und `researchExternalConsensus` funktionieren
+mit Gemma nur, wenn `BRAVE_SEARCH_KEY` gesetzt ist und Brave-Suchergebnisse als
+Kontext geliefert werden. Ohne Brave fallen diese Pfade weiterhin auf leere bzw.
+deterministische Fallbacks zurueck.
 
 ## Admin-Playground `/ki-test`
 

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '../config/configuration';
 
@@ -58,7 +58,7 @@ export class IcecatService {
   private readonly username: string | null;
   private readonly apiToken: string | null;
 
-  constructor(config: ConfigService<AppConfig, true>) {
+  constructor(@Inject(ConfigService) config: ConfigService<AppConfig, true>) {
     this.username = config.get('ICECAT_USERNAME', { infer: true })?.trim() || null;
     this.apiToken = config.get('ICECAT_API_TOKEN', { infer: true })?.trim() || null;
   }

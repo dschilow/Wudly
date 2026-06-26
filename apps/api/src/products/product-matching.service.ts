@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
   normalizeProductName,
@@ -245,7 +245,7 @@ const CATEGORY_ALIAS_TEXT: ReadonlyMap<string, string> = new Map(
  */
 @Injectable()
 export class ProductMatchingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   /** Free-text search used by GET /products/search. */
   async search(query: string, take: number): Promise<MatchCandidate[]> {

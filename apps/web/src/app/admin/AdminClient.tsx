@@ -17,8 +17,13 @@ import { LargeTitle } from '@/components/ios/LargeTitle';
 import { ExternalRatingsAdmin } from './ExternalRatingsAdmin';
 import { ImageBackfillAdmin } from './ImageBackfillAdmin';
 import { RatingsBackfillAdmin } from './RatingsBackfillAdmin';
+import { ProductCurationAdmin } from './ProductCurationAdmin';
 
-export function AdminClient() {
+const UiCard = Card as any;
+const UiButton = Button as any;
+const UiPill = Pill as any;
+
+export function AdminClient(): any {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { show } = useToast();
@@ -57,8 +62,11 @@ export function AdminClient() {
         title="Kein Zugriff"
         description="Dieser Bereich ist nur für Administratoren."
         action={
-          <Link href="/">
-            <Button variant="secondary">Zur Startseite</Button>
+          <Link
+            href="/"
+            className="press inline-flex h-11 items-center justify-center rounded-[var(--radius-lg)] bg-fill-2 px-5 text-[1rem] font-semibold text-label transition active:opacity-70"
+          >
+            Zur Startseite
           </Link>
         }
       />
@@ -85,7 +93,14 @@ export function AdminClient() {
 
   return (
     <div className="animate-fade space-y-4 pt-2">
-      <LargeTitle title="Merge-Kandidaten" subtitle="Mögliche doppelte Produkte." />
+      <LargeTitle title="Admin" subtitle="Katalogpflege, Duplikate und Backfills." />
+
+      <ProductCurationAdmin />
+
+      <div className="px-1 pt-2">
+        <h2 className="text-[1.3rem] font-bold tracking-tight text-label">Merge-Kandidaten</h2>
+        <p className="text-[0.875rem] text-muted-foreground">Mögliche doppelte Produkte.</p>
+      </div>
 
       {candidates.length === 0 ? (
         <div className="rounded-[var(--radius-lg)] bg-surface">
@@ -97,9 +112,9 @@ export function AdminClient() {
       ) : (
         <div className="space-y-3">
           {candidates.map((c) => (
-            <Card key={c.id} className="space-y-3">
+            <UiCard key={c.id} className="space-y-3">
               <div className="flex items-center justify-between">
-                <Pill tone="unsure">Ähnlichkeit {(c.score * 100).toFixed(0)}%</Pill>
+                <UiPill tone="unsure">Ähnlichkeit {(c.score * 100).toFixed(0)}%</UiPill>
                 <span className="text-xs text-muted-foreground">{c.status}</span>
               </div>
 
@@ -113,7 +128,11 @@ export function AdminClient() {
                     {c.productA.experienceCount} Erf. · behält Daten
                   </div>
                 </Link>
-                <ArrowLeftRight className="mx-auto h-4 w-4 text-faint" strokeWidth={2} aria-hidden />
+                <ArrowLeftRight
+                  className="mx-auto h-4 w-4 text-faint"
+                  strokeWidth={2}
+                  aria-hidden
+                />
                 <Link
                   href={`/products/${c.productB.id}`}
                   className="rounded-2xl bg-surface-sunken p-3 text-sm"
@@ -128,15 +147,15 @@ export function AdminClient() {
               {c.reason && <p className="text-xs text-muted-foreground">{c.reason}</p>}
 
               <div className="flex gap-2">
-                <Button
+                <UiButton
                   size="sm"
                   loading={busyId === c.id}
                   onClick={() => act(c.id, 'merge')}
                   className="flex-1"
                 >
                   Zusammenführen
-                </Button>
-                <Button
+                </UiButton>
+                <UiButton
                   size="sm"
                   variant="outline"
                   disabled={busyId === c.id}
@@ -144,9 +163,9 @@ export function AdminClient() {
                   className="flex-1"
                 >
                   Ablehnen
-                </Button>
+                </UiButton>
               </div>
-            </Card>
+            </UiCard>
           ))}
         </div>
       )}

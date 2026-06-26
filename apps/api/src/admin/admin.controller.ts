@@ -5,21 +5,31 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import {
   upsertExternalRatingSchema,
+  productSearchQuerySchema,
+  eanLookupQuerySchema,
+  createCuratedProductSchema,
   type MergeCandidateDto,
   type ExternalRatingDto,
   type UpsertExternalRatingInput,
   type ImagelessProductDto,
   type ImageBackfillReportDto,
   type RatingBackfillReportDto,
+  type ProductCurationResearchDto,
+  type ProductCurationDraftDto,
+  type CreateCuratedProductInput,
+  type CreateProductResultDto,
 } from '@wudly/shared';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthUser } from '../auth/auth.types';
 import { RolesGuard, Roles } from '../auth/roles.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ExternalRatingsService } from '../products/external-ratings.service';
@@ -50,6 +60,31 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   reject(@Param('id') id: string): Promise<{ success: true }> {
     return this.admin.reject(id);
+  }
+
+  /* --- AI-free catalog curation workbench --- */
+
+  @Get('products/curation-research')
+  curationResearch(
+    @Query(new ZodValidationPipe(productSearchQuerySchema)) query: { q: string },
+  ): Promise<ProductCurationResearchDto> {
+    return this.products.curationResearch(query.q);
+  }
+
+  @Get('products/curation-draft')
+  curationDraft(
+    @Query(new ZodValidationPipe(eanLookupQuerySchema)) query: { ean: string },
+  ): Promise<ProductCurationDraftDto | null> {
+    return this.products.curationDraftFromEan(query.ean);
+  }
+
+  @Post('products/curated')
+  @HttpCode(HttpStatus.OK)
+  createCuratedProduct(
+    @Body(new ZodValidationPipe(createCuratedProductSchema)) dto: CreateCuratedProductInput,
+    @CurrentUser() user: AuthUser,
+  ): Promise<CreateProductResultDto> {
+    return this.products.createCurated(dto, user.id);
   }
 
   /* --- External rating facts ("Bewertungen anderswo") --- */

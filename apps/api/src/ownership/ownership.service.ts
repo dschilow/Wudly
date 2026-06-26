@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import type { CreateOwnershipInput, OwnershipDto } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductInsightsService } from '../products/product-insights.service';
@@ -9,8 +9,8 @@ const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
 @Injectable()
 export class OwnershipService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly insights: ProductInsightsService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(ProductInsightsService) private readonly insights: ProductInsightsService,
   ) {}
 
   /** Declare ownership of a product (idempotent per user+product). */

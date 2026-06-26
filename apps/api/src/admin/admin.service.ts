@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import type { MergeCandidateDto } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductInsightsService } from '../products/product-insights.service';
@@ -9,8 +9,8 @@ const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
 @Injectable()
 export class AdminService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly insights: ProductInsightsService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(ProductInsightsService) private readonly insights: ProductInsightsService,
   ) {}
 
   async listMergeCandidates(status: 'PENDING' | 'ALL' = 'PENDING'): Promise<MergeCandidateDto[]> {

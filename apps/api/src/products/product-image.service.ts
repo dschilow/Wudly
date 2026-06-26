@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AppConfig } from '../config/configuration';
@@ -29,8 +29,8 @@ export class ProductImageService {
   private readonly braveKey: string | null;
 
   constructor(
-    private readonly prisma: PrismaService,
-    config: ConfigService<AppConfig, true>,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(ConfigService) config: ConfigService<AppConfig, true>,
   ) {
     this.cseKey = config.get('GOOGLE_CSE_KEY', { infer: true })?.trim() || null;
     this.cseId = config.get('GOOGLE_CSE_ID', { infer: true })?.trim() || null;

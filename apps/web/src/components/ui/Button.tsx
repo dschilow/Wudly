@@ -54,7 +54,7 @@ const sizeClasses: Record<Size, string> = {
   lg: 'h-[3.25rem] px-6 text-[1.0625rem] rounded-[var(--radius-lg)] gap-2',
 };
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+const ButtonRoot = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'filled', size = 'md', fullWidth, loading, className, children, disabled, ...rest },
   ref,
 ) {
@@ -77,3 +77,5 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     </button>
   );
 });
+
+export const Button = ButtonRoot as unknown as (props: ButtonProps) => any;

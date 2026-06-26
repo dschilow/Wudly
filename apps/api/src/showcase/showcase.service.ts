@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Inject,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
@@ -41,7 +42,7 @@ const SHOWCASE_LIST_INCLUDE = {
 
 @Injectable()
 export class ShowcaseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   /* ----------------------------- Profiles ----------------------------- */
 

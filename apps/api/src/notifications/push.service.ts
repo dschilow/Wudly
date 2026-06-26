@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import webpush from 'web-push';
 import type { PushTestResultDto, PushTestSubResultDto } from '@wudly/shared';
@@ -23,8 +23,8 @@ export class PushService {
   private readonly publicKey: string | null;
 
   constructor(
-    private readonly prisma: PrismaService,
-    config: ConfigService<AppConfig, true>,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(ConfigService) config: ConfigService<AppConfig, true>,
   ) {
     const publicKey = config.get('VAPID_PUBLIC_KEY', { infer: true });
     const privateKey = config.get('VAPID_PRIVATE_KEY', { infer: true });

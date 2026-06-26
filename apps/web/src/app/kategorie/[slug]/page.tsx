@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import type { RankingEntryDto } from '@wudly/shared';
 import { ChevronRight, Lightbulb, ShieldCheck, ThumbsUp } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
@@ -33,7 +34,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   try {
     const data = await api.rankings.categoryOverview(slug, { next: { revalidate: 300 } });
-    const title = `${data.category.name} — was echte Besitzer nach Monaten wirklich denken`;
+    const title = `${data.category.name} - was echte Besitzer nach Monaten wirklich denken`;
     const description =
       `Wiederkauf-Score, häufigste Probleme und Top-Empfehlungen für ${data.category.name}. ` +
       `${data.productCount} Produkte, echte Erfahrungen nach echter Nutzung.`;
@@ -72,22 +73,31 @@ export default async function CategoryPage({ params }: PageProps) {
     throw err;
   }
 
+  const categoryEntries = await safe(
+    api.rankings.byCategory(slug, 12, { next: { revalidate: 120 } }, 0),
+    [] as RankingEntryDto[],
+  );
+  const catalogProducts = categoryEntries.map((entry) => entry.product);
+
   const { category, productCount, averageRebuyScore, top, flops, sealCount, blindSpot } = data;
 
   const structuredData = [
     breadcrumbJsonLd([
       { name: 'Start', url: absoluteUrl('/') },
-      { name: 'Charts', url: absoluteUrl('/rankings') },
+      { name: 'Entdecken', url: absoluteUrl('/rankings') },
       { name: category.name, url: absoluteUrl(`/kategorie/${slug}`) },
     ]),
-    ...(top.length > 0 ? [itemListJsonLd(`Top ${category.name}`, top)] : []),
+    ...(top.length > 0
+      ? [itemListJsonLd(`Top ${category.name}`, top)]
+      : catalogProducts.length > 0
+        ? [itemListJsonLd(`${category.name} im Katalog`, catalogProducts)]
+        : []),
   ];
 
   return (
     <div className="animate-fade space-y-6 pb-6 pt-1">
       <JsonLd data={structuredData} />
 
-      {/* Hero */}
       <header className="px-1 pt-1">
         <p className="text-[0.75rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           Kategorie
@@ -96,16 +106,14 @@ export default async function CategoryPage({ params }: PageProps) {
           {category.name}
         </h1>
         <p className="mt-2 max-w-[24rem] text-[1.0625rem] leading-snug text-muted-foreground">
-          Was echte Besitzer nach Monaten wirklich denken — nicht beim Kauf, sondern nach der
-          Nutzung.
+          Produkte, Besitzerstimmen und externe Orientierung in dieser Kategorie.
         </p>
       </header>
 
-      {/* Stat tiles */}
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded-[0.9rem] bg-fill-2 px-2 py-3.5 text-center">
           <div className="text-[1.4rem] font-bold tnum leading-none text-label">
-            {averageRebuyScore === null ? '–' : `${averageRebuyScore}%`}
+            {averageRebuyScore === null ? '-' : `${averageRebuyScore}%`}
           </div>
           <div className="mt-1 text-[0.75rem] text-muted-foreground">Ø Wiederkauf</div>
         </div>
@@ -122,13 +130,8 @@ export default async function CategoryPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Blind spot */}
       {blindSpot && (
         <section className="card-elevated relative overflow-hidden">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-regret-soft blur-2xl"
-          />
           <div className="relative p-4">
             <div className="flex items-center gap-2.5">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-regret-soft text-regret-ink">
@@ -148,23 +151,23 @@ export default async function CategoryPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* Top */}
       <section>
-        <SectionTitle>Würden sie wieder kaufen</SectionTitle>
+        <SectionTitle>{top.length > 0 ? 'Würden sie wieder kaufen' : 'Im Katalog'}</SectionTitle>
         {top.length > 0 ? (
           <ProductList products={top} ranked />
+        ) : catalogProducts.length > 0 ? (
+          <ProductList products={catalogProducts} ranked />
         ) : (
           <div className="card">
             <EmptyState
               icon={<ThumbsUp className="h-7 w-7" strokeWidth={1.8} />}
               title="Noch keine Daten"
-              description="Sei der Erste und teile eine Erfahrung in dieser Kategorie."
+              description="Sobald ein Produkt in dieser Kategorie recherchiert ist, erscheint es hier."
             />
           </div>
         )}
       </section>
 
-      {/* Flops */}
       {flops.length > 0 && (
         <section>
           <SectionTitle>Bereuen Besitzer am häufigsten</SectionTitle>
@@ -176,10 +179,10 @@ export default async function CategoryPage({ params }: PageProps) {
         <div className="flex items-center gap-3.5 px-4 py-4">
           <div className="min-w-0 flex-1">
             <div className="text-[1.0625rem] font-medium leading-tight text-label">
-              Alle Kategorien im Regret-Radar
+              Entdecken öffnen
             </div>
             <div className="mt-0.5 text-[0.8125rem] text-muted-foreground">
-              Wo Käufer am häufigsten danebenliegen.
+              Kategorien, neue Produkte und frühe Signale.
             </div>
           </div>
           <ChevronRight

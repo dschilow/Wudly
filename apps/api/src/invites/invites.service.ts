@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto';
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import type {
   InviteRatingInput,
   RatingInviteDto,
@@ -31,8 +31,8 @@ function toInvitedVoteDto(v: InvitedVote): InvitedVoteDto {
 @Injectable()
 export class InvitesService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly insights: ProductInsightsService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(ProductInsightsService) private readonly insights: ProductInsightsService,
   ) {}
 
   async createInvite(productId: string, userId: string): Promise<RatingInviteDto> {

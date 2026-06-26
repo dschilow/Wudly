@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import {
   normalizeProductName,
   guessBrand,
@@ -7,6 +8,7 @@ import {
   DEFAULT_SIMILARITY_THRESHOLDS,
   type AiService,
   type CreateProductInput,
+  type CreateCuratedProductInput,
   type UpdateProductInput,
   type ProductSummaryDto,
   type ProductDetailDto,
@@ -22,11 +24,15 @@ import {
   type QuickVoteResultDto,
   type ExternalProductSuggestionDto,
   type ProductFindResultDto,
+  type ProductCurationDraftDto,
+  type ProductCurationResearchDto,
+  type ProductCurationWebResultDto,
   type ImagelessProductDto,
   type ImageBackfillReportDto,
   type ImageBackfillResultDto,
   type RatingBackfillReportDto,
   type RatingBackfillResultDto,
+  type ResearchedExternalConsensus,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
@@ -34,6 +40,7 @@ import { ProductInsightsService } from './product-insights.service';
 import { IcecatService, type EanLookupHit } from './icecat.service';
 import { ProductImageService } from './product-image.service';
 import { ExternalRatingsService } from './external-ratings.service';
+import { BraveSearchService, type BraveWebResult } from '../ai/brave-search.service';
 import { renderProductPreviewSvg } from './product-preview-svg';
 import { renderProductShareSvg } from './product-share-svg';
 import {
@@ -48,6 +55,11 @@ const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
 const SUGGESTION_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 
 /** Raw UPCitemdb item shape (the fields we read). */
+interface RatingResearchOptions {
+  aiServices?: AiService[];
+  maxAgeDays?: number;
+}
+
 interface UpcItem {
   title?: string;
   brand?: string;
@@ -64,11 +76,7 @@ interface UpcItem {
 
 /** Fold German umlauts to their ASCII digraphs — UPCitemdb indexes ASCII titles. */
 function foldUmlauts(s: string): string {
-  return s
-    .replace(/ä/g, 'ae')
-    .replace(/ö/g, 'oe')
-    .replace(/ü/g, 'ue')
-    .replace(/ß/g, 'ss');
+  return s.replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss');
 }
 
 /**
@@ -185,7 +193,11 @@ function mergeSuggestions(
 ): ExternalProductSuggestionDto[] {
   const seenEans = new Set<string>();
   const seenTitles = new Set<string>();
-  const normTitle = (t: string) => t.toLowerCase().replace(/[^a-z0-9äöüß]+/g, ' ').trim();
+  const normTitle = (t: string) =>
+    t
+      .toLowerCase()
+      .replace(/[^a-z0-9äöüß]+/g, ' ')
+      .trim();
   const out: ExternalProductSuggestionDto[] = [];
 
   for (const item of [...primary, ...filler]) {
@@ -228,17 +240,36 @@ function upcItemSpecs(item: UpcItem | undefined): Array<{ label: string; value: 
     .filter((p) => p.value.length > 0 && p.value.length <= 80);
 }
 
+function toCurationWebResult(result: BraveWebResult): ProductCurationWebResultDto {
+  return {
+    title: result.title,
+    url: result.url,
+    description: result.description,
+    snippets: result.snippets,
+  };
+}
+
+function hasExternalResearchSignal(research: ResearchedExternalConsensus): boolean {
+  return (
+    research.ratings.length > 0 ||
+    research.positiveThemes.length > 0 ||
+    research.negativeThemes.length > 0 ||
+    research.sourceUrls.length > 0 ||
+    Boolean(research.summary?.trim())
+  );
+}
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly matching: ProductMatchingService,
-    private readonly insights: ProductInsightsService,
-    private readonly icecat: IcecatService,
-    private readonly images: ProductImageService,
-    private readonly externalRatings: ExternalRatingsService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(ProductMatchingService) private readonly matching: ProductMatchingService,
+    @Inject(ProductInsightsService) private readonly insights: ProductInsightsService,
+    @Inject(IcecatService) private readonly icecat: IcecatService,
+    @Inject(ProductImageService) private readonly images: ProductImageService,
+    @Inject(ExternalRatingsService) private readonly externalRatings: ExternalRatingsService,
+    @Inject(BraveSearchService) private readonly webSearch: BraveSearchService,
     @Inject(AI_SERVICE) private readonly ai: AiService,
   ) {}
 
@@ -369,6 +400,56 @@ export class ProductsService {
     { at: number; items: ExternalProductSuggestionDto[] }
   >();
 
+  /** Admin catalog workbench: searchable sources without OpenRouter calls. */
+  async curationResearch(query: string): Promise<ProductCurationResearchDto> {
+    const q = query.trim();
+    if (q.length < 2) {
+      return {
+        catalog: [],
+        market: [],
+        productSources: [],
+        ratingSources: [],
+        imageUrl: null,
+        searchEnabled: this.webSearch.enabled,
+      };
+    }
+
+    const [matches, market, productSources, ratingSources, imageUrl] = await Promise.all([
+      this.matching.search(q, 8),
+      this.externalSuggestions(q),
+      this.webSearch.web(`${q} offizielle Produktseite technische Daten`, 8),
+      this.webSearch.web(`${q} Test Bewertung Erfahrungen Review`, 8),
+      this.images.previewImageUrl(q),
+    ]);
+
+    return {
+      catalog: matches
+        .filter((c) => c.similarity >= 0.45)
+        .slice(0, 8)
+        .map((c) => toProductSummaryDto(c.product)),
+      market: await this.fillSuggestionImages(market),
+      productSources: productSources.map(toCurationWebResult),
+      ratingSources: ratingSources.map(toCurationWebResult),
+      imageUrl,
+      searchEnabled: this.webSearch.enabled,
+    };
+  }
+
+  /** EAN/GTIN preview for the admin workbench. Reads external DBs, creates nothing. */
+  async curationDraftFromEan(ean: string): Promise<ProductCurationDraftDto | null> {
+    const normalized = ean.trim();
+    const hit = await this.lookupEanExternal(normalized);
+    if (!hit) return null;
+    return {
+      title: hit.title,
+      brand: hit.brand,
+      ean: normalized,
+      image: hit.image,
+      description: hit.description ?? null,
+      specs: normalizeSpecs(hit.specs),
+      source: hit.source,
+    };
+  }
   async getDetail(id: string): Promise<ProductDetailDto> {
     const product = await this.findOrThrow(id);
     const [insights, externalRatings, externalConsensus] = await Promise.all([
@@ -379,8 +460,11 @@ export class ProductsService {
 
     // No cached photo yet → trigger a background hunt so the next page load has it.
     // Check via a lightweight count instead of loading the image bytes.
-    void this.prisma.productImage.findUnique({ where: { productId: id }, select: { productId: true } })
-      .then((img) => { if (!img) void this.rehuntImage(id).catch(() => undefined); })
+    void this.prisma.productImage
+      .findUnique({ where: { productId: id }, select: { productId: true } })
+      .then((img) => {
+        if (!img) void this.rehuntImage(id).catch(() => undefined);
+      })
       .catch(() => undefined);
 
     return toProductDetailDto(product, insights, externalRatings, externalConsensus);
@@ -745,11 +829,7 @@ export class ProductsService {
    * web research (average + count + product link — never review texts, per the
    * transparency rules). No-op with the dummy provider; failures are silent.
    */
-  private researchRatingsInBackground(
-    productId: string,
-    name: string,
-    brand: string | null,
-  ): void {
+  private researchRatingsInBackground(productId: string, name: string, brand: string | null): void {
     void this.researchAndStoreRatings(productId, name, brand).catch((err) => {
       this.logger.warn(
         `Ratings research failed for ${productId}: ${err instanceof Error ? err.message : err}`,
@@ -767,11 +847,17 @@ export class ProductsService {
     productId: string,
     name: string,
     brand: string | null,
+    options: RatingResearchOptions = {},
   ): Promise<{ ratings: number; themes: number; cached: boolean }> {
-    if (await this.externalRatings.isFresh(productId, 90)) {
+    const maxAgeDays = options.maxAgeDays ?? 90;
+    if (await this.externalRatings.isFresh(productId, maxAgeDays)) {
       return { ratings: 0, themes: 0, cached: true };
     }
-    const research = await this.ai.researchExternalConsensus(name, brand);
+    const research = await this.researchExternalConsensusWithFallback(
+      name,
+      brand,
+      options.aiServices,
+    );
     let stored = 0;
     for (const rating of research.ratings) {
       if (rating.url.length > 500) continue;
@@ -797,15 +883,48 @@ export class ProductsService {
     return { ratings: stored, themes, cached: false };
   }
 
+  private async researchExternalConsensusWithFallback(
+    name: string,
+    brand: string | null,
+    aiServices: AiService[] | undefined,
+  ): Promise<ResearchedExternalConsensus> {
+    const services = aiServices?.length ? aiServices : [this.ai];
+    let last: ResearchedExternalConsensus | null = null;
+    let lastError: unknown = null;
+
+    for (const service of services) {
+      try {
+        const research = await service.researchExternalConsensus(name, brand);
+        last = research;
+        if (hasExternalResearchSignal(research)) return research;
+      } catch (err) {
+        lastError = err;
+        this.logger.warn(
+          `External consensus provider failed for "${name}": ${
+            err instanceof Error ? err.message : err
+          }`,
+        );
+      }
+    }
+
+    if (last) return last;
+    if (lastError) throw lastError;
+    return { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] };
+  }
+
   /**
    * Admin backfill: research external ratings for existing products that have none
    * yet. Runs SEQUENTIALLY (the AI web search is rate-limited and shared), oldest
    * first, in small batches — run repeatedly until `remaining` reaches 0. Mirrors
    * the image backfill. Returns a per-product report.
    */
-  async backfillMissingRatings(limit = 8): Promise<RatingBackfillReportDto> {
+  async backfillMissingRatings(
+    limit = 8,
+    options: RatingResearchOptions = {},
+  ): Promise<RatingBackfillReportDto> {
     const batchSize = Math.min(Math.max(limit, 1), 25);
-    const staleIds = await this.externalRatings.staleProductIds(batchSize, 90);
+    const maxAgeDays = options.maxAgeDays ?? 90;
+    const staleIds = await this.externalRatings.staleProductIds(batchSize, maxAgeDays);
     const products = await this.prisma.product.findMany({
       where: { id: { in: staleIds } },
       select: { id: true, canonicalName: true, brand: true },
@@ -816,7 +935,12 @@ export class ProductsService {
     const results: RatingBackfillResultDto[] = [];
     for (const p of products) {
       try {
-        const stored = await this.researchAndStoreRatings(p.id, p.canonicalName, p.brand);
+        const stored = await this.researchAndStoreRatings(
+          p.id,
+          p.canonicalName,
+          p.brand,
+          options,
+        );
         results.push({
           productId: p.id,
           name: p.canonicalName,
@@ -840,7 +964,7 @@ export class ProductsService {
       }
     }
 
-    const remaining = await this.externalRatings.staleProductCount(90);
+    const remaining = await this.externalRatings.staleProductCount(maxAgeDays);
     return {
       attempted: results.length,
       withRatings: results.filter((r) => r.found > 0).length,
@@ -850,11 +974,11 @@ export class ProductsService {
     };
   }
 
-  private async attachIdentifier(productId: string, ean: string): Promise<void> {
+  private async attachIdentifier(productId: string, ean: string, source = 'scan'): Promise<void> {
     try {
       await this.prisma.productIdentifier.upsert({
         where: { type_value: { type: 'EAN', value: ean } },
-        create: { productId, type: 'EAN', value: ean, source: 'scan' },
+        create: { productId, type: 'EAN', value: ean, source },
         update: {},
       });
     } catch (err) {
@@ -969,7 +1093,10 @@ export class ProductsService {
       if (!title || !ean || seenEans.has(ean)) continue;
       // Drop third-party accessories — a phone search shouldn't list cases.
       if (isAccessory(title, item.brand)) continue;
-      const norm = title.toLowerCase().replace(/[^a-z0-9äöüß]+/g, ' ').trim();
+      const norm = title
+        .toLowerCase()
+        .replace(/[^a-z0-9äöüß]+/g, ' ')
+        .trim();
       if (seenTitles.has(norm)) continue;
       seenTitles.add(norm);
       seenEans.add(ean);
@@ -1286,6 +1413,112 @@ export class ProductsService {
     });
   }
 
+  /**
+   * Admin-curated creation path. This intentionally avoids AI enrichment and
+   * paid external-consensus research; all facts come from the curator payload.
+   */
+  async createCurated(
+    input: CreateCuratedProductInput,
+    createdByUserId: string | null = null,
+  ): Promise<CreateProductResultDto> {
+    const canonicalName = input.canonicalName.trim();
+    const normalizedName = normalizeProductName(canonicalName);
+
+    if (!input.forceCreate) {
+      const candidates = await this.matching.findDuplicateCandidates(canonicalName, 5);
+      const strong = candidates.find(
+        (c) => c.similarity >= DEFAULT_SIMILARITY_THRESHOLDS.duplicate,
+      );
+      if (strong || candidates.length > 0) {
+        return {
+          created: false,
+          reason: 'possible_duplicates',
+          candidates: candidates.map((c) => ({
+            product: toProductSummaryDto(c.product),
+            similarity: Number(c.similarity.toFixed(2)),
+          })),
+        };
+      }
+    }
+
+    const brand = input.brand?.trim() || guessBrand(canonicalName) || null;
+    const categoryId = input.categorySlug ? await this.resolveCategoryId(input.categorySlug) : null;
+    const specs = normalizeSpecs(input.specs);
+    const imageUrl = input.imageUrl?.trim() || null;
+    const productUrl = input.productUrl?.trim() || null;
+
+    const product = await this.prisma.product.create({
+      data: {
+        canonicalName,
+        normalizedName,
+        brand,
+        categoryId,
+        description: input.description?.trim() || null,
+        imageUrl,
+        specs: specs as unknown as Prisma.InputJsonValue,
+        status: 'ACTIVE',
+        createdByUserId,
+        sources: {
+          create: {
+            sourceType: productUrl ? 'MANUFACTURER' : 'USER_SUBMITTED',
+            sourceUrl: productUrl || undefined,
+            rawTitle: canonicalName,
+            matchConfidence: productUrl ? 1 : 0,
+          },
+        },
+      },
+      include: PRODUCT_INCLUDE,
+    });
+
+    if (input.forceCreate) await this.maybeLogMergeCandidate(product, canonicalName);
+    if (input.ean) await this.attachIdentifier(product.id, input.ean, 'admin-curated');
+
+    if (imageUrl) {
+      this.images.cacheInBackground(product.id, imageUrl, 'admin-curated');
+    } else {
+      this.images.findAndCacheInBackground(product.id, buildImageQuery(brand, canonicalName), {
+        candidateUrls: [],
+        pageUrl: productUrl,
+      });
+    }
+
+    for (const rating of input.ratings) {
+      await this.externalRatings.upsert(product.id, rating);
+    }
+
+    const sourceUrls = [
+      ...(productUrl ? [productUrl] : []),
+      ...input.sourceUrls,
+      ...input.ratings.map((rating) => rating.url),
+      ...input.positiveThemes.flatMap((theme) => theme.sourceUrls),
+      ...input.negativeThemes.flatMap((theme) => theme.sourceUrls),
+    ].filter((url, index, all) => url && all.indexOf(url) === index);
+
+    if (
+      input.consensusSummary?.trim() ||
+      input.positiveThemes.length > 0 ||
+      input.negativeThemes.length > 0 ||
+      sourceUrls.length > 0
+    ) {
+      await this.externalRatings.storeResearch(product.id, {
+        ratings: [],
+        summary: input.consensusSummary?.trim() || null,
+        positiveThemes: input.positiveThemes,
+        negativeThemes: input.negativeThemes,
+        sourceUrls,
+      });
+    }
+
+    const insights = await this.insights.regenerate(product.id);
+    const [externalRatings, externalConsensus] = await Promise.all([
+      this.externalRatings.listForProduct(product.id),
+      this.externalRatings.getConsensus(product.id),
+    ]);
+    return {
+      created: true,
+      product: toProductDetailDto(product, insights, externalRatings, externalConsensus),
+    };
+  }
   /**
    * Create a product with duplicate protection:
    *  - If a near-identical product exists and the caller didn't force, return

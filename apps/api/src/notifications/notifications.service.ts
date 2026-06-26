@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import {
   NotificationType,
   type GroupedNotificationInboxDto,
@@ -36,8 +36,8 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly push: PushService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(PushService) private readonly push: PushService,
   ) {}
 
   /** Best-effort create; swallows errors so callers can fire-and-forget. */

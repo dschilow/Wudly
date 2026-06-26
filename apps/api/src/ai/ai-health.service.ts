@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OpenRouterClient } from './openrouter.client';
 import { OllamaClient } from './ollama.client';
@@ -29,7 +29,7 @@ export class AiHealthService {
   private ollamaClient: OllamaClient | null = null;
   private liveCache: { result: NonNullable<AiStatus['live']>; expiresAt: number } | null = null;
 
-  constructor(private readonly config: ConfigService<AppConfig, true>) {}
+  constructor(@Inject(ConfigService) private readonly config: ConfigService<AppConfig, true>) {}
 
   private get key(): string | undefined {
     return this.config.get('OPENROUTER_API_KEY', { infer: true });

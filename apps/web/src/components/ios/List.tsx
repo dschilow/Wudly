@@ -53,7 +53,7 @@ interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
  * A single iOS list row: optional leading accessory, title (+subtitle), optional
  * right value, optional chevron, and a hairline separator inset to the text.
  */
-export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow(
+const ListRowRoot = forwardRef<HTMLDivElement, ListRowProps>(function ListRow(
   {
     href,
     onPress,
@@ -102,7 +102,11 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
         <div className="shrink-0 text-[1.0625rem] text-muted-foreground">{value}</div>
       )}
       {showChevron && (
-        <ChevronRight className="-mr-1 h-[1.0625rem] w-[1.0625rem] shrink-0 text-label-3" strokeWidth={2.5} aria-hidden />
+        <ChevronRight
+          className="-mr-1 h-[1.0625rem] w-[1.0625rem] shrink-0 text-label-3"
+          strokeWidth={2.5}
+          aria-hidden
+        />
       )}
     </div>
   );
@@ -123,3 +127,5 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
   }
   return inner;
 });
+
+export const ListRow = ListRowRoot as unknown as (props: ListRowProps) => any;

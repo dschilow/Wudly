@@ -535,6 +535,32 @@ export interface ExternalProductSuggestionDto {
  * Unified search result — the server runs the whole cascade (catalog →
  * market DBs) and the client renders ONE consistent list from it.
  */
+
+export interface ProductCurationWebResultDto {
+  title: string;
+  url: string;
+  description: string;
+  snippets: string[];
+}
+
+export interface ProductCurationDraftDto {
+  title: string;
+  brand: string | null;
+  ean: string | null;
+  image: string | null;
+  description: string | null;
+  specs: ProductSpecDto[];
+  source: string;
+}
+
+export interface ProductCurationResearchDto {
+  catalog: ProductSummaryDto[];
+  market: ExternalProductSuggestionDto[];
+  productSources: ProductCurationWebResultDto[];
+  ratingSources: ProductCurationWebResultDto[];
+  imageUrl: string | null;
+  searchEnabled: boolean;
+}
 export interface ProductFindResultDto {
   /** Relevant catalog hits only (display cutoff, not the loose recall search). */
   catalog: ProductSummaryDto[];

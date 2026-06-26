@@ -92,6 +92,10 @@ export type CreateProductInput = z.infer<typeof createProductSchema>;
 
 export const updateProductSchema = createProductSchema.partial().omit({ forceCreate: true });
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+export const productSpecInputSchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  value: z.string().trim().min(1).max(160),
+});
 
 const externalRatingKindSchema = z.enum(
   enumValues(ExternalRatingKind) as [string, ...string[]],
@@ -133,6 +137,38 @@ export const upsertExternalRatingSchema = z
     }
   });
 export type UpsertExternalRatingInput = z.infer<typeof upsertExternalRatingSchema>;
+export const externalConsensusThemeInputSchema = z.object({
+  label: z.string().trim().min(2).max(140),
+  sourceUrls: z.array(z.string().trim().url().max(500)).max(8).default([]),
+});
+
+/**
+ * Admin-only, AI-free product creation payload. Everything is source-backed or
+ * entered by the curator in the app; the backend must not call OpenRouter here.
+ */
+export const createCuratedProductSchema = z.object({
+  canonicalName: z.string().trim().min(2, 'Bitte gib einen Produktnamen ein').max(160),
+  brand: z.string().trim().min(1).max(80).optional(),
+  categorySlug: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().max(2000).optional(),
+  imageUrl: z.string().trim().url().max(500).optional(),
+  productUrl: z.string().trim().url().max(500).optional(),
+  ean: z
+    .string()
+    .trim()
+    .min(6)
+    .max(20)
+    .regex(/^[0-9]+$/, 'EAN/UPC besteht nur aus Ziffern.')
+    .optional(),
+  specs: z.array(productSpecInputSchema).max(30).default([]),
+  ratings: z.array(upsertExternalRatingSchema).max(12).default([]),
+  consensusSummary: z.string().trim().max(1200).optional(),
+  positiveThemes: z.array(externalConsensusThemeInputSchema).max(12).default([]),
+  negativeThemes: z.array(externalConsensusThemeInputSchema).max(12).default([]),
+  sourceUrls: z.array(z.string().trim().url().max(500)).max(20).default([]),
+  forceCreate: z.boolean().optional().default(false),
+});
+export type CreateCuratedProductInput = z.infer<typeof createCuratedProductSchema>;
 
 /* ------------------------------------------------------------------ *
  * Ownership

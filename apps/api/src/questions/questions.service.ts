@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Inject } from '@nestjs/common';
 import {
   NotificationType,
   type CreateQuestionInput,
@@ -24,8 +24,8 @@ const QUESTION_INCLUDE = {
 @Injectable()
 export class QuestionsService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly notifications: NotificationsService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(NotificationsService) private readonly notifications: NotificationsService,
   ) {}
 
   async listForProduct(productId: string): Promise<QuestionDto[]> {

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Inject } from '@nestjs/common';
 import { NotificationType } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from './notifications.service';
@@ -29,8 +29,8 @@ export class RebuyReminderService implements OnModuleInit, OnModuleDestroy {
   private initial: NodeJS.Timeout | null = null;
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly notifications: NotificationsService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(NotificationsService) private readonly notifications: NotificationsService,
   ) {}
 
   onModuleInit(): void {

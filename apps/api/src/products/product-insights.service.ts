@@ -27,7 +27,7 @@ export class ProductInsightsService {
   private readonly aiInFlight = new Set<string>();
 
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AI_SERVICE) private readonly ai: AiService,
   ) {}
 

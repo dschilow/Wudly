@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import type { ProfileSummaryDto } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { toUserDto } from './user.mapper';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   /** Aggregated profile summary for the current user. */
   async getProfileSummary(userId: string): Promise<ProfileSummaryDto> {

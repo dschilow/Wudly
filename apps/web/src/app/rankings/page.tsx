@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import type { CategoryDto, RankingEntryDto } from '@wudly/shared';
+import type { CategoryDto, ProductSummaryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { PageSkeleton } from '@/components/states/States';
 import { RankingsClient } from './RankingsClient';
@@ -21,16 +21,23 @@ async function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
 }
 
 export default async function RankingsPage() {
-  const [categories, rebuy, regret, discussed] = await Promise.all([
+  const [categories, rebuy, regret, discussed, newest] = await Promise.all([
     safe(api.categories.list({ next: { revalidate: 300 } }), [] as CategoryDto[]),
-    safe(api.rankings.topRebuy(30, { next: { revalidate: 30 } }, 20), [] as RankingEntryDto[]),
-    safe(api.rankings.topRegret(12, { next: { revalidate: 60 } }, 20), [] as RankingEntryDto[]),
-    safe(api.rankings.mostDiscussed(12, { next: { revalidate: 60 } }), [] as RankingEntryDto[]),
+    safe(api.rankings.topRebuy(30, { next: { revalidate: 30 } }, 1), [] as RankingEntryDto[]),
+    safe(api.rankings.topRegret(12, { next: { revalidate: 60 } }, 1), [] as RankingEntryDto[]),
+    safe(api.rankings.mostDiscussed(12, { next: { revalidate: 60 } }, 1), [] as RankingEntryDto[]),
+    safe(api.products.newest(12, { next: { revalidate: 60 } }), [] as ProductSummaryDto[]),
   ]);
 
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <RankingsClient categories={categories} rebuy={rebuy} regret={regret} discussed={discussed} />
+      <RankingsClient
+        categories={categories}
+        rebuy={rebuy}
+        regret={regret}
+        discussed={discussed}
+        newest={newest}
+      />
     </Suspense>
   );
 }

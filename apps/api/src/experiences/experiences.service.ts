@@ -22,8 +22,8 @@ export class ExperiencesService {
   private readonly logger = new Logger(ExperiencesService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly insights: ProductInsightsService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(ProductInsightsService) private readonly insights: ProductInsightsService,
     @Inject(AI_SERVICE) private readonly ai: AiService,
   ) {}
 

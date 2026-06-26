@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
   AiPlaygroundChatRequest,
@@ -35,7 +35,7 @@ export class AiPlaygroundService {
   private gemma4b: OllamaClient | null = null;
   private gemma2b: OllamaClient | null = null;
 
-  constructor(private readonly config: ConfigService<AppConfig, true>) {}
+  constructor(@Inject(ConfigService) private readonly config: ConfigService<AppConfig, true>) {}
 
   /* ----- config getters ----- */
 

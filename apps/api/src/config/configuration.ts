@@ -30,6 +30,36 @@ const envSchema = z.object({
     .default('youtube.com,ebay.com,ebay.de,allegro.pl,trustpilot.com')
     .transform((value) => value.split(',').map((domain) => domain.trim()).filter(Boolean)),
   PRODUCT_RESEARCH_SEARCH_PROVIDER: z.enum(['brave', 'openrouter']).default('openrouter'),
+  // Background refresh of external product ratings/themes using self-hosted Gemma.
+  // Requires BRAVE_SEARCH_KEY because Ollama/Gemma cannot browse by itself.
+  PRODUCT_RESEARCH_WORKER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  PRODUCT_RESEARCH_WORKER_TARGETS: z
+    .string()
+    .default('gemma-4b,gemma-2b')
+    .transform((value) => {
+      const allowed = new Set(['gemma-4b', 'gemma-2b']);
+      const targets = value
+        .split(',')
+        .map((target) => target.trim())
+        .filter((target) => allowed.has(target));
+      return targets.length > 0 ? [...new Set(targets)] : ['gemma-4b', 'gemma-2b'];
+    }),
+  PRODUCT_RESEARCH_WORKER_BATCH_SIZE: z.coerce.number().int().min(1).max(25).default(2),
+  PRODUCT_RESEARCH_WORKER_INTERVAL_MINUTES: z.coerce.number().int().min(5).max(10080).default(360),
+  PRODUCT_RESEARCH_WORKER_MAX_AGE_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  PRODUCT_RESEARCH_WORKER_PRELOAD: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  PRODUCT_RESEARCH_WORKER_PRELOAD_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(30000)
+    .max(600000)
+    .default(240000),
   // Ollama-compatible local model service. Used when AI_PROVIDER=ollama.
   OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),
   OLLAMA_MODEL: z.string().default('gemma4:e4b'),

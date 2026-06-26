@@ -11,22 +11,19 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
  * background. Flat by design — iOS separates content with the background gap and
  * hairlines, not drop shadows. `interactive` adds a subtle press-dim.
  */
-export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
+const CardRoot = forwardRef<HTMLDivElement, CardProps>(function Card(
   { interactive, padded = true, className, children, ...rest },
   ref,
 ) {
   return (
     <div
       ref={ref}
-      className={cn(
-        'card',
-        padded && 'p-4',
-        interactive && 'tap cursor-pointer',
-        className,
-      )}
+      className={cn('card', padded && 'p-4', interactive && 'tap cursor-pointer', className)}
       {...rest}
     >
       {children}
     </div>
   );
 });
+
+export const Card = CardRoot as unknown as (props: CardProps) => any;

@@ -10,6 +10,7 @@
     "start:prod": "node dist/src/main.js",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit --tsBuildInfoFile node_modules/.cache/tsc-typecheck.tsbuildinfo",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "prisma:generate": "prisma generate",
@@ -22,6 +23,9 @@
     "benchmark:product-search": "tsx scripts/benchmark-product-search.ts",
     "benchmark:sonar": "tsx scripts/benchmark-sonar-vs-search-gemini.ts",
     "catalog:rebuild-researched": "tsx scripts/rebuild-researched-catalog.ts",
+    "catalog:agent:research": "tsx scripts/agent-product-curation.ts",
+    "catalog:agent:import": "tsx scripts/agent-product-curation.ts --commit",
+    "catalog:import:research": "tsx scripts/agent-product-import.ts",
     "prisma:studio": "prisma studio"
   },
   "prisma": {

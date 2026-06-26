@@ -6,6 +6,6 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-export default function AdminPage() {
+export default function AdminPage(): any {
   return <AdminClient />;
 }

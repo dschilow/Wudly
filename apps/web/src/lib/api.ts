@@ -25,6 +25,7 @@ import type {
   RegisterInput,
   LoginInput,
   CreateProductInput,
+  CreateCuratedProductInput,
   CreateExperienceInput,
   CreateQuestionInput,
   CreateAnswerInput,
@@ -69,6 +70,8 @@ import type {
   ImageBackfillReportDto,
   RatingBackfillReportDto,
   RatingInviteDto,
+  ProductCurationResearchDto,
+  ProductCurationDraftDto,
   PublicInviteDto,
   InvitedVotesSummaryDto,
 } from '@wudly/shared';
@@ -160,8 +163,7 @@ export const api = {
     rate: (token: string, input: { wouldBuyAgain: string; guestName?: string; comment?: string }) =>
       apiFetch<{ success: true }>(`/e/${token}/rate`, { method: 'POST', json: input }),
     /** Claim an invite (link to authenticated account). */
-    claim: (token: string) =>
-      apiFetch<{ success: true }>(`/e/${token}/claim`, { method: 'POST' }),
+    claim: (token: string) => apiFetch<{ success: true }>(`/e/${token}/claim`, { method: 'POST' }),
     /** Invited votes summary for a product. */
     forProduct: (productId: string, opts?: RequestOptions) =>
       apiFetch<InvitedVotesSummaryDto>(`/products/${productId}/invited-votes`, opts),
@@ -193,25 +195,13 @@ export const api = {
 
   rankings: {
     topRebuy: (take = 20, opts?: RequestOptions, minExperiences = 1) =>
-      apiFetch<RankingEntryDto[]>(
-        `/rankings/top-rebuy${qs({ take, minExperiences })}`,
-        opts,
-      ),
+      apiFetch<RankingEntryDto[]>(`/rankings/top-rebuy${qs({ take, minExperiences })}`, opts),
     topRegret: (take = 20, opts?: RequestOptions, minExperiences = 1) =>
-      apiFetch<RankingEntryDto[]>(
-        `/rankings/top-regret${qs({ take, minExperiences })}`,
-        opts,
-      ),
+      apiFetch<RankingEntryDto[]>(`/rankings/top-regret${qs({ take, minExperiences })}`, opts),
     mostDiscussed: (take = 20, opts?: RequestOptions, minExperiences = 1) =>
-      apiFetch<RankingEntryDto[]>(
-        `/rankings/most-discussed${qs({ take, minExperiences })}`,
-        opts,
-      ),
+      apiFetch<RankingEntryDto[]>(`/rankings/most-discussed${qs({ take, minExperiences })}`, opts),
     regretCards: (take = 6, opts?: RequestOptions, minExperiences = 1) =>
-      apiFetch<RegretCardDto[]>(
-        `/rankings/regret-cards${qs({ take, minExperiences })}`,
-        opts,
-      ),
+      apiFetch<RegretCardDto[]>(`/rankings/regret-cards${qs({ take, minExperiences })}`, opts),
     byCategory: (slug: string, take = 20, opts?: RequestOptions, minExperiences = 1) =>
       apiFetch<RankingEntryDto[]>(
         `/rankings/category/${slug}${qs({ take, minExperiences })}`,
@@ -248,8 +238,7 @@ export const api = {
     pushUnsubscribe: (endpoint: string) =>
       apiFetch<void>('/me/notifications/push/unsubscribe', { method: 'POST', json: { endpoint } }),
     /** Self-test: send a push to the caller's own devices, report the real result. */
-    pushTest: () =>
-      apiFetch<PushTestResultDto>('/me/notifications/push/test', { method: 'POST' }),
+    pushTest: () => apiFetch<PushTestResultDto>('/me/notifications/push/test', { method: 'POST' }),
   },
 
   /**
@@ -336,6 +325,19 @@ export const api = {
     reject: (id: string) =>
       apiFetch<{ success: true }>(`/admin/merge-candidates/${id}/reject`, { method: 'POST' }),
 
+    /** AI-free catalog curation workbench. */
+    curationResearch: (q: string, opts?: RequestOptions) =>
+      apiFetch<ProductCurationResearchDto>(`/admin/products/curation-research${qs({ q })}`, opts),
+    curationDraft: (ean: string, opts?: RequestOptions) =>
+      apiFetch<ProductCurationDraftDto | null>(
+        `/admin/products/curation-draft${qs({ ean })}`,
+        opts,
+      ),
+    createCuratedProduct: (input: CreateCuratedProductInput) =>
+      apiFetch<CreateProductResultDto>('/admin/products/curated', {
+        method: 'POST',
+        json: input,
+      }),
     // External rating facts ("Bewertungen anderswo") — facts + source link only.
     externalRatings: (productId: string, opts?: RequestOptions) =>
       apiFetch<ExternalRatingDto[]>(`/admin/products/${productId}/external-ratings`, opts),
