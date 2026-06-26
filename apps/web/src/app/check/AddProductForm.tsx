@@ -96,8 +96,21 @@ export function AddProductForm({ initialName, ownIntent }: AddProductFormProps) 
   return (
     <div className="space-y-4">
       <p className="px-1 text-[0.9375rem] leading-snug text-muted-foreground">
-        Kein Datenblatt nötig — der Name genügt. Details kannst du später ergänzen.
+        Der Name genügt. Wudly prüft Produktdaten, unabhängige Tests und öffentliche
+        Bewertungssignale automatisch.
       </p>
+
+      {submitting && (
+        <div className="rounded-[var(--radius-lg)] border border-accent/20 bg-accent/5 px-4 py-3">
+          <p className="flex items-center gap-2 text-[0.875rem] font-medium text-label">
+            <Sparkles className="h-4 w-4 animate-pulse text-accent" aria-hidden />
+            Produkt und externe Erfahrungen werden geprüft …
+          </p>
+          <p className="mt-1 pl-6 text-[0.8125rem] leading-snug text-muted-foreground">
+            Das kann einige Sekunden dauern, weil Quellen und Bewertungswerte verifiziert werden.
+          </p>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-[var(--radius-lg)] bg-surface">
         <input

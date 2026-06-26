@@ -27,7 +27,7 @@ const envSchema = z.object({
   OPENROUTER_WEB_SEARCH_MAX_RESULTS: z.coerce.number().int().min(1).max(10).default(5),
   OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS: z
     .string()
-    .default('youtube.com,ebay.com,ebay.de,allegro.pl')
+    .default('youtube.com,ebay.com,ebay.de,allegro.pl,trustpilot.com')
     .transform((value) => value.split(',').map((domain) => domain.trim()).filter(Boolean)),
   PRODUCT_RESEARCH_SEARCH_PROVIDER: z.enum(['brave', 'openrouter']).default('openrouter'),
   // Ollama-compatible local model service. Used when AI_PROVIDER=ollama.

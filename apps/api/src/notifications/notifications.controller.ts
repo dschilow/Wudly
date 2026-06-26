@@ -14,6 +14,7 @@ import {
   pushSubscriptionSchema,
   pushUnsubscribeSchema,
   type NotificationListDto,
+  type GroupedNotificationInboxDto,
   type OpenQuestionDto,
   type PushSubscriptionInput,
   type PushUnsubscribeInput,
@@ -78,6 +79,11 @@ export class NotificationsController {
     return this.notifications.list(user.id, n);
   }
 
+  @Get('grouped')
+  grouped(@CurrentUser() user: AuthUser): Promise<GroupedNotificationInboxDto> {
+    return this.notifications.groupedInbox(user.id);
+  }
+
   @Get('unread-count')
   async unreadCount(@CurrentUser() user: AuthUser): Promise<{ count: number }> {
     return { count: await this.notifications.unreadCount(user.id) };
@@ -99,6 +105,15 @@ export class NotificationsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async markRead(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<void> {
     await this.notifications.markRead(user.id, id);
+  }
+
+  @Patch('product/:productId/read')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async markProductRead(
+    @CurrentUser() user: AuthUser,
+    @Param('productId') productId: string,
+  ): Promise<void> {
+    await this.notifications.markProductRead(user.id, productId);
   }
 
   @Patch('read-all')

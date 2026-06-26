@@ -85,17 +85,23 @@ const suggestProductsSchema = z.object({
     .max(3),
 });
 
-const externalThemeSchema = z.object({
-  label: z.string().trim().min(4).max(100),
-  sourceUrls: z.array(z.string().trim().url().max(600)).min(2).max(4),
-});
+const externalThemeSchema = z.union([
+  z.object({
+    label: z.string().trim().min(4).max(100),
+    sourceUrls: z.array(z.string().trim().url().max(600)).min(2).max(4),
+  }),
+  // Some otherwise valid provider responses flatten themes to strings. Keep
+  // them only when the top-level response supplies at least two independent
+  // review sources; the normalization gate below attaches those sources.
+  z.string().trim().min(4).max(100),
+]);
 
 const externalConsensusSchema = z.object({
   ratings: z
     .array(
       z.object({
-        source: z.string().trim().min(2).max(40),
-        sourceLabel: z.string().trim().min(2).max(60),
+        source: z.string().trim().min(2).max(120),
+        sourceLabel: z.string().trim().min(2).max(120),
         url: z.string().trim().url().max(600),
         kind: z.enum(['STARS', 'PERCENT', 'GRADE_DE']),
         value: z.number(),
@@ -105,10 +111,10 @@ const externalConsensusSchema = z.object({
     )
     .max(4)
     .default([]),
-  summary: z.string().trim().min(20).max(320).nullable().optional(),
+  summary: z.string().trim().min(20).max(600).nullable().optional(),
   positiveThemes: z.array(externalThemeSchema).max(5).default([]),
   negativeThemes: z.array(externalThemeSchema).max(5).default([]),
-  sourceUrls: z.array(z.string().trim().url().max(600)).min(2).max(12),
+  sourceUrls: z.array(z.string().trim().url().max(600)).min(1).max(12),
 });
 const externalRatingsSchema = z.object({ ratings: externalConsensusSchema.shape.ratings });
 
@@ -158,11 +164,15 @@ export class OpenRouterAiService implements AiService {
     opts: { temperature: number; maxTokens: number },
   ): Promise<T | null> {
     const parse = async (input: ChatMessage[], online: boolean): Promise<T | null> => {
-      const result = schema.safeParse(
-        parseJsonObject(
-          await this.client.completeJson(input, { ...opts, online, timeoutMs: 35_000 }),
-        ),
-      );
+      const raw = await this.client.completeJson(input, { ...opts, online, timeoutMs: 35_000 });
+      const result = schema.safeParse(parseJsonObject(raw));
+      if (!result.success) {
+        const issues = result.error.issues
+          .slice(0, 4)
+          .map((issue) => `${issue.path.join('.') || 'response'}: ${issue.message}`)
+          .join('; ');
+        this.logger.warn(`Research response validation failed: ${issues}`);
+      }
       return result.success ? result.data : null;
     };
 
@@ -585,10 +595,17 @@ export class OpenRouterAiService implements AiService {
         content:
           'Recherchiere öffentliche Bewertungen und Nutzungserfahrungen zum exakten Produkt für ' +
           'den deutschen Markt. Liefere Bewertungszahlen nur, wenn Durchschnitt, Anzahl und ' +
-          'konkrete Produkt-URL belegt sind. Erfahrungsthemen müssen wiederkehrend sein und jeweils ' +
+          'konkrete Produkt-URL belegt sind. Unternehmens-, Marken- und Shopbewertungen wie ' +
+          'Trustpilot sind keine Produktbewertungen und MÜSSEN weggelassen werden. ' +
+          'sourceUrls darf nur konkrete Produkt-Tests, Produktbewertungen oder Erfahrungsseiten ' +
+          'enthalten, keine Hersteller- oder allgemeinen Kategorieseiten. ' +
+          'Fasse die belastbare Review-Lage in summary in zwei bis drei neutralen deutschen ' +
+          'Sätzen zusammen: wichtigste Stärke, wichtigster Kritikpunkt und Einordnung der ' +
+          'Quellenlage. Nenne keine unbelegten Details. ' +
+          'Erfahrungsthemen müssen wiederkehrend sein und jeweils ' +
           'mindestens zwei unterschiedliche Quellseiten nennen. Kopiere keine Rezensionstexte. ' +
           'Ignoriere automatisch verlangte Markdown-Zitate und antworte nur als JSON: ' +
-          '{"ratings":[{"source":string,"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,"maxValue":number,"count":number|null}],"summary":string|null,"positiveThemes":[{"label":string,"sourceUrls":[string,string]}],"negativeThemes":[{"label":string,"sourceUrls":[string,string]}],"sourceUrls":[string,string]}.',
+          '{"ratings":[{"source":string,"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,"maxValue":number,"count":number|null}],"summary":string|null,"positiveThemes":[{"label":string,"sourceUrls":[string,string]}],"negativeThemes":[{"label":string,"sourceUrls":[string,string]}],"sourceUrls":[string]}.',
       },
       { role: 'user', content: `Produkt: ${label}` },
     ];
@@ -603,16 +620,32 @@ export class OpenRouterAiService implements AiService {
       return { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] };
     }
     const ratings = this.cleanExternalRatings(parsed.ratings ?? []);
-    const sourceUrls = uniqueUrls(parsed.sourceUrls);
+    const sourceUrls = uniqueUrls([
+      ...(parsed.sourceUrls ?? []),
+      ...(parsed.ratings ?? []).map((rating) => rating.url),
+      ...(parsed.positiveThemes ?? []).flatMap((theme) =>
+        typeof theme === 'string' ? [] : theme.sourceUrls,
+      ),
+      ...(parsed.negativeThemes ?? []).flatMap((theme) =>
+        typeof theme === 'string' ? [] : theme.sourceUrls,
+      ),
+    ])
+      .filter((url) => !isBlockedReviewDomain(url))
+      .filter((url) => !isBrandOwnedDomain(url, brand));
     const sourceSet = new Set(sourceUrls);
+    const independentReviewUrls = sourceUrls.filter((url) => !isCommerceDomain(url));
     const cleanThemes = (themes: typeof parsed.positiveThemes) =>
       (themes ?? [])
-        .map((theme) => ({ label: theme.label, sourceUrls: uniqueUrls(theme.sourceUrls) }))
-        .filter((theme) => theme.sourceUrls.length >= 2)
+        .map((theme) =>
+          typeof theme === 'string'
+            ? { label: theme, sourceUrls: independentReviewUrls.slice(0, 4) }
+            : { label: theme.label, sourceUrls: uniqueUrls(theme.sourceUrls) },
+        )
+        .filter((theme) => hasIndependentSources(theme.sourceUrls, 2))
         .filter((theme) => theme.sourceUrls.every((url) => sourceSet.has(url)));
     return {
       ratings,
-      summary: parsed.summary ?? null,
+      summary: sourceUrls.length >= 1 ? (parsed.summary ?? null) : null,
       positiveThemes: cleanThemes(parsed.positiveThemes),
       negativeThemes: cleanThemes(parsed.negativeThemes),
       sourceUrls,
@@ -625,12 +658,16 @@ export class OpenRouterAiService implements AiService {
     return ratings
       .filter((r) => {
         if (!/^https?:\/\//i.test(r.url)) return false;
+        if (isBlockedReviewDomain(r.url)) return false;
+        if (['trustpilot', 'reviewsio', 'trustedshops'].includes(r.source.toLowerCase())) {
+          return false;
+        }
         if (r.kind === 'STARS') return r.maxValue === 5 && r.value > 0 && r.value <= 5;
         if (r.kind === 'PERCENT') return r.maxValue === 100 && r.value > 0 && r.value <= 100;
         return r.maxValue === 6 && r.value >= 1 && r.value <= 6;
       })
       .map((r) => ({
-        source: r.source.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+        source: externalSourceKey(r.source, r.url),
         sourceLabel: r.sourceLabel,
         url: r.url,
         kind: r.kind,
@@ -711,6 +748,73 @@ function braveContext(context: string): ChatMessage {
 
 function uniqueUrls(urls: string[]): string[] {
   return [...new Set(urls.filter((url) => /^https?:\/\//i.test(url)))];
+}
+
+function isBlockedReviewDomain(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    return ['trustpilot.com', 'trustpilot.de', 'trustedshops.de', 'reviews.io'].some(
+      (domain) => host === domain || host.endsWith(`.${domain}`),
+    );
+  } catch {
+    return true;
+  }
+}
+
+function isBrandOwnedDomain(url: string, brand: string | null): boolean {
+  const brandKey = brand?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? '';
+  if (brandKey.length < 3) return false;
+  try {
+    const hostKey = new URL(url).hostname.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return hostKey.includes(brandKey);
+  } catch {
+    return true;
+  }
+}
+
+function isCommerceDomain(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    return [
+      'amazon.de',
+      'amazon.com',
+      'mediamarkt.de',
+      'saturn.de',
+      'otto.de',
+      'galaxus.de',
+      'idealo.de',
+    ].some((domain) => host === domain || host.endsWith(`.${domain}`));
+  } catch {
+    return true;
+  }
+}
+
+function hasIndependentSources(urls: string[], minimum: number): boolean {
+  const domains = new Set<string>();
+  for (const url of urls) {
+    try {
+      domains.add(new URL(url).hostname.toLowerCase().replace(/^www\./, ''));
+    } catch {
+      // Invalid URLs are removed by the later source-set gate.
+    }
+  }
+  return domains.size >= minimum;
+}
+
+function externalSourceKey(source: string, url: string): string {
+  const cleaned = source.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  if (cleaned.length >= 2 && cleaned.length <= 40) return cleaned;
+  try {
+    const hostKey = new URL(url).hostname
+      .toLowerCase()
+      .replace(/^www\./, '')
+      .split('.')[0]
+      ?.replace(/[^a-z0-9-]/g, '');
+    if (hostKey && hostKey.length >= 2) return hostKey.slice(0, 40);
+  } catch {
+    // Fall through to a bounded version of the supplied source name.
+  }
+  return cleaned.slice(0, 40);
 }
 
 function fallbackOwnerQuestions(productName: string, categoryName: string | null): string[] {

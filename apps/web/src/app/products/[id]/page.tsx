@@ -42,8 +42,6 @@ import { ScoreTrend } from '@/components/ScoreTrend';
 import { Thumb } from '@/components/Thumb';
 import { UsageDurationChart } from '@/components/UsageDurationChart';
 import { ExperienceTimeline } from '@/components/ExperienceTimeline';
-import { ExternalRatingsCard } from '@/components/ExternalRatingsCard';
-import { ExternalConsensusCard } from '@/components/ExternalConsensusCard';
 import { ExternalConsensusCard } from '@/components/ExternalConsensusCard';
 import { AiInsightCard } from '@/components/AiInsightCard';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
@@ -532,43 +530,15 @@ export default async function ProductPage({ params }: PageProps) {
         </div>
       )}
 
-      {product.externalRatings.length > 0 && (
+      {(product.externalRatings.length > 0 || product.externalConsensus) && (
         <section>
-          <SectionTitle>Bewertungen anderswo</SectionTitle>
-          <ExternalRatingsCard ratings={product.externalRatings} />
-          <p className="px-1 pt-2 text-[0.8125rem] leading-snug text-muted-foreground">
-            Durchschnittswerte externer Plattformen (mit Quelle verlinkt). Sie fließen{' '}
-            <span className="font-medium text-label">nicht</span> in das Wudly Signal ein — das
-            bleibt zu 100&nbsp;% echte Besitzer.
-          </p>
+          <SectionTitle>Bewertungen &amp; Erfahrungen anderswo</SectionTitle>
+          <ExternalConsensusCard
+            consensus={product.externalConsensus}
+            ratings={product.externalRatings}
+          />
         </section>
       )}
-
-      {product.externalConsensus &&
-        (product.externalConsensus.positiveThemes.length > 0 ||
-          product.externalConsensus.negativeThemes.length > 0) && (
-          <section>
-            <SectionTitle>Erfahrungen im Netz</SectionTitle>
-            <ExternalConsensusCard consensus={product.externalConsensus} />
-            <p className="px-1 pt-2 text-[0.8125rem] leading-snug text-muted-foreground">
-              Wiederkehrende Themen aus mindestens zwei öffentlichen Quellen. Kein Ersatz für
-              echte Wudly-Besitzerberichte und kein Bestandteil des Wudly Signals.
-            </p>
-          </section>
-        )}
-
-      {product.externalConsensus &&
-        (product.externalConsensus.positiveThemes.length > 0 ||
-          product.externalConsensus.negativeThemes.length > 0) && (
-          <section>
-            <SectionTitle>Erfahrungen im Netz</SectionTitle>
-            <ExternalConsensusCard consensus={product.externalConsensus} />
-            <p className="px-1 pt-2 text-[0.8125rem] leading-snug text-muted-foreground">
-              Wiederkehrende Themen aus mindestens zwei öffentlichen Quellen. Kein Ersatz für
-              echte Wudly-Besitzerberichte und kein Bestandteil des Wudly Signals.
-            </p>
-          </section>
-        )}
 
       {hasData && publicExperiences.length >= 3 && (
         <section id="nutzung" className="scroll-mt-24">

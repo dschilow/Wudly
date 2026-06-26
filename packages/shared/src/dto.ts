@@ -405,6 +405,27 @@ export interface NotificationListDto {
   unreadCount: number;
 }
 
+/** A question enriched for the current user's notification inbox. */
+export interface InboxQuestionDto extends QuestionDto {
+  answeredByMe: boolean;
+  canAnswer: boolean;
+}
+
+/** All notification and Q&A activity for one product, kept together in the inbox. */
+export interface NotificationProductGroupDto {
+  product: ProductSummaryDto;
+  notifications: NotificationDto[];
+  questions: InboxQuestionDto[];
+  unreadCount: number;
+  latestAt: string;
+}
+
+export interface GroupedNotificationInboxDto {
+  groups: NotificationProductGroupDto[];
+  ungrouped: NotificationDto[];
+  unreadCount: number;
+}
+
 /** Per-device outcome of a push self-test (endpoint redacted to a short tail). */
 export interface PushTestSubResultDto {
   ok: boolean;

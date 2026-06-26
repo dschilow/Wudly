@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   NotificationType,
   type CreateQuestionInput,
@@ -63,7 +63,9 @@ export class QuestionsService {
     const questions = await this.prisma.productQuestion.findMany({
       where: {
         productId: { in: productIds },
-        status: 'OPEN',
+        status: { not: 'HIDDEN' },
+        askedByUserId: { not: userId },
+        answers: { none: { answeredByUserId: userId } },
       },
       include: {
         ...QUESTION_INCLUDE,
@@ -148,6 +150,12 @@ export class QuestionsService {
     });
     if (!question) throw new NotFoundException('Frage nicht gefunden.');
 
+    const alreadyAnswered = await this.prisma.productAnswer.findFirst({
+      where: { questionId, answeredByUserId: userId },
+      select: { id: true },
+    });
+    if (alreadyAnswered) throw new BadRequestException('Du hast diese Frage bereits beantwortet.');
+
     const answer = await this.prisma.productAnswer.create({
       data: {
         questionId,
@@ -176,7 +184,7 @@ export class QuestionsService {
         type: NotificationType.QUESTION_ANSWERED,
         title: 'Deine Frage wurde beantwortet',
         body: product ? `Zu „${product.canonicalName}"` : undefined,
-        link: `/products/${question.productId}`,
+        link: `/me/inbox?product=${question.productId}&question=${questionId}`,
         productId: question.productId,
         questionId,
       });
@@ -202,7 +210,7 @@ export class QuestionsService {
         type: NotificationType.ANSWER_HELPFUL,
         title: 'Deine Antwort war hilfreich',
         body: 'Jemand fand deine Antwort hilfreich.',
-        link: `/products/${answer.productId}`,
+        link: `/me/inbox?product=${answer.productId}&question=${answer.questionId}`,
         productId: answer.productId,
         questionId: answer.questionId,
       });
@@ -235,7 +243,7 @@ export class QuestionsService {
         type: NotificationType.QUESTION_ASKED,
         title: 'Neue Frage zu deinem Produkt',
         body: `Jemand fragt zu „${params.productName}".`,
-        link: `/products/${params.productId}`,
+        link: `/me/inbox?product=${params.productId}&question=${params.questionId}`,
         productId: params.productId,
         questionId: params.questionId,
       })),

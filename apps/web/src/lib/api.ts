@@ -19,6 +19,7 @@ import type {
   CategoryDto,
   PaginatedDto,
   NotificationListDto,
+  GroupedNotificationInboxDto,
   PushTestResultDto,
   OpenQuestionDto,
   RegisterInput,
@@ -226,6 +227,8 @@ export const api = {
   },
 
   notifications: {
+    grouped: (opts?: RequestOptions) =>
+      apiFetch<GroupedNotificationInboxDto>('/me/notifications/grouped', opts),
     list: (take = 30, opts?: RequestOptions) =>
       apiFetch<NotificationListDto>(`/me/notifications${qs({ take })}`, opts),
     unreadCount: (opts?: RequestOptions) =>
@@ -235,6 +238,8 @@ export const api = {
     myQuestions: (opts?: RequestOptions) =>
       apiFetch<OpenQuestionDto[]>('/me/notifications/my-questions', opts),
     markRead: (id: string) => apiFetch<void>(`/me/notifications/${id}/read`, { method: 'PATCH' }),
+    markProductRead: (productId: string) =>
+      apiFetch<void>(`/me/notifications/product/${productId}/read`, { method: 'PATCH' }),
     markAllRead: () => apiFetch<void>('/me/notifications/read-all', { method: 'PATCH' }),
     pushKey: (opts?: RequestOptions) =>
       apiFetch<{ publicKey: string | null }>('/me/notifications/push/key', opts),

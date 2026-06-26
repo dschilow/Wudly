@@ -608,9 +608,15 @@ export class ProductsService {
     }
     // No trustworthy DB photo? Hunt one in the background (validated first).
     if (!dbImageUrl) huntImage(result.product.id);
-    // Fire-and-forget: research external rating FACTS (Amazon/Idealo/…) so the
-    // fresh product page shows "Bewertungen anderswo" without admin work.
-    this.researchRatingsInBackground(result.product.id, canonicalName, brand);
+    // Complete the one-time consensus research before returning so the first
+    // product page response cannot cache an empty ratings state.
+    try {
+      await this.researchAndStoreRatings(result.product.id, canonicalName, brand);
+    } catch (err) {
+      this.logger.warn(
+        `Initial external consensus failed for ${result.product.id}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
     const product = await this.getSummaryOrThrow(result.product.id);
     return { product, created: true };
   }
@@ -1355,7 +1361,25 @@ export class ProductsService {
 
     // Create an (empty) snapshot so the product reads consistently from the start.
     const insights = await this.insights.regenerate(product.id);
-    return { created: true, product: toProductDetailDto(product, insights, [], null) };
+
+    // Manual creation is a first-class enrichment path too. Previously only the
+    // scan/research flows reached external consensus research, so products added
+    // through the explicit form always opened without "Bewertungen anderswo".
+    try {
+      await this.researchAndStoreRatings(product.id, canonicalName, brand ?? null);
+    } catch (err) {
+      this.logger.warn(
+        `Initial external consensus failed for ${product.id}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+    const [externalRatings, externalConsensus] = await Promise.all([
+      this.externalRatings.listForProduct(product.id),
+      this.externalRatings.getConsensus(product.id),
+    ]);
+    return {
+      created: true,
+      product: toProductDetailDto(product, insights, externalRatings, externalConsensus),
+    };
   }
 
   async update(id: string, input: UpdateProductInput): Promise<ProductDetailDto> {

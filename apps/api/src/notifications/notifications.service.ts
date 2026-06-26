@@ -1,8 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { NotificationType, type NotificationDto, type NotificationListDto } from '@wudly/shared';
+import {
+  NotificationType,
+  type GroupedNotificationInboxDto,
+  type InboxQuestionDto,
+  type NotificationDto,
+  type NotificationListDto,
+} from '@wudly/shared';
 import type { Notification } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from './push.service';
+import { toProductSummaryDto, type ProductWithRelations } from '../products/product.mapper';
+import { toQuestionDto, type QuestionWithRelations } from '../questions/question.mapper';
+
+const INBOX_QUESTION_INCLUDE = {
+  askedBy: { select: { id: true, displayName: true } },
+  answers: { include: { answeredBy: { select: { id: true, displayName: true } } } },
+} as const;
 
 interface CreateNotificationInput {
   userId: string;
@@ -92,6 +105,108 @@ export class NotificationsService {
     return { items: rows.map(toNotificationDto), unreadCount };
   }
 
+  async groupedInbox(userId: string): Promise<GroupedNotificationInboxDto> {
+    const [rows, ownerships, createdProducts, unreadCount] = await Promise.all([
+      this.prisma.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      this.prisma.ownership.findMany({ where: { userId }, select: { productId: true } }),
+      this.prisma.product.findMany({ where: { createdByUserId: userId }, select: { id: true } }),
+      this.prisma.notification.count({ where: { userId, readAt: null } }),
+    ]);
+
+    const eligibleProductIds = new Set([
+      ...ownerships.map((ownership) => ownership.productId),
+      ...createdProducts.map((product) => product.id),
+    ]);
+    const notifiedProductIds = rows
+      .map((row) => row.productId)
+      .filter((id): id is string => Boolean(id));
+    const productIds = [...new Set([...notifiedProductIds, ...eligibleProductIds])];
+    if (productIds.length === 0) {
+      return { groups: [], ungrouped: rows.map(toNotificationDto), unreadCount };
+    }
+
+    const [products, questions, ownerCounts] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { id: { in: productIds }, status: { not: 'HIDDEN' } },
+        include: { category: true, insightSnapshot: true },
+      }),
+      this.prisma.productQuestion.findMany({
+        where: { productId: { in: productIds }, status: { not: 'HIDDEN' } },
+        include: INBOX_QUESTION_INCLUDE,
+        orderBy: { createdAt: 'desc' },
+        take: 150,
+      }),
+      this.prisma.ownership.groupBy({
+        by: ['productId'],
+        where: { productId: { in: productIds } },
+        _count: { _all: true },
+      }),
+    ]);
+    const ownerCountMap = new Map(ownerCounts.map((row) => [row.productId, row._count._all]));
+    const notificationsByProduct = new Map<string, NotificationDto[]>();
+    const questionsByProduct = new Map<string, InboxQuestionDto[]>();
+
+    for (const row of rows) {
+      if (!row.productId) continue;
+      const items = notificationsByProduct.get(row.productId) ?? [];
+      items.push(toNotificationDto(row));
+      notificationsByProduct.set(row.productId, items);
+    }
+    for (const row of questions) {
+      const dto = toQuestionDto(
+        row as unknown as QuestionWithRelations,
+        ownerCountMap.get(row.productId) ?? 0,
+      );
+      const answeredByMe = row.answers.some((answer) => answer.answeredByUserId === userId);
+      const item: InboxQuestionDto = {
+        ...dto,
+        answeredByMe,
+        canAnswer:
+          eligibleProductIds.has(row.productId) && row.askedByUserId !== userId && !answeredByMe,
+      };
+      const items = questionsByProduct.get(row.productId) ?? [];
+      items.push(item);
+      questionsByProduct.set(row.productId, items);
+    }
+
+    const groups = products
+      .map((product) => {
+        const notifications = notificationsByProduct.get(product.id) ?? [];
+        const productQuestions = questionsByProduct.get(product.id) ?? [];
+        const latestCandidates = [
+          ...notifications.map((item) => item.createdAt),
+          ...productQuestions.map((item) => item.createdAt),
+        ];
+        const latestAt = latestCandidates.sort((a, b) => b.localeCompare(a))[0];
+        return {
+          product: toProductSummaryDto(product as ProductWithRelations),
+          notifications,
+          questions: productQuestions,
+          unreadCount: notifications.filter((item) => !item.read).length,
+          latestAt: latestAt ?? new Date(0).toISOString(),
+        };
+      })
+      .filter(
+        (group) =>
+          group.notifications.length > 0 ||
+          group.questions.some((question) => question.canAnswer || question.askedByUserId === userId),
+      )
+      .sort((a, b) => {
+        const unread = Number(b.unreadCount > 0) - Number(a.unreadCount > 0);
+        return unread || b.latestAt.localeCompare(a.latestAt);
+      });
+
+    return {
+      groups,
+      ungrouped: rows.filter((row) => !row.productId).map(toNotificationDto),
+      unreadCount,
+    };
+  }
+
   async unreadCount(userId: string): Promise<number> {
     return this.prisma.notification.count({ where: { userId, readAt: null } });
   }
@@ -100,6 +215,13 @@ export class NotificationsService {
   async markRead(userId: string, id: string): Promise<void> {
     await this.prisma.notification.updateMany({
       where: { id, userId, readAt: null },
+      data: { readAt: new Date() },
+    });
+  }
+
+  async markProductRead(userId: string, productId: string): Promise<void> {
+    await this.prisma.notification.updateMany({
+      where: { userId, productId, readAt: null },
       data: { readAt: new Date() },
     });
   }

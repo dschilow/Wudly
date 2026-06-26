@@ -37,7 +37,7 @@ der Dockerfile-Build ueber die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
 | `PRODUCT_RESEARCH_SEARCH_PROVIDER` | `brave` (bestehend) oder `openrouter` |
 | `OPENROUTER_WEB_SEARCH_ENGINE` | `perplexity` fuer Perplexity Search API ueber OpenRouter |
 | `OPENROUTER_WEB_SEARCH_MAX_RESULTS` | `5` (1-10; weniger Sprach-/Haendlerrauschen) |
-| `OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS` | `youtube.com,ebay.com,ebay.de,allegro.pl` |
+| `OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS` | `youtube.com,ebay.com,ebay.de,allegro.pl,trustpilot.com` |
 | `OLLAMA_BASE_URL` | nur bei Gemma-Test: `http://wudly-gemma.railway.internal:11434` oder `http://wudly-gemma-e2b.railway.internal:11434` |
 | `OLLAMA_MODEL` | nur bei Gemma-Test: `gemma4:e4b` oder `gemma4:e2b` |
 | `OLLAMA_2B_BASE_URL` | nur fuer `/ki-test`-Playground: `http://wudly-gemma-e2b.railway.internal:11434` |
@@ -74,7 +74,7 @@ railway variables --service wudly-api --set "BRAVE_SEARCH_KEY=..."
 railway variables --service wudly-api --set "PRODUCT_RESEARCH_SEARCH_PROVIDER=openrouter"
 railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_ENGINE=perplexity"
 railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_MAX_RESULTS=5"
-railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS=youtube.com,ebay.com,ebay.de,allegro.pl"
+railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS=youtube.com,ebay.com,ebay.de,allegro.pl,trustpilot.com"
 ```
 
 Lokaler A/B-Benchmark mit identischem Modell und Prompt:
