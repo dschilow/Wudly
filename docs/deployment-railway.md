@@ -63,8 +63,11 @@ der Dockerfile-Build ueber die Service-Variable `RAILWAY_DOCKERFILE_PATH`.
 | `NODE_ENV` | `production` |
 | `RAILWAY_DOCKERFILE_PATH` | `apps/web/Dockerfile` |
 
-`NEXT_PUBLIC_API_URL` wird zur Build-Zeit in das Client-Bundle gebacken. Nach
-einer Aenderung dieser Variable muss `wudly-web` neu gebaut werden.
+`NEXT_PUBLIC_API_URL` wird zur Build-Zeit als Ziel fuer den Next-Rewrite
+`/api/:path* -> <api-domain>/api/:path*` verwendet. Browser-Code ruft bewusst
+same-origin `/api` auf, damit die HttpOnly-Session-Cookies first-party zur
+Web-Domain bleiben. Nach einer Aenderung dieser Variable muss `wudly-web` neu
+gebaut werden.
 
 ### Produkt-Recherche: Brave oder Perplexity Search
 
@@ -297,6 +300,7 @@ Live-Probe gegen OpenRouter oder Ollama ausgefuehrt.
 
 - "No start command detected" / Railpack statt Docker: `RAILWAY_DOCKERFILE_PATH` auf dem Service setzen.
 - API erreichbar, aber DB-Fehler: pruefen, ob `DATABASE_URL` als `${{Postgres-....DATABASE_URL}}`-Referenz gesetzt ist.
-- CORS-Fehler im Browser: `CORS_ORIGIN` muss exakt der Web-Domain entsprechen, `COOKIE_SECURE=true` in Produktion.
+- Auth/Cookie-Fehler im Browser: Web-Browser-Requests muessen ueber same-origin `/api` laufen; `NEXT_PUBLIC_API_URL` muss auf die echte API zeigen und `COOKIE_SECURE=true` in Produktion bleiben. Direkte Browser-Calls auf die API-Subdomain koennen HttpOnly-Cookies verlieren.
+- CORS-Fehler bei direkten/API-externen Clients: `CORS_ORIGIN` muss exakt der Web-Domain entsprechen.
 - Gemma-Services starten langsam: erster Start laedt das jeweilige Modell; ein Volume auf `/root/.ollama` vermeidet erneute Downloads.
 - `GET /api/health/ai?test=1` kann bei Ollama lange blockieren, weil es das Modell wirklich laedt. Fuer UI-kritische Pfade lieber konkrete Endpunkte mit eigenem Timeout testen.

@@ -16,7 +16,8 @@ FROM base AS build
 ENV NEXT_TELEMETRY_DISABLED=1
 # Enable Next standalone output (see apps/web/next.config.mjs).
 ENV BUILD_STANDALONE=true
-# Public API URL must be present at build time (baked into the client bundle).
+# Public API URL must be present at build time for Next's /api rewrite target.
+# Browser code calls same-origin /api so auth cookies remain first-party.
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 

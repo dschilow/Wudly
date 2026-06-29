@@ -89,7 +89,9 @@ export class AuthController {
   }
 
   private cookieBaseOptions(httpOnly = true) {
-    const secure = this.config.get('COOKIE_SECURE', { infer: true });
+    const secure =
+      this.config.get('COOKIE_SECURE', { infer: true }) ||
+      this.config.get('NODE_ENV', { infer: true }) === 'production';
     const domain = this.config.get('COOKIE_DOMAIN', { infer: true });
     return {
       httpOnly,

@@ -2,6 +2,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const apiBaseUrl = (
+  process.env.API_URL_INTERNAL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  'http://localhost:4000/api'
+).replace(/\/$/, '');
 
 // `standalone` output produces a small, self-contained server bundle for Docker
 // (used on Railway / Linux). It relies on symlinks, which fail with EPERM on
@@ -15,6 +20,14 @@ const nextConfig = {
   // @wudly/shared is a workspace package shipped as compiled CJS+types; Next can
   // consume it directly, but transpiling keeps it robust across versions.
   transpilePackages: ['@wudly/shared'],
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${apiBaseUrl}/:path*`,
+      },
+    ];
+  },
   ...(useStandalone
     ? {
         // Bundle only what's needed → small Docker image for Railway.

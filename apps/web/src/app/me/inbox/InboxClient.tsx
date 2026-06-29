@@ -34,7 +34,7 @@ import { useNotifications } from '@/lib/notifications-context';
 import { useToast } from '@/components/ui/Toast';
 import { AuthGate } from '@/components/AuthGate';
 import { PushOptIn } from '@/components/PushOptIn';
-import { EmptyState, Skeleton } from '@/components/states/States';
+import { EmptyState, ErrorState, Skeleton } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
 import { Sheet } from '@/components/ui/Sheet';
 import { Thumb } from '@/components/Thumb';
@@ -42,21 +42,35 @@ import { Button } from '@/components/ui/Button';
 import { formatDate, formatRelativeTime } from '@/lib/utils';
 
 export function InboxClient() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refresh: refreshAuth } = useAuth();
   const { refresh: refreshBadge } = useNotifications();
   const [inbox, setInbox] = useState<GroupedNotificationInboxDto | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       setInbox(await api.notifications.grouped({ cache: 'no-store' }));
+    } catch (error) {
+      setInbox(null);
+      if (error instanceof ApiError && error.status === 401) {
+        await refreshAuth();
+        setLoadError('Deine Sitzung konnte nicht bestätigt werden. Bitte melde dich erneut an.');
+        return;
+      }
+      setLoadError(
+        error instanceof ApiError
+          ? error.displayMessage
+          : 'Mitteilungen konnten nicht geladen werden.',
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshAuth]);
 
   useEffect(() => {
     if (user) void load();
@@ -219,6 +233,18 @@ export function InboxClient() {
           {Array.from({ length: 3 }).map((_, index) => (
             <Skeleton key={index} className="h-28 rounded-[var(--radius-lg)]" />
           ))}
+        </div>
+      ) : loadError ? (
+        <div className="rounded-[var(--radius-lg)] bg-surface">
+          <ErrorState
+            title="Mitteilungen konnten nicht geladen werden"
+            description={loadError}
+            action={
+              <Button variant="gray" onClick={() => void load()}>
+                Erneut versuchen
+              </Button>
+            }
+          />
         </div>
       ) : inbox && inbox.groups.length > 0 ? (
         <section className="space-y-3">
