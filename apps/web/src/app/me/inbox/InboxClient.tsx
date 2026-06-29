@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Inbox,
   MessageCircleQuestion,
   Send,
   ThumbsUp,
@@ -63,10 +64,11 @@ export function InboxClient() {
 
   useEffect(() => {
     if (!inbox || selectedProductId || typeof window === 'undefined') return;
-    const productId = new URLSearchParams(window.location.search).get('product');
-    const questionId = new URLSearchParams(window.location.search).get('question');
-    if (!productId) return;
-    const group = inbox.groups.find((item) => item.product.id === productId);
+    const params = new URLSearchParams(window.location.search);
+    const productId = params.get('product');
+    const questionId = params.get('question');
+    if (!productId && !questionId) return;
+    const group = findGroupForNotificationTarget(inbox.groups, productId, questionId);
     if (group) {
       setSelectedQuestionId(questionId);
       void openGroup(group, questionId);
@@ -79,6 +81,27 @@ export function InboxClient() {
     () => inbox?.groups.find((group) => group.product.id === selectedProductId) ?? null,
     [inbox, selectedProductId],
   );
+
+  const stats = useMemo(() => {
+    const groups = inbox?.groups ?? [];
+    const questions = groups.reduce((sum, group) => sum + group.questions.length, 0);
+    const openForYou = groups.reduce(
+      (sum, group) => sum + group.questions.filter((question) => question.canAnswer).length,
+      0,
+    );
+    const answers = groups.reduce(
+      (sum, group) =>
+        sum + group.questions.reduce((inner, question) => inner + question.answerCount, 0),
+      0,
+    );
+    return {
+      groups: groups.length,
+      unread: inbox?.unreadCount ?? 0,
+      questions,
+      openForYou,
+      answers,
+    };
+  }, [inbox]);
 
   const openGroup = async (group: NotificationProductGroupDto, questionId?: string | null) => {
     setSelectedProductId(group.product.id);
@@ -152,8 +175,43 @@ export function InboxClient() {
     <div className="space-y-7 pt-2">
       <LargeTitle
         title="Mitteilungen"
-        subtitle="Nach Produkten sortiert. Fragen beantworten, ohne den Kontext zu verlassen."
+        subtitle="Fragen, Antworten und Besitzerwissen an einem Ort."
       />
+
+      <section className="premium-panel relative overflow-hidden rounded-[var(--radius-2xl)] p-5 shadow-[var(--shadow-elevated)]">
+        <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-white/20" />
+        <div className="relative flex items-start gap-4">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[0.9rem] bg-white/10 text-accent-ink ring-1 ring-white/10">
+            <Inbox className="h-6 w-6" strokeWidth={2.1} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-accent-ink">
+              Arbeits-Inbox
+            </p>
+            <h1 className="font-display mt-2 max-w-[30rem] text-balance text-[2rem] leading-[1.02] text-white sm:text-[2.5rem]">
+              Beantworte echte Fragen, bevor andere falsch kaufen.
+            </h1>
+            <p className="mt-3 max-w-[32rem] text-[0.9375rem] leading-snug text-white/68">
+              Neue Fragen werden pro Produkt gesammelt. Ein Tap oeffnet Kontext, Frage und
+              Antwortfeld zusammen.
+            </p>
+          </div>
+        </div>
+        <div className="relative mt-5 grid grid-cols-3 gap-2">
+          <InboxMetric
+            label="Ungelesen"
+            value={stats.unread}
+            tone={stats.unread > 0 ? 'hot' : 'calm'}
+          />
+          <InboxMetric
+            label="Offen fuer dich"
+            value={stats.openForYou}
+            tone={stats.openForYou > 0 ? 'hot' : 'calm'}
+          />
+          <InboxMetric label="Antworten" value={stats.answers} tone="calm" />
+        </div>
+      </section>
+
       <PushOptIn />
 
       {loading && !inbox ? (
@@ -163,16 +221,31 @@ export function InboxClient() {
           ))}
         </div>
       ) : inbox && inbox.groups.length > 0 ? (
-        <motion.div
-          className="space-y-3"
-          initial="hidden"
-          animate="show"
-          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.065 } } }}
-        >
-          {inbox.groups.map((group) => (
-            <ProductNotificationCard key={group.product.id} group={group} onOpen={openGroup} />
-          ))}
-        </motion.div>
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-3 px-1">
+            <div>
+              <h2 className="text-[1.15rem] font-bold leading-tight text-label">Produkt-Threads</h2>
+              <p className="text-[0.875rem] text-muted-foreground">
+                {stats.groups} Produkte, {stats.questions} Fragen
+              </p>
+            </div>
+            {stats.openForYou > 0 && (
+              <span className="mono-data rounded-full bg-accent-soft px-3 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-accent-ink">
+                {stats.openForYou} offen
+              </span>
+            )}
+          </div>
+          <motion.div
+            className="grid gap-3 lg:grid-cols-2"
+            initial="hidden"
+            animate="show"
+            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.065 } } }}
+          >
+            {inbox.groups.map((group) => (
+              <ProductNotificationCard key={group.product.id} group={group} onOpen={openGroup} />
+            ))}
+          </motion.div>
+        </section>
       ) : (
         <div className="rounded-[var(--radius-lg)] bg-surface">
           <EmptyState
@@ -222,6 +295,32 @@ export function InboxClient() {
   );
 }
 
+function InboxMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'hot' | 'calm';
+}) {
+  return (
+    <div className="rounded-[0.85rem] bg-white/[0.075] px-3 py-3 ring-1 ring-white/10">
+      <p
+        className={
+          tone === 'hot'
+            ? 'font-display text-[1.8rem] leading-none text-accent-ink'
+            : 'font-display text-[1.8rem] leading-none text-white'
+        }
+      >
+        {value}
+      </p>
+      <p className="mono-data mt-1 text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-white/58">
+        {label}
+      </p>
+    </div>
+  );
+}
 function ProductNotificationCard({
   group,
   onOpen,
@@ -232,6 +331,8 @@ function ProductNotificationCard({
   const pending = group.questions.filter((question) => question.canAnswer).length;
   const latest = group.notifications[0];
   const totalAnswers = group.questions.reduce((sum, question) => sum + question.answerCount, 0);
+  const statusLabel =
+    pending > 0 ? `${pending} Antwort${pending === 1 ? '' : 'en'} offen` : 'Aktuell gelesen';
 
   return (
     <motion.button
@@ -244,8 +345,12 @@ function ProductNotificationCard({
       transition={{ type: 'spring', stiffness: 360, damping: 30 }}
       whileTap={{ scale: 0.985 }}
       onClick={() => void onOpen(group)}
-      className="group relative w-full overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface p-4 text-left shadow-[0_10px_30px_-24px_rgba(0,0,0,0.8)]"
+      className="group relative w-full overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface p-4 text-left shadow-[0_10px_30px_-24px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow,transform] duration-200 hover:border-border-strong hover:shadow-[var(--shadow-elevated)]"
     >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-accent-soft to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+      />
       {group.unreadCount > 0 && (
         <motion.span
           layoutId={`unread-glow-${group.product.id}`}
@@ -257,6 +362,9 @@ function ProductNotificationCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
+              <p className="mono-data mb-1 text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-accent-ink">
+                {statusLabel}
+              </p>
               <p className="truncate text-[1rem] font-semibold text-label">
                 {group.product.canonicalName}
               </p>
@@ -321,7 +429,7 @@ function ProductInboxSheet({
 
   return (
     <motion.div layout className="space-y-6 pb-2">
-      <header className="sticky top-0 z-10 -mx-5 -mt-2 border-b border-border bg-canvas/90 px-5 pb-4 pt-2 backdrop-blur-xl">
+      <header className="sticky top-0 z-10 -mx-5 -mt-2 border-b border-border bg-canvas/92 px-5 pb-4 pt-2 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <Thumb product={group.product} className="h-12 w-12" fit="contain" />
           <div className="min-w-0 flex-1">
@@ -345,7 +453,7 @@ function ProductInboxSheet({
       </header>
 
       {primaryQuestion ? (
-        <section className="space-y-3">
+        <section className="rounded-[var(--radius-lg)] border border-accent/20 bg-accent/5 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div>
             <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
               {primaryQuestion.canAnswer ? 'Deine Antwort wird gesucht' : 'Aktuelle Frage'}
@@ -354,9 +462,13 @@ function ProductInboxSheet({
               {primaryQuestion.questionText}
             </h3>
           </div>
-          <AnswerProgress question={primaryQuestion} prominent />
+          <div className="mt-4">
+            <AnswerProgress question={primaryQuestion} prominent />
+          </div>
           {primaryQuestion.canAnswer && (
-            <AnswerComposer question={primaryQuestion} onAnswered={onAnswered} />
+            <div className="mt-3">
+              <AnswerComposer question={primaryQuestion} onAnswered={onAnswered} />
+            </div>
           )}
         </section>
       ) : (
@@ -440,7 +552,13 @@ function ProductInboxSheet({
   );
 }
 
-function AnswerProgress({ question, prominent = false }: { question: InboxQuestionDto; prominent?: boolean }) {
+function AnswerProgress({
+  question,
+  prominent = false,
+}: {
+  question: InboxQuestionDto;
+  prominent?: boolean;
+}) {
   const denominator = Math.max(question.ownerCount, question.answerCount, 1);
   const percent = Math.min(100, Math.round((question.answerCount / denominator) * 100));
   return (
@@ -476,15 +594,24 @@ function QuestionOverview({
 }) {
   const [open, setOpen] = useState(initiallyOpen);
   return (
-    <motion.article layout className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface">
+    <motion.article
+      layout
+      className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface"
+    >
       <motion.button
         layout="position"
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="flex min-h-14 w-full items-start gap-3 p-4 text-left"
       >
-        <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${question.canAnswer ? 'bg-accent-soft text-accent-ink' : question.answeredByMe ? 'bg-positive-soft text-positive-ink' : 'bg-fill-2 text-muted-foreground'}`}>
-          {question.answeredByMe ? <Check className="h-4 w-4" /> : <MessageCircleQuestion className="h-4 w-4" />}
+        <span
+          className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${question.canAnswer ? 'bg-accent-soft text-accent-ink' : question.answeredByMe ? 'bg-positive-soft text-positive-ink' : 'bg-fill-2 text-muted-foreground'}`}
+        >
+          {question.answeredByMe ? (
+            <Check className="h-4 w-4" />
+          ) : (
+            <MessageCircleQuestion className="h-4 w-4" />
+          )}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[0.9375rem] font-medium leading-snug text-label">
@@ -492,7 +619,11 @@ function QuestionOverview({
           </span>
           <span className="mt-1 block text-[0.75rem] text-muted-foreground">
             {question.answerCount} {question.answerCount === 1 ? 'Antwort' : 'Antworten'}
-            {question.answeredByMe ? ' · von dir beantwortet' : question.canAnswer ? ' · offen für dich' : ''}
+            {question.answeredByMe
+              ? ' · von dir beantwortet'
+              : question.canAnswer
+                ? ' · offen für dich'
+                : ''}
           </span>
         </span>
         <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.22 }}>
@@ -505,7 +636,10 @@ function QuestionOverview({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ height: { type: 'spring', stiffness: 360, damping: 36 }, opacity: { duration: 0.18 } }}
+            transition={{
+              height: { type: 'spring', stiffness: 360, damping: 36 },
+              opacity: { duration: 0.18 },
+            }}
             className="overflow-hidden"
           >
             <div className="space-y-4 border-t border-border px-4 pb-4 pt-3">
@@ -524,13 +658,19 @@ function QuestionOverview({
                           </span>
                         )}
                       </div>
-                      <p className="mt-1.5 text-[0.875rem] leading-snug text-label">{answer.answerText}</p>
-                      <p className="mt-1.5 text-[0.6875rem] text-faint">{formatDate(answer.createdAt)}</p>
+                      <p className="mt-1.5 text-[0.875rem] leading-snug text-label">
+                        {answer.answerText}
+                      </p>
+                      <p className="mt-1.5 text-[0.6875rem] text-faint">
+                        {formatDate(answer.createdAt)}
+                      </p>
                     </div>
                   ))}
                 </div>
               )}
-              {question.canAnswer && <AnswerComposer question={question} onAnswered={onAnswered} compact />}
+              {question.canAnswer && (
+                <AnswerComposer question={question} onAnswered={onAnswered} compact />
+              )}
             </div>
           </motion.div>
         )}
@@ -570,7 +710,12 @@ function AnswerComposer({
       setQuick('');
       show('Antwort veröffentlicht', 'success');
     } catch (error) {
-      show(error instanceof ApiError ? error.displayMessage : 'Antwort konnte nicht gespeichert werden.', 'error');
+      show(
+        error instanceof ApiError
+          ? error.displayMessage
+          : 'Antwort konnte nicht gespeichert werden.',
+        'error',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -606,7 +751,14 @@ function AnswerComposer({
         placeholder="Was sollte man aus deiner Nutzung wissen?"
         className="mt-3 w-full resize-none rounded-[var(--radius-md)] bg-surface p-3 text-[1rem] leading-relaxed text-label outline-none ring-1 ring-border transition focus:ring-2 focus:ring-accent/60 placeholder:text-faint"
       />
-      <Button fullWidth variant="brand" loading={submitting} disabled={text.trim().length < 2} onClick={() => void submit()} className="mt-3">
+      <Button
+        fullWidth
+        variant="brand"
+        loading={submitting}
+        disabled={text.trim().length < 2}
+        onClick={() => void submit()}
+        className="mt-3"
+      >
         Antwort senden
       </Button>
     </motion.div>
@@ -615,6 +767,7 @@ function AnswerComposer({
 
 function GeneralNotification({ notification }: { notification: NotificationDto }) {
   const Icon = notification.type === 'ANSWER_HELPFUL' ? ThumbsUp : Clock3;
+  const href = notificationHref(notification);
   const content = (
     <div className="flex min-h-16 items-start gap-3 px-4 py-3.5">
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill-2 text-muted-foreground">
@@ -622,9 +775,58 @@ function GeneralNotification({ notification }: { notification: NotificationDto }
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[0.9375rem] font-medium text-label">{notification.title}</span>
-        {notification.body && <span className="mt-0.5 block text-[0.8125rem] text-muted-foreground">{notification.body}</span>}
+        {notification.body && (
+          <span className="mt-0.5 block text-[0.8125rem] text-muted-foreground">
+            {notification.body}
+          </span>
+        )}
       </span>
     </div>
   );
-  return notification.link ? <Link href={notification.link}>{content}</Link> : content;
+  return href ? <Link href={href}>{content}</Link> : content;
+}
+
+function findGroupForNotificationTarget(
+  groups: NotificationProductGroupDto[],
+  productId: string | null,
+  questionId: string | null,
+): NotificationProductGroupDto | null {
+  if (productId) {
+    const group = groups.find((item) => item.product.id === productId);
+    if (group) return group;
+  }
+  if (!questionId) return null;
+  return (
+    groups.find(
+      (group) =>
+        group.questions.some((question) => question.id === questionId) ||
+        group.notifications.some((notification) => notification.questionId === questionId),
+    ) ?? null
+  );
+}
+
+function notificationHref(notification: NotificationDto): string | null {
+  if (notification.productId) {
+    const params = new URLSearchParams({ product: notification.productId });
+    if (notification.questionId) params.set('question', notification.questionId);
+    return `/me/inbox?${params.toString()}`;
+  }
+  return normalizeStoredNotificationLink(notification.link);
+}
+
+function normalizeStoredNotificationLink(link: string | null): string | null {
+  if (!link) return null;
+  try {
+    const url = new URL(link, 'https://wudly.local');
+    if (url.origin !== 'https://wudly.local') return null;
+    const productQuestion = url.pathname.match(/^\/products\/([^/]+)\/questions\/([^/]+)$/);
+    if (productQuestion) {
+      return `/me/inbox?product=${encodeURIComponent(productQuestion[1]!)}&question=${encodeURIComponent(productQuestion[2]!)}`;
+    }
+    const question = url.pathname.match(/^\/questions\/([^/]+)$/);
+    if (question) return `/me/inbox?question=${encodeURIComponent(question[1]!)}`;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return null;
+  }
 }

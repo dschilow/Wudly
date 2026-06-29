@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import {
+  Bell,
   ChevronRight,
   LogOut,
   MessageCircle,
-  Settings,
   Share2,
   ShieldCheck,
   ShoppingBag,
@@ -47,7 +47,10 @@ function ListItem({
     accent: 'bg-accent-soft text-accent-ink',
   };
   return (
-    <Link href={href} className="tap hairline flex items-center gap-3.5 px-4 py-3.5 last:after:hidden">
+    <Link
+      href={href}
+      className="tap hairline flex items-center gap-3.5 px-4 py-3.5 last:after:hidden"
+    >
       <span
         className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-[0.7rem]', colors[tone])}
       >
@@ -123,9 +126,9 @@ export function ProfileClient() {
         <Link
           href="/me/inbox"
           className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface text-label shadow-[0_0_0_1px_var(--color-border),var(--shadow-card)]"
-          aria-label="Einstellungen und Mitteilungen"
+          aria-label="Mitteilungen oeffnen"
         >
-          <Settings className="h-[1.3rem] w-[1.3rem]" strokeWidth={2.1} />
+          <Bell className="h-[1.3rem] w-[1.3rem]" strokeWidth={2.1} />
         </Link>
       </motion.section>
 
