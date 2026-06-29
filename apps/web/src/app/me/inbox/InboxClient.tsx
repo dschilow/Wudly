@@ -817,16 +817,33 @@ function notificationHref(notification: NotificationDto): string | null {
 function normalizeStoredNotificationLink(link: string | null): string | null {
   if (!link) return null;
   try {
-    const url = new URL(link, 'https://wudly.local');
-    if (url.origin !== 'https://wudly.local') return null;
+    const baseOrigin =
+      typeof window === 'undefined' ? 'https://wudly.local' : window.location.origin;
+    const url = new URL(link, baseOrigin);
+    if (url.origin !== baseOrigin) return null;
+
     const productQuestion = url.pathname.match(/^\/products\/([^/]+)\/questions\/([^/]+)$/);
-    if (productQuestion) {
-      return `/me/inbox?product=${encodeURIComponent(productQuestion[1]!)}&question=${encodeURIComponent(productQuestion[2]!)}`;
-    }
+    if (productQuestion) return inboxHref(productQuestion[1]!, productQuestion[2]!);
+
+    const singularProductQuestion = url.pathname.match(/^\/product\/([^/]+)\/questions\/([^/]+)$/);
+    if (singularProductQuestion)
+      return inboxHref(singularProductQuestion[1]!, singularProductQuestion[2]!);
+
     const question = url.pathname.match(/^\/questions\/([^/]+)$/);
     if (question) return `/me/inbox?question=${encodeURIComponent(question[1]!)}`;
+
+    const singularProduct = url.pathname.match(/^\/product\/([^/]+)(?:\/(ask|own))?$/);
+    if (singularProduct) {
+      const suffix = singularProduct[2] ? `/${singularProduct[2]}` : '';
+      return `/products/${encodeURIComponent(singularProduct[1]!)}${suffix}${url.search}${url.hash}`;
+    }
+
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return null;
   }
+}
+
+function inboxHref(productId: string, questionId: string): string {
+  return `/me/inbox?product=${encodeURIComponent(productId)}&question=${encodeURIComponent(questionId)}`;
 }

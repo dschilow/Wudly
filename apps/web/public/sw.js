@@ -1,5 +1,9 @@
 /* Wudly service worker - Web Push only (no offline caching for now). */
 
+function inboxUrl(productId, questionId) {
+  return `/me/inbox?product=${encodeURIComponent(productId)}&question=${encodeURIComponent(questionId)}`;
+}
+
 function normalizeNotificationUrl(value) {
   const raw = typeof value === 'string' && value.length > 0 ? value : '/';
   try {
@@ -7,12 +11,20 @@ function normalizeNotificationUrl(value) {
     if (url.origin !== self.location.origin) return '/';
 
     const productQuestion = url.pathname.match(/^\/products\/([^/]+)\/questions\/([^/]+)$/);
-    if (productQuestion) {
-      return `/me/inbox?product=${encodeURIComponent(productQuestion[1])}&question=${encodeURIComponent(productQuestion[2])}`;
-    }
+    if (productQuestion) return inboxUrl(productQuestion[1], productQuestion[2]);
+
+    const singularProductQuestion = url.pathname.match(/^\/product\/([^/]+)\/questions\/([^/]+)$/);
+    if (singularProductQuestion)
+      return inboxUrl(singularProductQuestion[1], singularProductQuestion[2]);
 
     const question = url.pathname.match(/^\/questions\/([^/]+)$/);
     if (question) return `/me/inbox?question=${encodeURIComponent(question[1])}`;
+
+    const singularProduct = url.pathname.match(/^\/product\/([^/]+)(?:\/(ask|own))?$/);
+    if (singularProduct) {
+      const suffix = singularProduct[2] ? `/${singularProduct[2]}` : '';
+      return `/products/${encodeURIComponent(singularProduct[1])}${suffix}${url.search}${url.hash}`;
+    }
 
     return `${url.pathname}${url.search}${url.hash}`;
   } catch (e) {
