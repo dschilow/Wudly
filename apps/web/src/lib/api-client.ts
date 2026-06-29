@@ -1,6 +1,10 @@
 import type { ApiErrorDto } from '@wudly/shared';
 import { getApiBaseUrl } from './config';
 
+const CSRF_COOKIE_NAME = 'wudly_csrf';
+const CSRF_HEADER_NAME = 'x-wudly-csrf';
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -14,73 +18,49 @@ export class ApiError extends Error {
   /** Flattens the API's message (string | string[]) into one display string. */
   get displayMessage(): string {
     const msg = this.body?.message ?? this.message;
-    return Array.isArray(msg) ? msg.join(' · ') : msg;
+    return Array.isArray(msg) ? msg.join(' | ') : msg;
   }
 }
 
 export interface RequestOptions extends Omit<RequestInit, 'body'> {
   /** JSON body; serialized automatically. */
   json?: unknown;
-  /** Bearer token (used server-side where cookies aren't auto-attached). */
+  /** Bearer token override for non-browser/server calls. Browser auth uses HttpOnly cookies. */
   token?: string;
   /** Next.js fetch cache controls (RSC). */
   next?: { revalidate?: number; tags?: string[] };
   cache?: RequestCache;
 }
 
-const ACCESS_TOKEN_STORAGE_KEY = 'wudly_access_token';
-
-export function getStoredAccessToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setStoredAccessToken(token: string): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
-  } catch {
-    /* storage can be disabled; the HttpOnly cookie still covers normal cases */
-  }
-}
-
-export function clearStoredAccessToken(): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
 /**
  * Core typed fetch wrapper.
  *
- * Sends/receives JSON, attaches credentials so the HttpOnly auth cookie flows on
- * same-site browser requests, and throws {@link ApiError} on non-2xx with the
- * parsed error envelope. Works in both server and client components.
+ * Browser auth intentionally relies on the API's HttpOnly cookie. We do not keep
+ * a second bearer token in localStorage, so an XSS cannot exfiltrate the session
+ * token. Mutating cookie-authenticated requests include a double-submit CSRF
+ * header from the readable CSRF cookie set by the API on login/register.
  */
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { json, token, headers, ...rest } = options;
+  const { json, token, headers, method, ...rest } = options;
   const url = `${getApiBaseUrl()}${path}`;
-  const authToken = token ?? getStoredAccessToken();
+  const effectiveMethod = (method ?? 'GET').toUpperCase();
 
   const finalHeaders: Record<string, string> = {
     Accept: 'application/json',
     ...(headers as Record<string, string> | undefined),
   };
   if (json !== undefined) finalHeaders['Content-Type'] = 'application/json';
-  if (authToken) finalHeaders['Authorization'] = `Bearer ${authToken}`;
+  if (token) finalHeaders['Authorization'] = `Bearer ${token}`;
+
+  const csrfToken = !SAFE_METHODS.has(effectiveMethod) ? readCookie(CSRF_COOKIE_NAME) : null;
+  if (csrfToken && !finalHeaders[CSRF_HEADER_NAME]) finalHeaders[CSRF_HEADER_NAME] = csrfToken;
 
   const response = await fetch(url, {
     ...rest,
+    method,
     headers: finalHeaders,
     body: json !== undefined ? JSON.stringify(json) : undefined,
-    // Browser: send cookies for auth. Server: harmless.
+    // Browser: send HttpOnly auth cookie. Server: harmless.
     credentials: 'include',
   });
 
@@ -94,12 +74,24 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (!response.ok) {
     const errorBody = data as ApiErrorDto | undefined;
     const message =
-      (errorBody && (Array.isArray(errorBody.message) ? errorBody.message[0] : errorBody.message)) ??
+      (errorBody &&
+        (Array.isArray(errorBody.message) ? errorBody.message[0] : errorBody.message)) ??
       `Request failed (${response.status})`;
     throw new ApiError(response.status, message, errorBody);
   }
 
   return data as T;
+}
+
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const prefix = `${encodeURIComponent(name)}=`;
+  const cookie = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+  if (!cookie) return null;
+  return decodeURIComponent(cookie.slice(prefix.length));
 }
 
 function safeJsonParse(text: string): unknown {

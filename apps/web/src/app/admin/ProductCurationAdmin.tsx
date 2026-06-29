@@ -20,10 +20,6 @@ import { Pill } from '@/components/ui/Pill';
 import { ProductList } from '@/components/ProductList';
 import { useToast } from '@/components/ui/Toast';
 
-const UiButton = Button as any;
-const UiCard = Card as any;
-const UiPill = Pill as any;
-
 const inputCls =
   'w-full rounded-[0.7rem] bg-surface px-3 py-2 text-[0.9375rem] leading-snug text-label outline-none ring-1 ring-border placeholder:text-faint focus:ring-2 focus:ring-accent';
 const textareaCls = inputCls + ' min-h-24 resize-y';
@@ -196,9 +192,9 @@ function SourceList({
                   {source.url}
                 </p>
               </div>
-              <UiButton size="sm" variant="gray" onClick={() => onUse(source)}>
+              <Button size="sm" variant="gray" onClick={() => onUse(source)}>
                 {actionLabel}
-              </UiButton>
+              </Button>
             </div>
           </div>
         ))}
@@ -207,7 +203,7 @@ function SourceList({
   );
 }
 
-export function ProductCurationAdmin(): any {
+export function ProductCurationAdmin() {
   const { show } = useToast();
   const [query, setQuery] = useState('');
   const [categories, setCategories] = useState<CategoryDto[]>([]);
@@ -417,7 +413,7 @@ export function ProductCurationAdmin(): any {
         </p>
       </div>
 
-      <UiCard className="space-y-3">
+      <Card className="space-y-3">
         <div className="flex gap-2">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
@@ -431,20 +427,20 @@ export function ProductCurationAdmin(): any {
               className={inputCls + ' pl-9'}
             />
           </div>
-          <UiButton loading={loading} onClick={() => void runResearch()}>
+          <Button loading={loading} onClick={() => void runResearch()}>
             Recherchieren
-          </UiButton>
+          </Button>
         </div>
         {research && (
           <div className="flex flex-wrap gap-2">
-            <UiPill tone={research.searchEnabled ? 'positive' : 'unsure'}>
+            <Pill tone={research.searchEnabled ? 'positive' : 'unsure'}>
               Websuche {research.searchEnabled ? 'aktiv' : 'ohne Brave-Key'}
-            </UiPill>
-            <UiPill tone="neutral">{research.catalog.length} Katalogtreffer</UiPill>
-            <UiPill tone="neutral">{research.market.length} EAN-Vorschlaege</UiPill>
+            </Pill>
+            <Pill tone="neutral">{research.catalog.length} Katalogtreffer</Pill>
+            <Pill tone="neutral">{research.market.length} EAN-Vorschlaege</Pill>
           </div>
         )}
-      </UiCard>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-4">
@@ -509,7 +505,7 @@ export function ProductCurationAdmin(): any {
           ) : null}
 
           {research?.imageUrl && (
-            <UiCard className="flex items-center gap-3">
+            <Card className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={research.imageUrl}
@@ -522,14 +518,14 @@ export function ProductCurationAdmin(): any {
                   {research.imageUrl}
                 </p>
               </div>
-              <UiButton
+              <Button
                 size="sm"
                 variant="gray"
                 onClick={() => setField('imageUrl', research.imageUrl ?? '')}
               >
                 Nutzen
-              </UiButton>
-            </UiCard>
+              </Button>
+            </Card>
           )}
 
           {research && (
@@ -550,7 +546,7 @@ export function ProductCurationAdmin(): any {
           )}
         </div>
 
-        <UiCard className="space-y-4">
+        <Card className="space-y-4">
           <div className="grid gap-2 sm:grid-cols-2">
             <input
               value={form.canonicalName}
@@ -608,7 +604,7 @@ export function ProductCurationAdmin(): any {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-label">Eigenschaften</h3>
-              <UiButton
+              <Button
                 size="sm"
                 variant="gray"
                 onClick={() =>
@@ -616,7 +612,7 @@ export function ProductCurationAdmin(): any {
                 }
               >
                 +
-              </UiButton>
+              </Button>
             </div>
             {form.specs.map((spec) => (
               <div key={spec.id} className="grid grid-cols-[1fr_1fr_auto] gap-2">
@@ -652,7 +648,7 @@ export function ProductCurationAdmin(): any {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-label">Bewertungen anderswo</h3>
-              <UiButton
+              <Button
                 size="sm"
                 variant="gray"
                 onClick={() =>
@@ -663,7 +659,7 @@ export function ProductCurationAdmin(): any {
                 }
               >
                 +
-              </UiButton>
+              </Button>
             </div>
             {form.ratings.map((rating) => (
               <div
@@ -755,10 +751,10 @@ export function ProductCurationAdmin(): any {
             {(['positiveThemes', 'negativeThemes'] as const).map((kind) => (
               <div key={kind} className="space-y-2 rounded-[0.7rem] bg-fill-1 p-2">
                 <div className="flex items-center justify-between">
-                  <UiPill tone={kind === 'positiveThemes' ? 'positive' : 'negative'}>
+                  <Pill tone={kind === 'positiveThemes' ? 'positive' : 'negative'}>
                     {kind === 'positiveThemes' ? 'Pro' : 'Contra'}
-                  </UiPill>
-                  <UiButton
+                  </Pill>
+                  <Button
                     size="sm"
                     variant="gray"
                     onClick={() =>
@@ -769,7 +765,7 @@ export function ProductCurationAdmin(): any {
                     }
                   >
                     +
-                  </UiButton>
+                  </Button>
                 </div>
                 {form[kind].map((theme) => (
                   <div key={theme.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
@@ -814,9 +810,9 @@ export function ProductCurationAdmin(): any {
             <div className="space-y-2 rounded-[0.7rem] bg-unsure-soft p-3">
               <p className="font-semibold text-label">Moegliche Duplikate</p>
               <ProductList products={duplicates} />
-              <UiButton fullWidth variant="danger" loading={saving} onClick={() => void save(true)}>
+              <Button fullWidth variant="danger" loading={saving} onClick={() => void save(true)}>
                 Trotzdem neues Produkt anlegen
-              </UiButton>
+              </Button>
             </div>
           )}
 
@@ -835,7 +831,7 @@ export function ProductCurationAdmin(): any {
           )}
 
           <div className="flex gap-2">
-            <UiButton
+            <Button
               variant="gray"
               onClick={() => {
                 setForm(emptyForm());
@@ -844,17 +840,17 @@ export function ProductCurationAdmin(): any {
               className="flex-1"
             >
               Leeren
-            </UiButton>
-            <UiButton
+            </Button>
+            <Button
               loading={saving}
               disabled={!payload}
               onClick={() => void save(false)}
               className="flex-1"
             >
               Produkt speichern
-            </UiButton>
+            </Button>
           </div>
-        </UiCard>
+        </Card>
       </div>
     </section>
   );

@@ -9,9 +9,6 @@ import { useToast } from '@/components/ui/Toast';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Pill } from '@/components/ui/Pill';
-const UiCard = Card as any;
-const UiButton = Button as any;
-const UiPill = Pill as any;
 
 /**
  * Admin panel: research "Bewertungen anderswo" (external rating facts) for
@@ -22,7 +19,7 @@ const UiPill = Pill as any;
  * Needs the OpenRouter provider to be active; the local/dummy provider can't
  * web-search and will simply find nothing.
  */
-export function RatingsBackfillAdmin(): any {
+export function RatingsBackfillAdmin() {
   const { show } = useToast();
   const [running, setRunning] = useState(false);
   const [report, setReport] = useState<RatingBackfillReportDto | null>(null);
@@ -52,22 +49,22 @@ export function RatingsBackfillAdmin(): any {
             Holt fehlende externe Bewertungen für vorhandene Produkte per KI-Recherche nach.
           </p>
         </div>
-        <UiButton size="sm" loading={running} onClick={run}>
+        <Button size="sm" loading={running} onClick={run}>
           <Sparkles className="mr-1.5 h-4 w-4" strokeWidth={2.2} aria-hidden />
           Bewertungen suchen
-        </UiButton>
+        </Button>
       </div>
 
       {report && (
-        <UiCard className="space-y-2">
+        <Card className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <UiPill tone={report.totalFound > 0 ? 'positive' : 'unsure'}>
+            <Pill tone={report.totalFound > 0 ? 'positive' : 'unsure'}>
               {report.totalFound} Bewertungen
-            </UiPill>
-            <UiPill tone="neutral">
+            </Pill>
+            <Pill tone="neutral">
               {report.withRatings}/{report.attempted} Produkte
-            </UiPill>
-            <UiPill tone="unsure">noch {report.remaining} offen</UiPill>
+            </Pill>
+            <Pill tone="unsure">noch {report.remaining} offen</Pill>
           </div>
           <ul className="space-y-1.5">
             {report.results.map((r) => (
@@ -90,7 +87,7 @@ export function RatingsBackfillAdmin(): any {
               </li>
             ))}
           </ul>
-        </UiCard>
+        </Card>
       )}
     </section>
   );

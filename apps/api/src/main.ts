@@ -31,7 +31,7 @@ async function bootstrap(): Promise<void> {
 
   const corsOrigins = parseCorsOrigins(config.get('CORS_ORIGIN', { infer: true }));
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : true,
+    origin: corsOrigins.length > 0 ? corsOrigins : false,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });

@@ -1,6 +1,8 @@
 import type { RequestWithUser } from './auth.types';
 
 export const AUTH_COOKIE_NAME = 'wudly_token';
+export const CSRF_COOKIE_NAME = 'wudly_csrf';
+export const CSRF_HEADER_NAME = 'x-wudly-csrf';
 
 /**
  * Extracts a bearer token from either the `Authorization` header or the auth

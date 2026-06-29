@@ -78,4 +78,4 @@ const ButtonRoot = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   );
 });
 
-export const Button = ButtonRoot as unknown as (props: ButtonProps) => any;
+export const Button = ButtonRoot;

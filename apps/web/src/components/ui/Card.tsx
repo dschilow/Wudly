@@ -26,4 +26,4 @@ const CardRoot = forwardRef<HTMLDivElement, CardProps>(function Card(
   );
 });
 
-export const Card = CardRoot as unknown as (props: CardProps) => any;
+export const Card = CardRoot;

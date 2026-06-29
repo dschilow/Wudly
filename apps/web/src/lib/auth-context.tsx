@@ -1,16 +1,9 @@
 'use client';
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  type ReactNode,
-} from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { UserDto, RegisterInput, LoginInput } from '@wudly/shared';
 import { api } from './api';
-import { ApiError, clearStoredAccessToken, setStoredAccessToken } from './api-client';
+import { ApiError } from './api-client';
 
 interface AuthState {
   user: UserDto | null;
@@ -38,7 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(me);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        clearStoredAccessToken();
         setUser(null);
       } else {
         // Network/other error — treat as logged out but don't crash the app.
@@ -55,19 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (input: LoginInput) => {
     const res = await api.auth.login(input);
-    setStoredAccessToken(res.accessToken);
     setUser(res.user);
   }, []);
 
   const register = useCallback(async (input: RegisterInput) => {
     const res = await api.auth.register(input);
-    setStoredAccessToken(res.accessToken);
     setUser(res.user);
   }, []);
 
   const logout = useCallback(async () => {
     await api.auth.logout().catch(() => undefined);
-    clearStoredAccessToken();
     setUser(null);
   }, []);
 

@@ -16,19 +16,28 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
-  AI_PROVIDER: z.enum(['dummy', 'openrouter', 'ollama', 'openai', 'gemini', 'anthropic']).default('dummy'),
+  AI_PROVIDER: z
+    .enum(['dummy', 'openrouter', 'ollama', 'openai', 'gemini', 'anthropic'])
+    .default('dummy'),
   // OpenRouter (used when AI_PROVIDER=openrouter). Key is optional so the app
   // still boots without it and transparently falls back to the deterministic AI.
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_MODEL: z.string().default('google/gemini-3.1-flash-lite'),
   OPENROUTER_SITE_URL: z.string().optional(),
   OPENROUTER_APP_TITLE: z.string().default('Wudly'),
-  OPENROUTER_WEB_SEARCH_ENGINE: z.enum(['auto', 'exa', 'parallel', 'perplexity']).default('perplexity'),
+  OPENROUTER_WEB_SEARCH_ENGINE: z
+    .enum(['auto', 'exa', 'parallel', 'perplexity'])
+    .default('perplexity'),
   OPENROUTER_WEB_SEARCH_MAX_RESULTS: z.coerce.number().int().min(1).max(10).default(5),
   OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS: z
     .string()
     .default('youtube.com,ebay.com,ebay.de,allegro.pl,trustpilot.com')
-    .transform((value) => value.split(',').map((domain) => domain.trim()).filter(Boolean)),
+    .transform((value) =>
+      value
+        .split(',')
+        .map((domain) => domain.trim())
+        .filter(Boolean),
+    ),
   PRODUCT_RESEARCH_SEARCH_PROVIDER: z.enum(['brave', 'openrouter']).default('openrouter'),
   // Background refresh of external product ratings/themes using self-hosted Gemma.
   // Requires BRAVE_SEARCH_KEY because Ollama/Gemma cannot browse by itself.

@@ -1,14 +1,6 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Body,
-  Res,
-  UseGuards,
-  HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
+import { Controller, Post, Get, Body, Res, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'node:crypto';
 import type { Response } from 'express';
 import {
   registerSchema,
@@ -23,7 +15,7 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 import type { AuthUser } from './auth.types';
-import { AUTH_COOKIE_NAME } from './token.util';
+import { AUTH_COOKIE_NAME, CSRF_COOKIE_NAME } from './token.util';
 import { RateLimit, RateLimitGuard } from '../common/rate-limit.guard';
 import type { AppConfig } from '../config/configuration';
 
@@ -42,7 +34,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponseDto> {
     const result = await this.authService.register(dto);
-    this.setAuthCookie(res, result.accessToken);
+    this.setAuthCookies(res, result.accessToken);
     return result;
   }
 
@@ -54,7 +46,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponseDto> {
     const result = await this.authService.login(dto);
-    this.setAuthCookie(res, result.accessToken);
+    this.setAuthCookies(res, result.accessToken);
     return result;
   }
 
@@ -62,27 +54,45 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   logout(@Res({ passthrough: true }) res: Response): { success: true } {
     res.clearCookie(AUTH_COOKIE_NAME, this.cookieBaseOptions());
+    res.clearCookie(CSRF_COOKIE_NAME, this.cookieBaseOptions(false));
     return { success: true };
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  async me(@CurrentUser() user: AuthUser): Promise<UserDto> {
+  async me(
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<UserDto> {
+    this.setCsrfCookie(res);
     return this.authService.getMe(user.id);
   }
 
-  private setAuthCookie(res: Response, token: string): void {
+  private setAuthCookies(res: Response, token: string): void {
+    const maxAge = 7 * 24 * 60 * 60 * 1000;
     res.cookie(AUTH_COOKIE_NAME, token, {
       ...this.cookieBaseOptions(),
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge,
+    });
+    this.setCsrfCookie(res, maxAge);
+  }
+
+  private setCsrfCookie(res: Response, maxAge = 7 * 24 * 60 * 60 * 1000): void {
+    res.cookie(CSRF_COOKIE_NAME, this.createCsrfToken(), {
+      ...this.cookieBaseOptions(false),
+      maxAge,
     });
   }
 
-  private cookieBaseOptions() {
+  private createCsrfToken(): string {
+    return randomBytes(32).toString('base64url');
+  }
+
+  private cookieBaseOptions(httpOnly = true) {
     const secure = this.config.get('COOKIE_SECURE', { infer: true });
     const domain = this.config.get('COOKIE_DOMAIN', { infer: true });
     return {
-      httpOnly: true,
+      httpOnly,
       secure,
       sameSite: secure ? ('none' as const) : ('lax' as const),
       path: '/',

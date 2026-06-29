@@ -19,11 +19,7 @@ import { ImageBackfillAdmin } from './ImageBackfillAdmin';
 import { RatingsBackfillAdmin } from './RatingsBackfillAdmin';
 import { ProductCurationAdmin } from './ProductCurationAdmin';
 
-const UiCard = Card as any;
-const UiButton = Button as any;
-const UiPill = Pill as any;
-
-export function AdminClient(): any {
+export function AdminClient() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { show } = useToast();
@@ -50,7 +46,6 @@ export function AdminClient(): any {
       return;
     }
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading, router]);
 
   if (loading || dataLoading) return <LoadingState />;
@@ -112,9 +107,9 @@ export function AdminClient(): any {
       ) : (
         <div className="space-y-3">
           {candidates.map((c) => (
-            <UiCard key={c.id} className="space-y-3">
+            <Card key={c.id} className="space-y-3">
               <div className="flex items-center justify-between">
-                <UiPill tone="unsure">Ähnlichkeit {(c.score * 100).toFixed(0)}%</UiPill>
+                <Pill tone="unsure">Ähnlichkeit {(c.score * 100).toFixed(0)}%</Pill>
                 <span className="text-xs text-muted-foreground">{c.status}</span>
               </div>
 
@@ -147,15 +142,15 @@ export function AdminClient(): any {
               {c.reason && <p className="text-xs text-muted-foreground">{c.reason}</p>}
 
               <div className="flex gap-2">
-                <UiButton
+                <Button
                   size="sm"
                   loading={busyId === c.id}
                   onClick={() => act(c.id, 'merge')}
                   className="flex-1"
                 >
                   Zusammenführen
-                </UiButton>
-                <UiButton
+                </Button>
+                <Button
                   size="sm"
                   variant="outline"
                   disabled={busyId === c.id}
@@ -163,9 +158,9 @@ export function AdminClient(): any {
                   className="flex-1"
                 >
                   Ablehnen
-                </UiButton>
+                </Button>
               </div>
-            </UiCard>
+            </Card>
           ))}
         </div>
       )}

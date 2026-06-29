@@ -28,8 +28,7 @@ import {
 import type { AspectStatDto, ProductDetailDto, ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { productThumbUrl } from '@/lib/product-media';
-import { cn, formatScore, scoreColor } from '@/lib/utils';
-import { AnimatedNumber } from '@/components/motion/AnimatedNumber';
+import { cn, scoreColor } from '@/lib/utils';
 import { NetConsensusBadge } from '@/components/NetConsensusBadge';
 import { ScoreRing } from '@/components/ScoreRing';
 import { SealBadge } from '@/components/SealBadge';
@@ -163,7 +162,9 @@ function trustScore(product: ProductDetailDto): number {
   const experienceCoverage = Math.min(28, product.insights.experienceCount * 2.8);
   const ownerCoverage = Math.min(12, Math.log10(product.insights.ownerCount + 1) * 6);
   const verifiedCountBonus = Math.min(10, verifiedCount * 2);
-  return Math.round(clamp(verifiedShare * 0.5 + experienceCoverage + ownerCoverage + verifiedCountBonus));
+  return Math.round(
+    clamp(verifiedShare * 0.5 + experienceCoverage + ownerCoverage + verifiedCountBonus),
+  );
 }
 
 function buildProductStats(product: ProductDetailDto, mode: DecisionMode): ProductStats {
@@ -418,13 +419,12 @@ export function CompareClient() {
           </div>
 
           <div className="relative mt-6 grid gap-2.5 sm:grid-cols-3">
-            <HeroMetric icon={GitCompareArrows} label="Produkte" value={`${selected.length}/${MAX_COMPARE}`} />
             <HeroMetric
-              icon={ShieldCheck}
-              label="Modell"
-              value={modeByKey[mode].label}
-              compact
+              icon={GitCompareArrows}
+              label="Produkte"
+              value={`${selected.length}/${MAX_COMPARE}`}
             />
+            <HeroMetric icon={ShieldCheck} label="Modell" value={modeByKey[mode].label} compact />
             <HeroMetric
               icon={BarChart3}
               label="Fazit"
@@ -595,9 +595,7 @@ function CompareBuilder({
           <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-accent-ink">
             Vergleich bauen
           </p>
-          <h2 className="font-display mt-1 text-[1.65rem] leading-none text-label">
-            Produkte
-          </h2>
+          <h2 className="font-display mt-1 text-[1.65rem] leading-none text-label">Produkte</h2>
         </div>
         {ids.length < MAX_COMPARE && (
           <button
@@ -805,8 +803,7 @@ function ProductPicker({
   const [results, setResults] = useState<ProductSummaryDto[] | null>(null);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const excludedKey = excluded.join('|');
-  const excludedSet = useMemo(() => new Set(excluded), [excludedKey]);
+  const excludedSet = useMemo(() => new Set(excluded), [excluded]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -1018,7 +1015,13 @@ function WeightLine({ label, value }: { label: string; value: number }) {
   );
 }
 
-function RecommendationCards({ stats, verdict }: { stats: ProductStats[]; verdict: Verdict | null }) {
+function RecommendationCards({
+  stats,
+  verdict,
+}: {
+  stats: ProductStats[];
+  verdict: Verdict | null;
+}) {
   return (
     <div>
       <SectionHeader
@@ -1041,8 +1044,12 @@ function RecommendationCard({ stats, leader }: { stats: ProductStats; leader: bo
   const takeItems = compactUnique(
     [
       ...stats.product.insights.suitedFor.slice(0, 2),
-      ...stats.positive.map((aspect) => `Wenn dir ${aspect.label.toLocaleLowerCase('de-DE')} wichtig ist`),
-      stats.rebuy !== null && stats.rebuy >= 75 ? 'du ein starkes Wiederkauf-Signal willst' : undefined,
+      ...stats.positive.map(
+        (aspect) => `Wenn dir ${aspect.label.toLocaleLowerCase('de-DE')} wichtig ist`,
+      ),
+      stats.rebuy !== null && stats.rebuy >= 75
+        ? 'du ein starkes Wiederkauf-Signal willst'
+        : undefined,
       stats.trust >= 62 ? 'dir verifizierte Besitzerstimmen wichtig sind' : undefined,
     ],
     3,
@@ -1050,7 +1057,9 @@ function RecommendationCard({ stats, leader }: { stats: ProductStats; leader: bo
   const avoidItems = compactUnique(
     [
       ...stats.product.insights.notSuitedFor.slice(0, 2),
-      ...stats.negative.map((aspect) => `Wenn dich ${aspect.label.toLocaleLowerCase('de-DE')} stört`),
+      ...stats.negative.map(
+        (aspect) => `Wenn dich ${aspect.label.toLocaleLowerCase('de-DE')} stört`,
+      ),
       stats.product.insights.insteadOfShare >= 22
         ? `${stats.product.insights.insteadOfShare}% nennen lieber eine Alternative`
         : undefined,
@@ -1060,7 +1069,9 @@ function RecommendationCard({ stats, leader }: { stats: ProductStats; leader: bo
   const questionItems = compactUnique(
     [
       ...stats.product.insights.wishKnownHighlights.slice(0, 2),
-      stats.negative[0] ? `Wie stark fällt ${stats.negative[0].label.toLocaleLowerCase('de-DE')} im Alltag auf?` : undefined,
+      stats.negative[0]
+        ? `Wie stark fällt ${stats.negative[0].label.toLocaleLowerCase('de-DE')} im Alltag auf?`
+        : undefined,
       'Wie hält es sich nach mehreren Monaten Nutzung?',
     ],
     3,
@@ -1103,14 +1114,20 @@ function RecommendationCard({ stats, leader }: { stats: ProductStats; leader: bo
         icon={ThumbsUp}
         title="Nimm es, wenn"
         tone="positive"
-        items={takeItems.length > 0 ? takeItems : ['du erst noch mehr echte Besitzerstimmen sammeln willst']}
+        items={
+          takeItems.length > 0
+            ? takeItems
+            : ['du erst noch mehr echte Besitzerstimmen sammeln willst']
+        }
       />
       <DecisionList
         className="mt-4"
         icon={ThumbsDown}
         title="Nicht ideal, wenn"
         tone="negative"
-        items={avoidItems.length > 0 ? avoidItems : ['du die Datenlage noch nicht stark genug findest']}
+        items={
+          avoidItems.length > 0 ? avoidItems : ['du die Datenlage noch nicht stark genug findest']
+        }
       />
       <DecisionList
         className="mt-4"
@@ -1166,12 +1183,16 @@ function DecisionList({
       : tone === 'negative'
         ? 'text-regret-ink'
         : 'text-accent-ink';
-  const dot =
-    tone === 'positive' ? 'bg-positive' : tone === 'negative' ? 'bg-regret' : 'bg-accent';
+  const dot = tone === 'positive' ? 'bg-positive' : tone === 'negative' ? 'bg-regret' : 'bg-accent';
 
   return (
     <div className={className}>
-      <p className={cn('mono-data flex items-center gap-2 text-[0.6875rem] font-semibold uppercase tracking-[0.14em]', color)}>
+      <p
+        className={cn(
+          'mono-data flex items-center gap-2 text-[0.6875rem] font-semibold uppercase tracking-[0.14em]',
+          color,
+        )}
+      >
         <Icon className="h-4 w-4" strokeWidth={2.2} />
         {title}
       </p>
@@ -1433,7 +1454,10 @@ function MetricCell({
             {stats.product.canonicalName}
           </p>
         </div>
-        <p className="mono-data shrink-0 text-[1rem] font-semibold tnum text-label" style={{ color }}>
+        <p
+          className="mono-data shrink-0 text-[1rem] font-semibold tnum text-label"
+          style={{ color }}
+        >
           {definition.display(stats)}
         </p>
         {isBest && (
@@ -1469,7 +1493,11 @@ function metricColor(definition: MetricDefinition, raw: number | null): string {
   if (definition.tone === 'neutral') return 'var(--color-label)';
   if (definition.tone === 'regret') {
     if (raw === null) return 'var(--color-faint)';
-    return raw <= 22 ? 'var(--color-positive)' : raw <= 40 ? 'var(--color-unsure)' : 'var(--color-regret)';
+    return raw <= 22
+      ? 'var(--color-positive)'
+      : raw <= 40
+        ? 'var(--color-unsure)'
+        : 'var(--color-regret)';
   }
   return scoreColor(raw, 'rebuy');
 }
@@ -1534,8 +1562,7 @@ function InsightColumn({
       : tone === 'negative'
         ? 'text-regret-ink'
         : 'text-accent-ink';
-  const dot =
-    tone === 'positive' ? 'bg-positive' : tone === 'negative' ? 'bg-regret' : 'bg-accent';
+  const dot = tone === 'positive' ? 'bg-positive' : tone === 'negative' ? 'bg-regret' : 'bg-accent';
 
   return (
     <div className="card overflow-hidden">
@@ -1546,14 +1573,20 @@ function InsightColumn({
       {stats.map((item, index) => {
         const list = items(item).slice(0, 4);
         return (
-          <div key={item.product.id} className={cn('px-4 py-3', index < stats.length - 1 && 'hairline')}>
+          <div
+            key={item.product.id}
+            className={cn('px-4 py-3', index < stats.length - 1 && 'hairline')}
+          >
             <p className="line-clamp-1 text-[0.875rem] font-semibold text-label">
               {item.product.canonicalName}
             </p>
             <ul className="mt-2 space-y-1.5">
               {list.length > 0 ? (
                 list.map((entry) => (
-                  <li key={entry} className="flex items-start gap-2 text-[0.875rem] leading-snug text-muted-foreground">
+                  <li
+                    key={entry}
+                    className="flex items-start gap-2 text-[0.875rem] leading-snug text-muted-foreground"
+                  >
                     <span className={cn('mt-[0.42rem] h-1.5 w-1.5 shrink-0 rounded-full', dot)} />
                     <span>{entry}</span>
                   </li>
@@ -1592,22 +1625,22 @@ function MethodologyPanel() {
       </div>
       <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
         <TrustChip icon={Users} label="Besitzer" text="Wie viele echte Stimmen dahinterstehen." />
-        <TrustChip icon={ShieldCheck} label="Verifikation" text="Wie stark die Besitzerbasis belegt ist." />
-        <TrustChip icon={BarChart3} label="Risiko" text="Welche Kritik und Alternativen sichtbar werden." />
+        <TrustChip
+          icon={ShieldCheck}
+          label="Verifikation"
+          text="Wie stark die Besitzerbasis belegt ist."
+        />
+        <TrustChip
+          icon={BarChart3}
+          label="Risiko"
+          text="Welche Kritik und Alternativen sichtbar werden."
+        />
       </div>
     </div>
   );
 }
 
-function TrustChip({
-  icon: Icon,
-  label,
-  text,
-}: {
-  icon: LucideIcon;
-  label: string;
-  text: string;
-}) {
+function TrustChip({ icon: Icon, label, text }: { icon: LucideIcon; label: string; text: string }) {
   return (
     <div className="rounded-[0.9rem] bg-fill px-3 py-3">
       <p className="flex items-center gap-2 font-semibold text-label">

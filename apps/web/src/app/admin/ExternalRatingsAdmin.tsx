@@ -16,9 +16,6 @@ import { useToast } from '@/components/ui/Toast';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Pill } from '@/components/ui/Pill';
-const UiCard = Card as any;
-const UiButton = Button as any;
-const UiPill = Pill as any;
 
 const inputCls =
   'w-full rounded-[0.7rem] bg-surface px-3 py-2 text-[0.9375rem] leading-snug text-label outline-none ring-1 ring-border placeholder:text-faint focus:ring-2 focus:ring-accent';
@@ -64,7 +61,7 @@ const EMPTY_FORM: FormState = {
  * Admin editor for external rating facts ("Bewertungen anderswo"): pick a
  * product, then add/update per-source aggregate values with mandatory link.
  */
-export function ExternalRatingsAdmin(): any {
+export function ExternalRatingsAdmin() {
   const { show } = useToast();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ProductSummaryDto[]>([]);
@@ -180,7 +177,7 @@ export function ExternalRatingsAdmin(): any {
       </div>
 
       {/* Product picker */}
-      <UiCard className="space-y-2">
+      <Card className="space-y-2">
         {product ? (
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
@@ -189,9 +186,9 @@ export function ExternalRatingsAdmin(): any {
                 {ratings.length} externe {ratings.length === 1 ? 'Quelle' : 'Quellen'}
               </p>
             </div>
-            <UiButton size="sm" variant="gray" onClick={() => setProduct(null)}>
+            <Button size="sm" variant="gray" onClick={() => setProduct(null)}>
               Wechseln
-            </UiButton>
+            </Button>
           </div>
         ) : (
           <>
@@ -229,13 +226,13 @@ export function ExternalRatingsAdmin(): any {
             )}
           </>
         )}
-      </UiCard>
+      </Card>
 
       {product && (
         <>
           {/* Existing ratings */}
           {ratings.length > 0 && (
-            <UiCard className="space-y-0 p-0">
+            <Card className="space-y-0 p-0">
               {ratings.map((r, i) => (
                 <div
                   key={r.id}
@@ -268,11 +265,11 @@ export function ExternalRatingsAdmin(): any {
                   </button>
                 </div>
               ))}
-            </UiCard>
+            </Card>
           )}
 
           {/* Upsert form */}
-          <UiCard className="space-y-3">
+          <Card className="space-y-3">
             <div className="flex flex-wrap gap-1.5">
               {SOURCE_PRESETS.map((p) => (
                 <button
@@ -281,7 +278,7 @@ export function ExternalRatingsAdmin(): any {
                   onClick={() => applyPreset(p)}
                   className="tap-dim"
                 >
-                  <UiPill tone={form.source === p.source ? 'accent' : 'neutral'}>{p.label}</UiPill>
+                  <Pill tone={form.source === p.source ? 'accent' : 'neutral'}>{p.label}</Pill>
                 </button>
               ))}
             </div>
@@ -348,10 +345,10 @@ export function ExternalRatingsAdmin(): any {
               placeholder="Hinweis (z. B. Heft 5/2024) — optional"
               className={inputCls}
             />
-            <UiButton fullWidth loading={busy} disabled={!canSave} onClick={save}>
+            <Button fullWidth loading={busy} disabled={!canSave} onClick={save}>
               Speichern
-            </UiButton>
-          </UiCard>
+            </Button>
+          </Card>
         </>
       )}
     </section>

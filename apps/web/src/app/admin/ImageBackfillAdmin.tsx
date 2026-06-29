@@ -9,9 +9,6 @@ import { useToast } from '@/components/ui/Toast';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Pill } from '@/components/ui/Pill';
-const UiCard = Card as any;
-const UiButton = Button as any;
-const UiPill = Pill as any;
 
 /** Why a backfill pass couldn't find a photo, in plain German. */
 const REASON_LABELS: Record<string, string> = {
@@ -27,7 +24,7 @@ const REASON_LABELS: Record<string, string> = {
  * lives on the API (Google CSE → og:image → AI url); here we just trigger it and
  * surface the per-product result so the catalog can be filled in passes.
  */
-export function ImageBackfillAdmin(): any {
+export function ImageBackfillAdmin() {
   const { show } = useToast();
   const [imageless, setImageless] = useState<ImagelessProductDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,25 +76,20 @@ export function ImageBackfillAdmin(): any {
                 : `${imageless.length}${imageless.length >= 50 ? '+' : ''} Produkte ohne Foto.`}
           </p>
         </div>
-        <UiButton
-          size="sm"
-          loading={running}
-          onClick={runBackfill}
-          disabled={imageless.length === 0}
-        >
+        <Button size="sm" loading={running} onClick={runBackfill} disabled={imageless.length === 0}>
           <Sparkles className="mr-1.5 h-4 w-4" strokeWidth={2.2} aria-hidden />
           Bilder nachladen
-        </UiButton>
+        </Button>
       </div>
 
       {lastReport && (
-        <UiCard className="space-y-2">
+        <Card className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <UiPill tone={lastReport.found > 0 ? 'positive' : 'unsure'}>
+            <Pill tone={lastReport.found > 0 ? 'positive' : 'unsure'}>
               {lastReport.found}/{lastReport.attempted} gefunden
-            </UiPill>
-            <UiPill tone="unsure">noch {lastReport.remaining} offen</UiPill>
-            {!lastReport.cseConfigured && <UiPill tone="negative">CSE aus</UiPill>}
+            </Pill>
+            <Pill tone="unsure">noch {lastReport.remaining} offen</Pill>
+            {!lastReport.cseConfigured && <Pill tone="negative">CSE aus</Pill>}
           </div>
           <ul className="space-y-1.5">
             {lastReport.results.map((r) => (
@@ -116,18 +108,18 @@ export function ImageBackfillAdmin(): any {
               </li>
             ))}
           </ul>
-        </UiCard>
+        </Card>
       )}
 
       {!loading && imageless.length > 0 && (
-        <UiCard className="space-y-1.5">
+        <Card className="space-y-1.5">
           {imageless.slice(0, 12).map((p) => (
             <div key={p.id} className="flex items-center gap-2 text-[0.8125rem]">
               <ImageOff className="h-3.5 w-3.5 shrink-0 text-faint" strokeWidth={2} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-label">
                 {[p.brand, p.canonicalName].filter(Boolean).join(' · ')}
               </span>
-              {p.hasStaleImageUrl && <UiPill tone="negative">alter Link</UiPill>}
+              {p.hasStaleImageUrl && <Pill tone="negative">alter Link</Pill>}
               <span className="shrink-0 text-muted-foreground">{p.categoryName ?? '—'}</span>
             </div>
           ))}
@@ -136,14 +128,14 @@ export function ImageBackfillAdmin(): any {
               + {imageless.length - 12} weitere
             </p>
           )}
-        </UiCard>
+        </Card>
       )}
 
       {!loading && imageless.length === 0 && !lastReport && (
-        <UiCard className="flex items-center gap-2 text-[0.875rem] text-muted-foreground">
+        <Card className="flex items-center gap-2 text-[0.875rem] text-muted-foreground">
           <RefreshCw className="h-4 w-4 text-positive-ink" strokeWidth={2.2} aria-hidden />
           Vollständig — jedes sichtbare Produkt hat ein zwischengespeichertes Foto.
-        </UiCard>
+        </Card>
       )}
     </section>
   );

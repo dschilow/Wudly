@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
+import { CsrfGuard } from './auth/csrf.guard';
 import { UsersModule } from './users/users.module';
 import { CategoriesModule } from './categories/categories.module';
 import { ProductMatchingModule } from './products/product-matching.module';
@@ -44,5 +46,6 @@ import { HealthModule } from './health/health.module';
     AdminModule,
     HealthModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: CsrfGuard }],
 })
 export class AppModule {}
