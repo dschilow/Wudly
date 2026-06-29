@@ -340,11 +340,17 @@ export default async function ProductPage({ params }: PageProps) {
     throw err;
   }
 
+  // `get` may resolve a merged/old id to the surviving product, so sub-resources
+  // are loaded by the canonical id (not the requested URL id).
+  const productId = product.id;
   const [experiences, questions, showcases, invitedVotes] = await Promise.all([
-    safe(api.products.experiences(id, { next: { revalidate: 20 } }), [] as ExperienceDto[]),
-    safe(api.products.questions(id, { next: { revalidate: 20 } }), [] as QuestionDto[]),
-    safe(api.showcase.forProduct(id, { next: { revalidate: 60 } }), [] as ShowcaseSummaryDto[]),
-    safe(api.invites.forProduct(id, { next: { revalidate: 30 } }), {
+    safe(api.products.experiences(productId, { next: { revalidate: 20 } }), [] as ExperienceDto[]),
+    safe(api.products.questions(productId, { next: { revalidate: 20 } }), [] as QuestionDto[]),
+    safe(
+      api.showcase.forProduct(productId, { next: { revalidate: 60 } }),
+      [] as ShowcaseSummaryDto[],
+    ),
+    safe(api.invites.forProduct(productId, { next: { revalidate: 30 } }), {
       count: 0,
       yesCount: 0,
       votes: [],

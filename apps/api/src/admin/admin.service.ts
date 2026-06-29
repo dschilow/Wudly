@@ -65,6 +65,12 @@ export class AdminService {
         where: { productId: mergedId },
         data: { productId: canonicalId },
       });
+      // In-app notifications reference the product loosely (no FK); re-point them
+      // so taps land on the surviving product instead of a dead page.
+      await tx.notification.updateMany({
+        where: { productId: mergedId },
+        data: { productId: canonicalId },
+      });
       // Ownerships have a unique (userId, productId); move only those that won't collide.
       const ownerships = await tx.ownership.findMany({ where: { productId: mergedId } });
       for (const o of ownerships) {

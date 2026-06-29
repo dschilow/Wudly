@@ -452,18 +452,21 @@ export class ProductsService {
   }
   async getDetail(id: string): Promise<ProductDetailDto> {
     const product = await this.findOrThrow(id);
+    // findOrThrow may have resolved a merged/old id to the canonical product, so
+    // every follow-up read uses the surviving product's id.
+    const resolvedId = product.id;
     const [insights, externalRatings, externalConsensus] = await Promise.all([
-      this.insights.getInsights(id),
-      this.externalRatings.listForProduct(id),
-      this.externalRatings.getConsensus(id),
+      this.insights.getInsights(resolvedId),
+      this.externalRatings.listForProduct(resolvedId),
+      this.externalRatings.getConsensus(resolvedId),
     ]);
 
     // No cached photo yet → trigger a background hunt so the next page load has it.
     // Check via a lightweight count instead of loading the image bytes.
     void this.prisma.productImage
-      .findUnique({ where: { productId: id }, select: { productId: true } })
+      .findUnique({ where: { productId: resolvedId }, select: { productId: true } })
       .then((img) => {
-        if (!img) void this.rehuntImage(id).catch(() => undefined);
+        if (!img) void this.rehuntImage(resolvedId).catch(() => undefined);
       })
       .catch(() => undefined);
 
@@ -1654,10 +1657,41 @@ export class ProductsService {
       where: { id },
       include: PRODUCT_INCLUDE,
     });
-    if (!product || product.status === 'HIDDEN') {
-      throw new NotFoundException('Produkt nicht gefunden.');
+    if (product && product.status !== 'HIDDEN' && product.status !== 'MERGED') {
+      return product;
     }
-    return product;
+    // Old/merged ids (e.g. from a stored notification or shared link) resolve to
+    // the surviving canonical product via the alias trail instead of 404ing.
+    const canonicalId = await this.resolveAliasCanonicalId(id);
+    if (canonicalId) {
+      const canonical = await this.prisma.product.findUnique({
+        where: { id: canonicalId },
+        include: PRODUCT_INCLUDE,
+      });
+      if (canonical && canonical.status !== 'HIDDEN' && canonical.status !== 'MERGED') {
+        return canonical;
+      }
+    }
+    throw new NotFoundException('Produkt nicht gefunden.');
+  }
+
+  /**
+   * Follow the ProductAlias trail (old → canonical) for a possibly-merged id.
+   * Returns the surviving id, or null when there's no alias / no movement.
+   */
+  private async resolveAliasCanonicalId(id: string): Promise<string | null> {
+    let current = id;
+    const seen = new Set<string>([current]);
+    for (let i = 0; i < 5; i += 1) {
+      const alias = await this.prisma.productAlias.findUnique({
+        where: { oldProductId: current },
+        select: { canonicalProductId: true },
+      });
+      if (!alias || seen.has(alias.canonicalProductId)) break;
+      current = alias.canonicalProductId;
+      seen.add(current);
+    }
+    return current === id ? null : current;
   }
 
   private async resolveCategoryId(slug: string): Promise<string | null> {

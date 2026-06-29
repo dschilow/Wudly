@@ -200,9 +200,14 @@ export class NotificationsService {
         return unread || b.latestAt.localeCompare(a.latestAt);
       });
 
+    // A notification whose product no longer has a visible group (deleted, hidden
+    // or merged away) must still surface in the inbox instead of vanishing.
+    const groupedProductIds = new Set(groups.map((group) => group.product.id));
     return {
       groups,
-      ungrouped: rows.filter((row) => !row.productId).map(toNotificationDto),
+      ungrouped: rows
+        .filter((row) => !row.productId || !groupedProductIds.has(row.productId))
+        .map(toNotificationDto),
       unreadCount,
     };
   }
