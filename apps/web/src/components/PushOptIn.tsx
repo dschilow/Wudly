@@ -165,6 +165,7 @@ export function PushOptIn() {
       }
       try {
         const reg = await navigator.serviceWorker.getRegistration();
+        await reg?.update().catch(() => undefined);
         const sub = reg ? await reg.pushManager.getSubscription() : null;
         if (sub && Notification.permission === 'granted') {
           const { publicKey } = await api.notifications.pushKey({ cache: 'no-store' });
@@ -205,6 +206,7 @@ export function PushOptIn() {
         return;
       }
       const reg = await navigator.serviceWorker.register('/sw.js');
+      await reg.update().catch(() => undefined);
       await navigator.serviceWorker.ready;
 
       // Reuse an existing subscription only if it was made with the *current*

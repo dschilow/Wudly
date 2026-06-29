@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   Bell,
@@ -42,6 +43,7 @@ import { Button } from '@/components/ui/Button';
 import { formatDate, formatRelativeTime } from '@/lib/utils';
 
 export function InboxClient() {
+  const searchParams = useSearchParams();
   const { user, loading: authLoading, refresh: refreshAuth } = useAuth();
   const { refresh: refreshBadge } = useNotifications();
   const [inbox, setInbox] = useState<GroupedNotificationInboxDto | null>(null);
@@ -72,25 +74,6 @@ export function InboxClient() {
     }
   }, [refreshAuth]);
 
-  useEffect(() => {
-    if (user) void load();
-  }, [user, load]);
-
-  useEffect(() => {
-    if (!inbox || selectedProductId || typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const productId = params.get('product');
-    const questionId = params.get('question');
-    if (!productId && !questionId) return;
-    const group = findGroupForNotificationTarget(inbox.groups, productId, questionId);
-    if (group) {
-      setSelectedQuestionId(questionId);
-      void openGroup(group, questionId);
-    }
-    // This effect intentionally reacts only when the grouped inbox arrives.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inbox, selectedProductId]);
-
   const selectedGroup = useMemo(
     () => inbox?.groups.find((group) => group.product.id === selectedProductId) ?? null,
     [inbox, selectedProductId],
@@ -117,33 +100,53 @@ export function InboxClient() {
     };
   }, [inbox]);
 
-  const openGroup = async (group: NotificationProductGroupDto, questionId?: string | null) => {
-    setSelectedProductId(group.product.id);
-    setSelectedQuestionId(questionId ?? group.notifications[0]?.questionId ?? null);
-    if (group.unreadCount === 0) return;
-    setInbox((current) =>
-      current
-        ? {
-            ...current,
-            unreadCount: Math.max(0, current.unreadCount - group.unreadCount),
-            groups: current.groups.map((item) =>
-              item.product.id === group.product.id
-                ? {
-                    ...item,
-                    unreadCount: 0,
-                    notifications: item.notifications.map((notification) => ({
-                      ...notification,
-                      read: true,
-                    })),
-                  }
-                : item,
-            ),
-          }
-        : current,
-    );
-    await api.notifications.markProductRead(group.product.id).catch(() => undefined);
-    await refreshBadge();
-  };
+  const openGroup = useCallback(
+    async (group: NotificationProductGroupDto, questionId?: string | null) => {
+      setSelectedProductId(group.product.id);
+      setSelectedQuestionId(questionId ?? group.notifications[0]?.questionId ?? null);
+      if (group.unreadCount === 0) return;
+      setInbox((current) =>
+        current
+          ? {
+              ...current,
+              unreadCount: Math.max(0, current.unreadCount - group.unreadCount),
+              groups: current.groups.map((item) =>
+                item.product.id === group.product.id
+                  ? {
+                      ...item,
+                      unreadCount: 0,
+                      notifications: item.notifications.map((notification) => ({
+                        ...notification,
+                        read: true,
+                      })),
+                    }
+                  : item,
+              ),
+            }
+          : current,
+      );
+      await api.notifications.markProductRead(group.product.id).catch(() => undefined);
+      await refreshBadge();
+    },
+    [refreshBadge],
+  );
+
+  useEffect(() => {
+    if (user) void load();
+  }, [user, load]);
+
+  useEffect(() => {
+    if (!inbox) return;
+    const productId = searchParams.get('product');
+    const questionId = searchParams.get('question');
+    if (!productId && !questionId) return;
+    const group = findGroupForNotificationTarget(inbox.groups, productId, questionId);
+    if (!group) return;
+
+    const nextQuestionId = questionId ?? group.notifications[0]?.questionId ?? null;
+    if (selectedProductId === group.product.id && selectedQuestionId === nextQuestionId) return;
+    void openGroup(group, questionId);
+  }, [inbox, openGroup, searchParams, selectedProductId, selectedQuestionId]);
 
   const handleAnswered = (productId: string, questionId: string, answer: AnswerDto) => {
     setInbox((current) =>

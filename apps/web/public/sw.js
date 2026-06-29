@@ -1,5 +1,13 @@
 /* Wudly service worker - Web Push only (no offline caching for now). */
 
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 function inboxUrl(productId, questionId) {
   return `/me/inbox?product=${encodeURIComponent(productId)}&question=${encodeURIComponent(questionId)}`;
 }
@@ -61,7 +69,13 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ('focus' in client) {
-          if ('navigate' in client) client.navigate(url);
+          if ('navigate' in client) {
+            return client.navigate(url).then((navigatedClient) =>
+              navigatedClient && 'focus' in navigatedClient
+                ? navigatedClient.focus()
+                : client.focus(),
+            );
+          }
           return client.focus();
         }
       }
