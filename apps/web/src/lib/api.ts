@@ -11,6 +11,7 @@ import type {
   CreateProductResultDto,
   ExperienceDto,
   QuestionDto,
+  ProductPromptDto,
   AnswerDto,
   OwnershipDto,
   RankingEntryDto,
@@ -123,8 +124,9 @@ export const api = {
       apiFetch<ExperienceDto[]>(`/products/${id}/experiences`, opts),
     questions: (id: string, opts?: RequestOptions) =>
       apiFetch<QuestionDto[]>(`/products/${id}/questions`, opts),
-    questionSuggestions: (id: string, opts?: RequestOptions) =>
-      apiFetch<{ questions: string[] }>(`/products/${id}/question-suggestions`, opts),
+    /** The stored product-specific question pool (owner prompts + aggregated answers). */
+    prompts: (id: string, opts?: RequestOptions) =>
+      apiFetch<ProductPromptDto[]>(`/products/${id}/prompts`, opts),
     create: (input: CreateProductInput) =>
       apiFetch<CreateProductResultDto>('/products', { method: 'POST', json: input }),
     /** Camera KI fallback: recognize a product from a captured photo (data URL). */

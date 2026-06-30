@@ -16,11 +16,14 @@ export function ProductList({
   emphasis = 'rebuy',
   ranked = false,
   className,
+  intent = 'view',
 }: {
   products: ProductSummaryDto[] | Entry[];
   emphasis?: 'rebuy' | 'regret';
   ranked?: boolean;
   className?: string;
+  /** "own" turns every row into a "do you own this?" shortcut into the wizard. */
+  intent?: 'view' | 'own';
 }) {
   const entries: Entry[] = products.map((p, i) =>
     'product' in p ? p : { product: p, rank: ranked ? i + 1 : undefined },
@@ -35,6 +38,7 @@ export function ProductList({
             rank={entry.rank}
             emphasis={emphasis}
             last={i === entries.length - 1}
+            intent={intent}
           />
         </div>
       ))}

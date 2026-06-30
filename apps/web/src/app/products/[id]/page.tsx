@@ -22,6 +22,7 @@ import type {
   AspectStatDto,
   ExperienceDto,
   ProductInsightsDto,
+  ProductPromptDto,
   QuestionDto,
   ShowcaseSummaryDto,
   InvitedVotesSummaryDto,
@@ -329,6 +330,57 @@ function QuickSignalPanel({ insights }: { insights: ProductInsightsDto }) {
   );
 }
 
+/**
+ * "Das sagen Besitzer" — the aggregated answers to the product-specific question
+ * pool. Owners tap these in the wizard; here their answers become a distribution
+ * a buyer can read at a glance. Product knowledge only — never the Wudly Signal.
+ */
+function OwnerVoices({ prompts }: { prompts: ProductPromptDto[] }) {
+  const answered = prompts
+    .filter((p) => p.responseCount > 0 && p.answerStats.length > 0)
+    .slice(0, 4);
+  if (answered.length === 0) return null;
+
+  return (
+    <section>
+      <SectionTitle>Das sagen Besitzer</SectionTitle>
+      <div className="space-y-3">
+        {answered.map((prompt) => {
+          const total = prompt.answerStats.reduce((sum, a) => sum + a.count, 0);
+          return (
+            <div key={prompt.id} className="card p-4">
+              <p className="text-[0.9375rem] font-semibold leading-snug text-label">
+                {prompt.questionText}
+              </p>
+              <div className="mt-3 space-y-2.5">
+                {prompt.answerStats.slice(0, 4).map((stat) => {
+                  const pct = total > 0 ? Math.round((stat.count / total) * 100) : 0;
+                  return (
+                    <div key={stat.label}>
+                      <div className="flex items-baseline justify-between gap-2 text-[0.875rem]">
+                        <span className="min-w-0 truncate text-label">{stat.label}</span>
+                        <span className="mono-data shrink-0 text-[0.75rem] font-semibold text-muted-foreground">
+                          {stat.count}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-fill-2">
+                        <div
+                          className="h-full rounded-full bg-accent transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default async function ProductPage({ params }: PageProps) {
   const { id } = await params;
 
@@ -343,9 +395,10 @@ export default async function ProductPage({ params }: PageProps) {
   // `get` may resolve a merged/old id to the surviving product, so sub-resources
   // are loaded by the canonical id (not the requested URL id).
   const productId = product.id;
-  const [experiences, questions, showcases, invitedVotes] = await Promise.all([
+  const [experiences, questions, prompts, showcases, invitedVotes] = await Promise.all([
     safe(api.products.experiences(productId, { next: { revalidate: 20 } }), [] as ExperienceDto[]),
     safe(api.products.questions(productId, { next: { revalidate: 20 } }), [] as QuestionDto[]),
+    safe(api.products.prompts(productId, { next: { revalidate: 20 } }), [] as ProductPromptDto[]),
     safe(
       api.showcase.forProduct(productId, { next: { revalidate: 60 } }),
       [] as ShowcaseSummaryDto[],
@@ -517,6 +570,8 @@ export default async function ProductPage({ params }: PageProps) {
           </div>
         </section>
       )}
+
+      <OwnerVoices prompts={prompts} />
 
       {!hasData && (
         <div className="card">

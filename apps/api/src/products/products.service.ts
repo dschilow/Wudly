@@ -24,6 +24,7 @@ import {
   type QuickVoteResultDto,
   type ExternalProductSuggestionDto,
   type ProductFindResultDto,
+  type ProductPromptDto,
   type ProductCurationDraftDto,
   type ProductCurationResearchDto,
   type ProductCurationWebResultDto,
@@ -37,6 +38,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
 import { ProductInsightsService } from './product-insights.service';
+import { ProductPromptsService } from './product-prompts.service';
 import { IcecatService, type EanLookupHit } from './icecat.service';
 import { ProductImageService } from './product-image.service';
 import { ExternalRatingsService } from './external-ratings.service';
@@ -266,6 +268,7 @@ export class ProductsService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ProductMatchingService) private readonly matching: ProductMatchingService,
     @Inject(ProductInsightsService) private readonly insights: ProductInsightsService,
+    @Inject(ProductPromptsService) private readonly prompts: ProductPromptsService,
     @Inject(IcecatService) private readonly icecat: IcecatService,
     @Inject(ProductImageService) private readonly images: ProductImageService,
     @Inject(ExternalRatingsService) private readonly externalRatings: ExternalRatingsService,
@@ -695,6 +698,8 @@ export class ProductsService {
     }
     // No trustworthy DB photo? Hunt one in the background (validated first).
     if (!dbImageUrl) huntImage(result.product.id);
+    // Generate the product-specific owner/buyer question pool (one-time, async).
+    this.prompts.generateInBackground(result.product.id);
     // Complete the one-time consensus research before returning so the first
     // product page response cannot cache an empty ratings state.
     try {
@@ -1354,15 +1359,15 @@ export class ProductsService {
     return first?.label?.trim() || null;
   }
 
-  /** AI-suggested (or curated-fallback) questions a buyer might ask owners. */
-  async suggestQuestions(id: string): Promise<string[]> {
-    await this.findOrThrow(id);
-    try {
-      return await this.ai.suggestQuestions(id);
-    } catch (err) {
-      this.logger.warn(`Question suggestion failed: ${err instanceof Error ? err.message : err}`);
-      return [];
-    }
+  /**
+   * The stored product-specific question pool — sharp owner prompts (each with
+   * quick answers) plus their aggregated owner responses. Generated once and
+   * reused by the wizard, the "Besitzer fragen" composer, and the product page.
+   * Lazily generated on first access for older catalog entries.
+   */
+  async listPrompts(id: string): Promise<ProductPromptDto[]> {
+    const product = await this.findOrThrow(id);
+    return this.prompts.listForProduct(product.id);
   }
 
   async getSummaryOrThrow(id: string): Promise<ProductSummaryDto> {
@@ -1597,6 +1602,9 @@ export class ProductsService {
 
     // Create an (empty) snapshot so the product reads consistently from the start.
     const insights = await this.insights.regenerate(product.id);
+
+    // Generate the product-specific owner/buyer question pool (one-time, async).
+    this.prompts.generateInBackground(product.id);
 
     // Manual creation is a first-class enrichment path too. Previously only the
     // scan/research flows reached external consensus research, so products added

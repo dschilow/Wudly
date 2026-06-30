@@ -37,6 +37,7 @@ import {
   type EnsuredProductDto,
   type ExternalProductSuggestionDto,
   type ProductFindResultDto,
+  type ProductPromptDto,
   type MyProductsDto,
   type RegretCheckDto,
   type QuickVoteResultDto,
@@ -167,9 +168,14 @@ export class ProductsController {
     return this.questions.listForProduct(id);
   }
 
-  @Get(':id/question-suggestions')
-  getQuestionSuggestions(@Param('id') id: string): Promise<{ questions: string[] }> {
-    return this.products.suggestQuestions(id).then((questions) => ({ questions }));
+  /**
+   * The stored product-specific question pool: owner prompts (with quick answers
+   * + aggregated owner responses) used by the wizard, the "Besitzer fragen"
+   * composer and the product page. Generated once, then served from the DB.
+   */
+  @Get(':id/prompts')
+  getPrompts(@Param('id') id: string): Promise<ProductPromptDto[]> {
+    return this.products.listPrompts(id);
   }
 
   @Get(':id/image')

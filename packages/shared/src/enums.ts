@@ -72,6 +72,12 @@ export const VerificationStatus = {
 } as const;
 export type VerificationStatus = (typeof VerificationStatus)[keyof typeof VerificationStatus];
 
+export const ProductPromptStatus = {
+  ACTIVE: 'ACTIVE',
+  HIDDEN: 'HIDDEN',
+} as const;
+export type ProductPromptStatus = (typeof ProductPromptStatus)[keyof typeof ProductPromptStatus];
+
 export const ProductIdentifierType = {
   EAN: 'EAN',
   GTIN: 'GTIN',

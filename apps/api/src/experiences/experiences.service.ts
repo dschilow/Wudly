@@ -8,6 +8,7 @@ import {
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductInsightsService } from '../products/product-insights.service';
+import { ProductPromptsService } from '../products/product-prompts.service';
 import { toExperienceDto, type ExperienceWithRelations } from './experience.mapper';
 
 const EXPERIENCE_INCLUDE = {
@@ -24,6 +25,7 @@ export class ExperiencesService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ProductInsightsService) private readonly insights: ProductInsightsService,
+    @Inject(ProductPromptsService) private readonly prompts: ProductPromptsService,
     @Inject(AI_SERVICE) private readonly ai: AiService,
   ) {}
 
@@ -106,6 +108,12 @@ export class ExperiencesService {
       },
       include: EXPERIENCE_INCLUDE,
     });
+
+    // Persist the wizard's product-prompt answers, tied to this report (best-effort,
+    // never fatal). Lets owners answer the product-specific pool in the same flow.
+    if (input.promptResponses?.length) {
+      await this.prompts.recordResponses(productId, userId, report.id, input.promptResponses);
+    }
 
     // Keep scores fresh. Synchronous in the MVP; move to a queue later.
     await this.insights.regenerate(productId);

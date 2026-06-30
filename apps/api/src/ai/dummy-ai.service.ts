@@ -10,6 +10,7 @@ import {
   type ResearchedProduct,
   type SuggestedProductCandidate,
   type ResearchedExternalConsensus,
+  type GeneratedPrompt,
   normalizeProductName,
   guessBrand,
   AspectSentiment,
@@ -78,9 +79,9 @@ export class DummyAiService implements AiService {
     };
   }
 
-  async suggestQuestions(_productId: string): Promise<string[]> {
-    // No model → fall back to the curated common questions.
-    return [...COMMON_QUESTIONS].slice(0, 4);
+  async generateProductPrompts(_productId: string): Promise<GeneratedPrompt[]> {
+    // No model → curated common questions as open prompts (no quick answers).
+    return [...COMMON_QUESTIONS].slice(0, 5).map((question) => ({ question, quickAnswers: [] }));
   }
 
   async identifyProductFromImage(_imageDataUrl: string): Promise<IdentifiedProduct> {

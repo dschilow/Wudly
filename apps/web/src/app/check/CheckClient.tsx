@@ -100,6 +100,15 @@ export function CheckClient({
   const seqRef = useRef(0);
 
   /**
+   * Where a resolved product lands. In "own" mode (?own=1) we drop the user
+   * straight into the experience wizard — the whole point of "do you own this?".
+   */
+  const goToProduct = useCallback(
+    (id: string) => router.push(ownIntent ? `/products/${id}/own` : `/products/${id}`),
+    [ownIntent, router],
+  );
+
+  /**
    * The search cascade. Phase 1 (every keystroke): `find` — relevant catalog
    * hits + the server's verdict whether the catalog already covers the query.
    * Phase 2 (settled query only): market DBs, then AI candidates — both feed
@@ -170,7 +179,7 @@ export function CheckClient({
               )
             ).product;
         if (product) {
-          router.push(`/products/${product.id}`);
+          goToProduct(product.id);
           return;
         }
         // Chain failed → prefill the manual add form with the real name.
@@ -183,7 +192,7 @@ export function CheckClient({
         setCreating(null);
       }
     },
-    [creating, router],
+    [creating, goToProduct],
   );
 
   useEffect(() => {
@@ -206,7 +215,7 @@ export function CheckClient({
     try {
       const res = await api.products.research(q);
       if (res.product) {
-        router.push(`/products/${res.product.id}`);
+        goToProduct(res.product.id);
         return;
       }
       setShowAdd(true);
@@ -215,7 +224,7 @@ export function CheckClient({
     } finally {
       setResearching(false);
     }
-  }, [query, researching, router]);
+  }, [query, researching, goToProduct]);
 
   const handleDetected = useCallback(
     async (code: string) => {
@@ -225,7 +234,7 @@ export function CheckClient({
       try {
         const res = await api.products.resolveEan(code, { cache: 'no-store' });
         if (res.product) {
-          router.push(`/products/${res.product.id}`);
+          goToProduct(res.product.id);
           return;
         }
         if (res.suggestion) {
@@ -240,7 +249,7 @@ export function CheckClient({
       setQuery(code);
       void runSearch(code);
     },
-    [router, runSearch],
+    [goToProduct, runSearch],
   );
 
   const handleIdentified = useCallback(
@@ -257,7 +266,7 @@ export function CheckClient({
           imageDataUrl,
         });
         if (res.product) {
-          router.push(`/products/${res.product.id}`);
+          goToProduct(res.product.id);
           return;
         }
       } catch {
@@ -266,7 +275,7 @@ export function CheckClient({
       setQuery(result.query);
       void runSearch(result.query);
     },
-    [router, runSearch],
+    [goToProduct, runSearch],
   );
 
   const idle = query.trim().length === 0;
@@ -289,13 +298,23 @@ export function CheckClient({
       {/* Editorial hero — the brand question, serif with an italic accent. */}
       <motion.section variants={rise} transition={{ type: 'spring', stiffness: 340, damping: 34 }}>
         <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-          Prüfen
+          {ownIntent ? 'Eintragen' : 'Prüfen'}
         </p>
         <h1 className="font-display mt-2.5 text-balance text-[3rem] leading-[1.0] text-label">
-          Würdest du es <em className="text-accent-ink">wieder</em> kaufen?
+          {ownIntent ? (
+            <>
+              Was <em className="text-accent-ink">besitzt</em> du?
+            </>
+          ) : (
+            <>
+              Würdest du es <em className="text-accent-ink">wieder</em> kaufen?
+            </>
+          )}
         </h1>
         <p className="mt-3 max-w-[28rem] text-[1.0625rem] leading-snug text-muted-foreground">
-          Suche oder scanne ein Produkt — und sieh, was echte Besitzer nach echter Nutzung sagen.
+          {ownIntent
+            ? 'Suche oder scanne dein Produkt — und trag dich in Sekunden als Besitzer ein.'
+            : 'Suche oder scanne ein Produkt — und sieh, was echte Besitzer nach echter Nutzung sagen.'}
         </p>
       </motion.section>
 
@@ -370,9 +389,10 @@ export function CheckClient({
           )}
           {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
 
-          {/* 1 · Relevant catalog hits (server-side display cutoff — no noise). */}
+          {/* 1 · Relevant catalog hits (server-side display cutoff — no noise).
+                 In "own" mode each hit becomes a "Besitze ich" shortcut. */}
           {!loading && found && found.catalog.length > 0 && (
-            <ProductList products={found.catalog} />
+            <ProductList products={found.catalog} intent={ownIntent ? 'own' : 'view'} />
           )}
 
           {/* 2 · Creatable suggestions — market DBs or AI, one list, one look. */}

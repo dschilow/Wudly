@@ -12,12 +12,12 @@ import {
   type SuggestedProductCandidate,
   type ResearchedExternalConsensus,
   type ResearchedExternalRating,
+  type GeneratedPrompt,
   AspectSentiment,
   guessBrand,
   EXPERIENCE_MOOD_LABEL,
   USAGE_DURATION_LABEL,
   WOULD_BUY_AGAIN_LABEL,
-  COMMON_QUESTIONS,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { DummyAiService } from './dummy-ai.service';
@@ -50,8 +50,17 @@ const summarySchema = z.object({
   notSuitedFor: z.array(z.string().trim().min(1).max(90)).max(4).optional().default([]),
 });
 
-const questionsSchema = z.object({
-  questions: z.array(z.string().trim().min(5).max(120)).max(6).optional().default([]),
+const promptsSchema = z.object({
+  prompts: z
+    .array(
+      z.object({
+        question: z.string().trim().min(5).max(120),
+        quickAnswers: z.array(z.string().trim().min(1).max(40)).max(4).optional().default([]),
+      }),
+    )
+    .max(8)
+    .optional()
+    .default([]),
 });
 
 const identifySchema = z.object({
@@ -357,24 +366,18 @@ export class OpenRouterAiService implements AiService {
     return { productId, ...parsed.data };
   }
 
-  async suggestQuestions(productId: string): Promise<string[]> {
+  async generateProductPrompts(productId: string): Promise<GeneratedPrompt[]> {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       include: { category: true },
     });
-    if (!product) return this.fallback.suggestQuestions(productId);
+    if (!product) return this.fallback.generateProductPrompts(productId);
 
-    // Give the model some context: existing questions (avoid repeats) and known aspects.
-    const [existing, snapshot] = await Promise.all([
-      this.prisma.productQuestion.findMany({
-        where: { productId, status: { not: 'HIDDEN' } },
-        select: { questionText: true },
-        take: 12,
-      }),
-      this.prisma.productInsightSnapshot.findUnique({ where: { productId } }),
-    ]);
-
-    const asked = existing.map((q) => q.questionText).join(' | ');
+    // Give the model some context: known weak points so prompts target what
+    // buyers actually worry about.
+    const snapshot = await this.prisma.productInsightSnapshot.findUnique({
+      where: { productId },
+    });
     const negatives = Array.isArray(snapshot?.topNegativeAspects)
       ? (snapshot?.topNegativeAspects as Array<{ label?: string }>)
           .map((a) => a?.label)
@@ -386,42 +389,50 @@ export class OpenRouterAiService implements AiService {
       {
         role: 'system',
         content:
-          'Du hilfst Kaufinteressenten, die richtigen Fragen an echte Besitzer eines Produkts zu ' +
-          'stellen. Erzeuge 4 kurze, konkrete, alltagsnahe Fragen auf Deutsch (max 90 Zeichen je Frage). ' +
-          'Keine Ja/Nein-Floskeln ohne Inhalt, keine Wiederholung bereits gestellter Fragen. ' +
-          'Antworte ausschließlich als valides JSON ohne Markdown: {"questions": string[]}.',
+          'Du erstellst die produktspezifischen Besitzer-Fragen für Wudly. Echte Besitzer sollen ' +
+          'sie in Sekunden beantworten können, Kaufinteressenten sollen sie stellen wollen. Erzeuge ' +
+          '5 kurze, konkrete, alltagsnahe Fragen auf Deutsch (max 80 Zeichen). Gib zu JEDER Frage ' +
+          '2–4 sehr kurze, sich gegenseitig ausschließende Antwortmöglichkeiten (je max 22 Zeichen, ' +
+          'z. B. ["Sehr leise","Okay","Zu laut"]). Keine Ja/Nein-Floskeln ohne Inhalt. ' +
+          'Antworte ausschließlich als valides JSON ohne Markdown: ' +
+          '{"prompts":[{"question":string,"quickAnswers":string[]}]}.',
       },
       {
         role: 'user',
         content:
           `Produkt: ${product.canonicalName}${product.brand ? ` (${product.brand})` : ''}` +
           `${product.category ? `, Kategorie: ${product.category.name}` : ''}` +
-          (negatives ? `\nBekannte Schwachpunkte: ${negatives}` : '') +
-          (asked ? `\nBereits gestellt: ${asked}` : ''),
+          (negatives ? `\nBekannte Schwachpunkte: ${negatives}` : ''),
       },
     ];
 
-    const parsed = questionsSchema.safeParse(
+    const parsed = promptsSchema.safeParse(
       parseJsonObject(
         await this.client.completeJson(messages, {
           temperature: 0.7,
-          maxTokens: 180,
-          timeoutMs: 5_000,
+          maxTokens: 400,
+          timeoutMs: 6_000,
         }),
       ),
     );
-    const questions = parsed.success
-      ? parsed.data.questions.filter((q) => q.trim().length > 0)
+    const prompts: GeneratedPrompt[] = parsed.success
+      ? parsed.data.prompts
+          .map((p) => ({
+            question: p.question.trim(),
+            quickAnswers: dedupeShort(p.quickAnswers),
+          }))
+          .filter((p) => p.question.length > 0)
       : [];
 
-    // Top up from product/category-aware prompts if the local model is too slow.
-    if (questions.length < 3) {
-      for (const q of fallbackOwnerQuestions(product.canonicalName, product.category?.name ?? null)) {
-        if (questions.length >= 4) break;
-        if (!questions.includes(q)) questions.push(q);
+    // Top up from product/category-aware prompts if the model returned too few.
+    if (prompts.length < 3) {
+      const seen = new Set(prompts.map((p) => p.question.toLowerCase()));
+      for (const p of fallbackOwnerPrompts(product.canonicalName, product.category?.name ?? null)) {
+        if (prompts.length >= 5) break;
+        if (!seen.has(p.question.toLowerCase())) prompts.push(p);
       }
     }
-    return questions.slice(0, 4);
+    return prompts.slice(0, 6);
   }
 
   async identifyProductFromImage(imageDataUrl: string): Promise<IdentifiedProduct> {
@@ -817,50 +828,80 @@ function externalSourceKey(source: string, url: string): string {
   return cleaned.slice(0, 40);
 }
 
-function fallbackOwnerQuestions(productName: string, categoryName: string | null): string[] {
+/** Trim, drop blanks, dedupe (case-insensitive), cap at 4 — for quick answers. */
+function dedupeShort(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const v = raw.trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
+/** Category-aware fallback prompts (question + quick answers) when the model is
+    slow or returns too few. Mirrors the generated shape so storage is uniform. */
+function fallbackOwnerPrompts(productName: string, categoryName: string | null): GeneratedPrompt[] {
   const category = (categoryName ?? '').toLowerCase();
   const name = productName.trim();
 
   if (category.includes('waschmaschine')) {
     return [
-      'Wie laut ist sie beim Schleudern im Alltag?',
-      'Wie gut wäscht sie kurze Programme sauber?',
-      'Wie zuverlässig ist sie nach mehreren Monaten?',
-      'Wie einfach lassen sich Dichtung und Filter reinigen?',
+      { question: 'Wie laut ist sie beim Schleudern?', quickAnswers: ['Leise', 'Okay', 'Zu laut'] },
+      {
+        question: 'Wie zuverlässig ist sie nach Monaten?',
+        quickAnswers: ['Top', 'Okay', 'Probleme'],
+      },
+      {
+        question: 'Wie gut reinigt sie kurze Programme?',
+        quickAnswers: ['Sehr gut', 'Okay', 'Schwach'],
+      },
     ];
   }
 
   if (category.includes('saugroboter')) {
     return [
-      'Wie gut kommt er mit Teppichen und Kanten zurecht?',
-      'Wie oft muss man Behälter oder Bürsten reinigen?',
-      'Findet er nach längerer Nutzung zuverlässig zur Station?',
-      'Wie gut erkennt er Kabel, Socken und kleine Hindernisse?',
-    ];
-  }
-
-  if (category.includes('wärmepumpe') || category.includes('waermepumpe')) {
-    return [
-      'Wie stabil läuft sie bei niedrigen Außentemperaturen?',
-      'Wie laut ist sie draußen im normalen Betrieb?',
-      'Wie hoch ist der Stromverbrauch im Winter?',
-      'Wie aufwendig waren Wartung und Service bisher?',
+      {
+        question: 'Wie gut kommt er mit Teppichen klar?',
+        quickAnswers: ['Sehr gut', 'Okay', 'Schwach'],
+      },
+      { question: 'Findet er zuverlässig zur Station?', quickAnswers: ['Immer', 'Meist', 'Selten'] },
+      {
+        question: 'Wie oft muss man ihn reinigen?',
+        quickAnswers: ['Selten', 'Normal', 'Oft'],
+      },
     ];
   }
 
   if (category.includes('kaffeemaschine')) {
     return [
-      'Wie gut schmeckt Kaffee nach mehreren Monaten Nutzung?',
-      'Wie oft muss man reinigen oder entkalken?',
-      'Wie laut ist Mahlwerk oder Pumpe morgens?',
-      'Gab es Probleme mit Brüheinheit oder Milchsystem?',
+      { question: 'Wie laut ist Mahlwerk/Pumpe?', quickAnswers: ['Leise', 'Okay', 'Laut'] },
+      {
+        question: 'Wie oft muss man entkalken/reinigen?',
+        quickAnswers: ['Selten', 'Normal', 'Oft'],
+      },
+      { question: 'Gab es Defekte an der Brüheinheit?', quickAnswers: ['Nein', 'Kleine', 'Ja'] },
     ];
   }
 
   return [
-    `Was nervt dich im Alltag an ${name}?`,
-    'Wie zuverlässig ist es nach mehreren Monaten?',
-    'Wie gut funktioniert es im Vergleich zur Erwartung?',
-    'Würdest du es zum heutigen Preis wieder kaufen?',
+    { question: `Was nervt im Alltag an ${name}?`.slice(0, 80), quickAnswers: [] },
+    {
+      question: 'Wie zuverlässig ist es nach Monaten?',
+      quickAnswers: ['Top', 'Okay', 'Probleme'],
+    },
+    {
+      question: 'Hält es, was du erwartet hast?',
+      quickAnswers: ['Übertrifft', 'Passt', 'Enttäuscht'],
+    },
+    {
+      question: 'Wieder kaufen zum heutigen Preis?',
+      quickAnswers: ['Ja', 'Unsicher', 'Nein'],
+    },
   ];
 }

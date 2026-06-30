@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import type { ProductSummaryDto } from '@wudly/shared';
 import { cn } from '@/lib/utils';
 import { isEarlySignal } from '@/lib/verdict';
@@ -14,6 +14,12 @@ interface ProductRowProps {
   emphasis?: 'rebuy' | 'regret';
   /** Last row in a list group → no hairline. */
   last?: boolean;
+  /**
+   * "view" (default) opens the product page. "own" turns the row into a
+   * "do you own this?" shortcut: it links straight into the experience wizard
+   * and trades the score chip for a "Besitze ich" call-to-action.
+   */
+  intent?: 'view' | 'own';
 }
 
 /**
@@ -21,7 +27,8 @@ interface ProductRowProps {
  * name + meta, and the designed score chip with its verdict. Sits inside a
  * rounded list group with hairline separators between rows.
  */
-export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductRowProps) {
+export function ProductRow({ product, rank, emphasis = 'rebuy', last, intent = 'view' }: ProductRowProps) {
+  const own = intent === 'own';
   const showRegret = emphasis === 'regret';
   const score = showRegret ? product.regretScore : product.rebuyScore;
   const medal = rank !== undefined && rank <= 3;
@@ -33,9 +40,9 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
 
   return (
     <Link
-      href={`/products/${product.id}`}
+      href={own ? `/products/${product.id}/own` : `/products/${product.id}`}
       className="group block"
-      aria-label={`${product.canonicalName} ansehen`}
+      aria-label={own ? `${product.canonicalName} als Besitzer eintragen` : `${product.canonicalName} ansehen`}
     >
       <div
         className={cn(
@@ -93,16 +100,25 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last }: ProductR
           )}
         </div>
 
-        <ScoreBadge
-          score={earlySignal && !showRegret ? null : score}
-          kind={showRegret ? 'regret' : 'rebuy'}
-          labelOverride={earlySignal && !showRegret ? 'Zu früh' : undefined}
-        />
-        <ChevronRight
-          className="-ml-0.5 -mr-1 h-[1.0625rem] w-[1.0625rem] shrink-0 text-label-3"
-          strokeWidth={2.5}
-          aria-hidden
-        />
+        {own ? (
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-[0.8125rem] font-semibold text-[#f1efe6] shadow-[var(--shadow-glow)]">
+            <Check className="h-4 w-4" strokeWidth={2.7} aria-hidden />
+            Besitze ich
+          </span>
+        ) : (
+          <>
+            <ScoreBadge
+              score={earlySignal && !showRegret ? null : score}
+              kind={showRegret ? 'regret' : 'rebuy'}
+              labelOverride={earlySignal && !showRegret ? 'Zu früh' : undefined}
+            />
+            <ChevronRight
+              className="-ml-0.5 -mr-1 h-[1.0625rem] w-[1.0625rem] shrink-0 text-label-3"
+              strokeWidth={2.5}
+              aria-hidden
+            />
+          </>
+        )}
       </div>
     </Link>
   );

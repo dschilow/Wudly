@@ -172,6 +172,17 @@ export interface SuggestedProductCandidate {
   ean: string | null;
 }
 
+/**
+ * A product-specific question for the owner/buyer question pool, WITH a few
+ * suggested short answers an owner can tap. `quickAnswers` is empty for an open
+ * question (free text only). Generated once per product, then stored & reused.
+ */
+export interface GeneratedPrompt {
+  question: string;
+  /** 2–4 short, mutually-exclusive answers (e.g. ["Sehr leise","Okay","Zu laut"]). */
+  quickAnswers: string[];
+}
+
 /** An aggregated rating FACT researched from another platform (avg + count + link). */
 export interface ResearchedExternalRating {
   /** Stable machine key, e.g. "amazon". */
@@ -205,10 +216,11 @@ export interface AiService {
   extractProductCandidate(input: ProductInput): Promise<ProductCandidate>;
   normalizeExperienceText(text: string): Promise<NormalizedExperience>;
   /**
-   * Suggest a handful of sharp, product-specific questions a prospective buyer
-   * might want answered by real owners. Returns short German question strings.
+   * Generate the product-specific question pool: a handful of sharp German
+   * questions an owner can answer fast (each with 2–4 suggested quick answers)
+   * and a buyer might want answered. Generated once per product, then stored.
    */
-  suggestQuestions(productId: string): Promise<string[]>;
+  generateProductPrompts(productId: string): Promise<GeneratedPrompt[]>;
   /**
    * Recognize a product from a photo when no barcode could be read. `imageDataUrl`
    * is a `data:image/...;base64,…` URL captured client-side. Implementations must

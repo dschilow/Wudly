@@ -73,6 +73,11 @@ enum QuestionStatus {
   HIDDEN
 }
 
+enum ProductPromptStatus {
+  ACTIVE
+  HIDDEN
+}
+
 enum VerificationStatus {
   SELF_DECLARED
   VERIFIED
@@ -197,6 +202,7 @@ model User {
   professionalProfile ProfessionalProfile?
   sentInvites         RatingInvite[]       @relation("SentInvites")
   claimedInvitedVotes InvitedVote[]        @relation("ClaimedInvitedVotes")
+  promptResponses     ProductPromptResponse[]
 
   @@index([role])
 }
@@ -243,6 +249,9 @@ model Product {
   specs          Json          @default("[]")
   status         ProductStatus @default(ACTIVE)
   createdByUserId String?
+  /// When the owner/buyer question pool was first generated (null = not yet).
+  /// Gates one-time generation so the AI is asked at most once per product.
+  promptsGeneratedAt DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -268,6 +277,8 @@ model Product {
   cachedImage       ProductImage?
   ratingInvites     RatingInvite[]
   invitedVotes      InvitedVote[]
+  prompts           ProductPrompt[]
+  promptResponses   ProductPromptResponse[]
 
   @@index([normalizedName])
   @@index([categoryId])
@@ -438,7 +449,8 @@ model ExperienceReport {
   variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   ownership Ownership?      @relation(fields: [ownershipId], references: [id], onDelete: SetNull)
 
-  aspects ExperienceAspect[]
+  aspects         ExperienceAspect[]
+  promptResponses ProductPromptResponse[]
 
   @@index([productId])
   @@index([userId])
@@ -515,6 +527,62 @@ model ProductAnswer {
   answeredBy User            @relation(fields: [answeredByUserId], references: [id], onDelete: Cascade)
 
   @@index([questionId])
+  @@index([productId])
+}
+
+/* ----------------------------------------------------------------- *
+ * Owner/buyer question pool — a stored, product-specific set of sharp
+ * questions WITH quick answers. Generated once (AI) or grown by users, then
+ * reused everywhere: the owner answers them fast in the "Ich besitze es"
+ * wizard, a buyer picks them as ask-suggestions, and the product page shows
+ * the aggregated owner answers. Strictly product-knowledge — never the Signal.
+ * ----------------------------------------------------------------- */
+
+model ProductPrompt {
+  id           String              @id @default(cuid())
+  productId    String
+  questionText String
+  /// Suggested short answers, order-preserving: ["Sehr leise","Okay","Zu laut"].
+  /// Owners may add their own; accepted custom answers are appended here so the
+  /// pool learns over time. Empty array = open question (free text only).
+  quickAnswers Json                @default("[]")
+  /// Where this prompt came from: ai | curated | user.
+  source       String              @default("ai")
+  sortOrder    Int                 @default(0)
+  /// Denormalized count of owner responses (drives "meistbeantwortet zuerst").
+  responseCount Int                @default(0)
+  status       ProductPromptStatus @default(ACTIVE)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  product   Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
+  responses ProductPromptResponse[]
+
+  @@index([productId, status])
+}
+
+/// One owner's answer to a prompt — a chosen quick answer OR their own text.
+/// Created inside the "Ich besitze es" wizard, optionally tied to the same
+/// experience report. Deduped per (prompt, user) so re-answering updates.
+model ProductPromptResponse {
+  id                 String   @id @default(cuid())
+  promptId           String
+  productId          String
+  userId             String
+  experienceReportId String?
+  answerLabel        String
+  /// True when the owner typed their own answer instead of picking an option.
+  isCustom           Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  prompt           ProductPrompt     @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  product          Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experienceReport ExperienceReport? @relation(fields: [experienceReportId], references: [id], onDelete: SetNull)
+
+  @@unique([promptId, userId])
+  @@index([promptId])
   @@index([productId])
 }
 
@@ -795,3 +863,4 @@ model InvitedVote {
   @@index([inviteId])
   @@index([claimedByUserId])
 }
+

@@ -191,6 +191,17 @@ export const experienceAspectInputSchema = z.object({
 });
 export type ExperienceAspectInput = z.infer<typeof experienceAspectInputSchema>;
 
+/**
+ * One owner answer to a product prompt, captured inside the "Ich besitze es"
+ * wizard. Either a tapped quick answer or the owner's own text (`isCustom`).
+ */
+export const promptResponseInputSchema = z.object({
+  promptId: idSchema,
+  answerLabel: z.string().trim().min(1).max(120),
+  isCustom: z.boolean().optional().default(false),
+});
+export type PromptResponseInput = z.infer<typeof promptResponseInputSchema>;
+
 export const createExperienceSchema = z.object({
   wouldBuyAgain: wouldBuyAgainSchema,
   usageDuration: usageDurationSchema,
@@ -203,6 +214,8 @@ export const createExperienceSchema = z.object({
   variantId: idSchema.optional(),
   positiveAspects: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
   negativeAspects: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  /** Answers to the product-specific prompt pool, gathered in the same wizard. */
+  promptResponses: z.array(promptResponseInputSchema).max(20).optional(),
 });
 export type CreateExperienceInput = z.infer<typeof createExperienceSchema>;
 

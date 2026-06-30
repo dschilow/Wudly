@@ -236,6 +236,31 @@ export interface OwnershipDto {
   createdAt: string;
 }
 
+/** One aggregated owner answer to a prompt: the label and how many owners gave it. */
+export interface ProductPromptAnswerStatDto {
+  label: string;
+  count: number;
+}
+
+/**
+ * A stored, product-specific question with quick answers — the shared pool that
+ * drives the owner "Ich besitze es" wizard (tap a quick answer), the buyer
+ * ask-suggestions, and the "Das sagen Besitzer" aggregate on the product page.
+ * Product knowledge only — never part of the Wudly Signal.
+ */
+export interface ProductPromptDto {
+  id: string;
+  questionText: string;
+  /** Suggested short answers an owner can tap (empty = open/free-text question). */
+  quickAnswers: string[];
+  /** Where it came from: ai | curated | user. */
+  source: string;
+  /** How many owners have answered this prompt. */
+  responseCount: number;
+  /** Aggregated owner answers, most-given first (empty until answered). */
+  answerStats: ProductPromptAnswerStatDto[];
+}
+
 export interface RankingEntryDto {
   rank: number;
   product: ProductSummaryDto;
