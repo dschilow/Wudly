@@ -146,6 +146,11 @@ export class NotificationsService {
         _count: { _all: true },
       }),
     ]);
+    const directlyAskedQuestionIds = new Set(
+      rows
+        .filter((row) => row.type === NotificationType.QUESTION_ASKED && row.questionId)
+        .map((row) => row.questionId as string),
+    );
     const ownerCountMap = new Map(ownerCounts.map((row) => [row.productId, row._count._all]));
     const notificationsByProduct = new Map<string, NotificationDto[]>();
     const questionsByProduct = new Map<string, InboxQuestionDto[]>();
@@ -166,7 +171,9 @@ export class NotificationsService {
         ...dto,
         answeredByMe,
         canAnswer:
-          eligibleProductIds.has(row.productId) && row.askedByUserId !== userId && !answeredByMe,
+          (eligibleProductIds.has(row.productId) || directlyAskedQuestionIds.has(row.id)) &&
+          row.askedByUserId !== userId &&
+          !answeredByMe,
       };
       const items = questionsByProduct.get(row.productId) ?? [];
       items.push(item);
@@ -193,7 +200,9 @@ export class NotificationsService {
       .filter(
         (group) =>
           group.notifications.length > 0 ||
-          group.questions.some((question) => question.canAnswer || question.askedByUserId === userId),
+          group.questions.some(
+            (question) => question.canAnswer || question.askedByUserId === userId,
+          ),
       )
       .sort((a, b) => {
         const unread = Number(b.unreadCount > 0) - Number(a.unreadCount > 0);

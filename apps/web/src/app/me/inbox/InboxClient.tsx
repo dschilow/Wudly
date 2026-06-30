@@ -178,6 +178,8 @@ export function InboxClient() {
     void refreshBadge();
   };
 
+  const currentUserId = user?.id ?? null;
+
   if (!authLoading && !user) {
     return (
       <AuthGate
@@ -292,7 +294,12 @@ export function InboxClient() {
           </h2>
           <div className="card divide-y divide-border overflow-hidden">
             {inbox.ungrouped.map((notification) => (
-              <GeneralNotification key={notification.id} notification={notification} />
+              <GeneralNotification
+                key={notification.id}
+                notification={notification}
+                groups={inbox.groups}
+                onOpenGroup={openGroup}
+              />
             ))}
           </div>
         </section>
@@ -306,10 +313,11 @@ export function InboxClient() {
         }}
         ariaLabel={selectedGroup ? `Fragen zu ${selectedGroup.product.canonicalName}` : 'Fragen'}
       >
-        {selectedGroup && (
+        {selectedGroup && currentUserId && (
           <ProductInboxSheet
             group={selectedGroup}
             focusQuestionId={selectedQuestionId}
+            currentUserId={currentUserId}
             onClose={() => {
               setSelectedProductId(null);
               setSelectedQuestionId(null);
@@ -441,11 +449,13 @@ function MetricPill({ icon: Icon, label }: { icon: typeof Bell; label: string })
 function ProductInboxSheet({
   group,
   focusQuestionId,
+  currentUserId,
   onClose,
   onAnswered,
 }: {
   group: NotificationProductGroupDto;
   focusQuestionId: string | null;
+  currentUserId: string;
   onClose: () => void;
   onAnswered: (questionId: string, answer: AnswerDto) => void;
 }) {
@@ -455,6 +465,8 @@ function ProductInboxSheet({
     pending[0] ??
     group.questions[0] ??
     null;
+  const otherQuestions = group.questions.filter((question) => question.id !== primaryQuestion?.id);
+  const timelineNotifications = group.notifications.slice(0, 5);
 
   return (
     <motion.div layout className="space-y-6 pb-2">
@@ -485,7 +497,11 @@ function ProductInboxSheet({
         <section className="rounded-[var(--radius-lg)] border border-accent/20 bg-accent/5 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div>
             <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
-              {primaryQuestion.canAnswer ? 'Deine Antwort wird gesucht' : 'Aktuelle Frage'}
+              {primaryQuestion.canAnswer
+                ? 'Deine Antwort wird gesucht'
+                : primaryQuestion.askedByUserId === currentUserId
+                  ? 'Deine Frage'
+                  : 'Aktuelle Frage'}
             </p>
             <h3 className="mt-1 text-[1.25rem] font-semibold leading-tight text-label">
               {primaryQuestion.questionText}
@@ -494,11 +510,13 @@ function ProductInboxSheet({
           <div className="mt-4">
             <AnswerProgress question={primaryQuestion} prominent />
           </div>
-          {primaryQuestion.canAnswer && (
-            <div className="mt-3">
+          <div className="mt-3">
+            {primaryQuestion.canAnswer ? (
               <AnswerComposer question={primaryQuestion} onAnswered={onAnswered} />
-            </div>
-          )}
+            ) : (
+              <QuestionStatusNotice question={primaryQuestion} currentUserId={currentUserId} />
+            )}
+          </div>
         </section>
       ) : (
         <div className="rounded-[var(--radius-lg)] bg-fill-1 p-5 text-center">
@@ -507,45 +525,45 @@ function ProductInboxSheet({
         </div>
       )}
 
-      <section className="space-y-3">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
-              Produktwissen
-            </p>
-            <h3 className="mt-1 text-[1.0625rem] font-semibold text-label">
-              Bereits gestellte Fragen
-            </h3>
+      {otherQuestions.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
+                Produktwissen
+              </p>
+              <h3 className="mt-1 text-[1.0625rem] font-semibold text-label">Weitere Fragen</h3>
+            </div>
+            <span className="text-[0.8125rem] text-muted-foreground">
+              {otherQuestions.length} weitere
+            </span>
           </div>
-          <span className="text-[0.8125rem] text-muted-foreground">
-            {group.questions.length} gesamt
-          </span>
-        </div>
-        <motion.div layout className="space-y-2.5">
-          {group.questions.map((question) => (
-            <QuestionOverview
-              key={question.id}
-              question={question}
-              initiallyOpen={question.id === primaryQuestion?.id}
-              onAnswered={onAnswered}
-            />
-          ))}
-        </motion.div>
-      </section>
+          <motion.div layout className="space-y-2.5">
+            {otherQuestions.map((question) => (
+              <QuestionOverview
+                key={question.id}
+                question={question}
+                initiallyOpen={false}
+                onAnswered={onAnswered}
+              />
+            ))}
+          </motion.div>
+        </section>
+      )}
 
-      {group.notifications.length > 0 && (
+      {timelineNotifications.length > 1 && (
         <section className="space-y-3">
           <div>
             <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
-              Verlauf
+              Aktivität
             </p>
             <h3 className="mt-1 text-[1.0625rem] font-semibold text-label">
-              Nachrichten zu diesem Produkt
+              Benachrichtigungen zu diesem Produkt
             </h3>
           </div>
           <div className="relative space-y-0 pl-3">
             <span className="absolute bottom-4 left-[1.15rem] top-4 w-px bg-border" aria-hidden />
-            {group.notifications.map((notification, index) => (
+            {timelineNotifications.map((notification, index) => (
               <motion.div
                 key={notification.id}
                 initial={{ opacity: 0, x: -10 }}
@@ -578,6 +596,28 @@ function ProductInboxSheet({
         Ganze Produktseite öffnen
       </Link>
     </motion.div>
+  );
+}
+
+function QuestionStatusNotice({
+  question,
+  currentUserId,
+}: {
+  question: InboxQuestionDto;
+  currentUserId: string;
+}) {
+  const copy = question.answeredByMe
+    ? 'Du hast diese Frage bereits beantwortet.'
+    : question.askedByUserId === currentUserId
+      ? 'Das ist deine eigene Frage. Andere Besitzer können darauf antworten.'
+      : question.answerCount > 0
+        ? 'Diese Frage hat bereits Antworten. Weitere Antworten sind nur für erkannte Besitzer möglich.'
+        : 'Antworten können nur Nutzer geben, die als Besitzer dieses Produkts erkannt sind.';
+
+  return (
+    <div className="rounded-[var(--radius-md)] bg-fill-1 px-3 py-2.5 text-[0.8125rem] leading-snug text-muted-foreground">
+      {copy}
+    </div>
   );
 }
 
@@ -622,6 +662,11 @@ function QuestionOverview({
   onAnswered: (questionId: string, answer: AnswerDto) => void;
 }) {
   const [open, setOpen] = useState(initiallyOpen);
+
+  useEffect(() => {
+    setOpen(initiallyOpen);
+  }, [initiallyOpen]);
+
   return (
     <motion.article
       layout
@@ -794,9 +839,27 @@ function AnswerComposer({
   );
 }
 
-function GeneralNotification({ notification }: { notification: NotificationDto }) {
+interface NotificationTarget {
+  productId: string | null;
+  questionId: string | null;
+}
+
+function GeneralNotification({
+  notification,
+  groups,
+  onOpenGroup,
+}: {
+  notification: NotificationDto;
+  groups: NotificationProductGroupDto[];
+  onOpenGroup: (group: NotificationProductGroupDto, questionId?: string | null) => void;
+}) {
   const Icon = notification.type === 'ANSWER_HELPFUL' ? ThumbsUp : Clock3;
-  const href = notificationHref(notification);
+  const target = notificationTarget(notification);
+  const group = target
+    ? findGroupForNotificationTarget(groups, target.productId, target.questionId)
+    : null;
+  const href = group ? null : notificationHref(notification);
+  const archived = isQuestionNotification(notification) && !group;
   const content = (
     <div className="flex min-h-16 items-start gap-3 px-4 py-3.5">
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill-2 text-muted-foreground">
@@ -809,10 +872,36 @@ function GeneralNotification({ notification }: { notification: NotificationDto }
             {notification.body}
           </span>
         )}
+        {archived && (
+          <span className="mt-1 block text-[0.75rem] text-faint">
+            Archiviert - diese Frage ist keinem aktiven Produkt-Thread mehr zugeordnet.
+          </span>
+        )}
       </span>
     </div>
   );
-  return href ? <Link href={href}>{content}</Link> : content;
+
+  if (group) {
+    return (
+      <button
+        type="button"
+        onClick={() => void onOpenGroup(group, target?.questionId)}
+        className="tap block w-full text-left transition-colors hover:bg-fill-1"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  if (href && !archived) {
+    return (
+      <Link href={href} className="tap block transition-colors hover:bg-fill-1">
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className="opacity-75">{content}</div>;
 }
 
 function findGroupForNotificationTarget(
@@ -834,22 +923,72 @@ function findGroupForNotificationTarget(
   );
 }
 
-function notificationHref(notification: NotificationDto): string | null {
-  if (notification.productId) {
-    const params = new URLSearchParams({ product: notification.productId });
-    if (notification.questionId) params.set('question', notification.questionId);
-    return `/me/inbox?${params.toString()}`;
+function notificationTarget(notification: NotificationDto): NotificationTarget | null {
+  if (notification.productId || notification.questionId) {
+    return { productId: notification.productId, questionId: notification.questionId };
   }
+  return storedNotificationTarget(notification.link);
+}
+
+function notificationHref(notification: NotificationDto): string | null {
+  const target = notificationTarget(notification);
+  if (isQuestionNotification(notification) && target) return inboxTargetHref(target);
+  if (notification.productId)
+    return inboxTargetHref(target ?? { productId: notification.productId, questionId: null });
   return normalizeStoredNotificationLink(notification.link);
+}
+
+function isQuestionNotification(notification: NotificationDto): boolean {
+  return notification.type === 'QUESTION_ASKED' || notification.type === 'QUESTION_ANSWERED';
+}
+
+function inboxTargetHref(target: NotificationTarget): string | null {
+  if (target.productId && target.questionId) return inboxHref(target.productId, target.questionId);
+  if (target.questionId) return `/me/inbox?question=${encodeURIComponent(target.questionId)}`;
+  if (target.productId) return `/me/inbox?product=${encodeURIComponent(target.productId)}`;
+  return null;
+}
+
+function storedNotificationTarget(link: string | null): NotificationTarget | null {
+  if (!link) return null;
+  try {
+    const url = parseSameOriginUrl(link);
+    if (!url) return null;
+
+    if (url.pathname === '/me/inbox') {
+      const productId = url.searchParams.get('product');
+      const questionId = url.searchParams.get('question');
+      return productId || questionId ? { productId, questionId } : null;
+    }
+
+    const productQuestion = url.pathname.match(/^\/products\/([^/]+)\/questions\/([^/]+)$/);
+    if (productQuestion) return { productId: productQuestion[1]!, questionId: productQuestion[2]! };
+
+    const singularProductQuestion = url.pathname.match(/^\/product\/([^/]+)\/questions\/([^/]+)$/);
+    if (singularProductQuestion) {
+      return { productId: singularProductQuestion[1]!, questionId: singularProductQuestion[2]! };
+    }
+
+    const question = url.pathname.match(/^\/questions\/([^/]+)$/);
+    if (question) return { productId: null, questionId: question[1]! };
+
+    const product = url.pathname.match(/^\/products\/([^/]+)$/);
+    if (product) return { productId: product[1]!, questionId: null };
+
+    const singularProduct = url.pathname.match(/^\/product\/([^/]+)$/);
+    if (singularProduct) return { productId: singularProduct[1]!, questionId: null };
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizeStoredNotificationLink(link: string | null): string | null {
   if (!link) return null;
   try {
-    const baseOrigin =
-      typeof window === 'undefined' ? 'https://wudly.local' : window.location.origin;
-    const url = new URL(link, baseOrigin);
-    if (url.origin !== baseOrigin) return null;
+    const url = parseSameOriginUrl(link);
+    if (!url) return null;
 
     const productQuestion = url.pathname.match(/^\/products\/([^/]+)\/questions\/([^/]+)$/);
     if (productQuestion) return inboxHref(productQuestion[1]!, productQuestion[2]!);
@@ -871,6 +1010,12 @@ function normalizeStoredNotificationLink(link: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+function parseSameOriginUrl(link: string): URL | null {
+  const baseOrigin = typeof window === 'undefined' ? 'https://wudly.local' : window.location.origin;
+  const url = new URL(link, baseOrigin);
+  return url.origin === baseOrigin ? url : null;
 }
 
 function inboxHref(productId: string, questionId: string): string {
