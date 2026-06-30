@@ -4,7 +4,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'motion/react';
-import { Check, Loader2, Plus, SkipForward } from 'lucide-react';
+import {
+  Calendar,
+  CalendarCheck,
+  CalendarDays,
+  CalendarRange,
+  Check,
+  CircleCheck,
+  CircleHelp,
+  Loader2,
+  Minus,
+  Plus,
+  SkipForward,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  Timer,
+  TriangleAlert,
+  Trophy,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
 import type {
   CategoryAspectDto,
   ProductPromptDto,
@@ -22,7 +42,138 @@ import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
-import { OptionGrid, MultiSelectChips } from '@/components/OptionGrid';
+import { MultiSelectChips } from '@/components/OptionGrid';
+
+/* ------------------------------------------------------------------ *
+ * Choice cards — bold, modern single-select cards for the core verdict
+ * questions. Lucide icons + muted verdict colours instead of the old
+ * messenger-style emoji list. The leading icon fills with the verdict
+ * tone on selection; a clean radio confirms the pick.
+ * ------------------------------------------------------------------ */
+
+type CardTone = 'positive' | 'negative' | 'warning' | 'neutral';
+
+interface ChoiceMeta {
+  icon: LucideIcon;
+  tone: CardTone;
+  hint?: string;
+}
+
+const TONE_STYLES: Record<
+  CardTone,
+  { ring: string; iconIdle: string; iconActive: string; radio: string }
+> = {
+  positive: {
+    ring: 'shadow-[0_0_0_2px_var(--color-positive),var(--shadow-card)]',
+    iconIdle: 'bg-positive-soft text-positive-ink',
+    iconActive: 'bg-positive text-white',
+    radio: 'bg-positive',
+  },
+  negative: {
+    ring: 'shadow-[0_0_0_2px_var(--color-regret),var(--shadow-card)]',
+    iconIdle: 'bg-regret-soft text-regret-ink',
+    iconActive: 'bg-regret text-white',
+    radio: 'bg-regret',
+  },
+  warning: {
+    ring: 'shadow-[0_0_0_2px_var(--color-unsure),var(--shadow-card)]',
+    iconIdle: 'bg-unsure-soft text-unsure-ink',
+    iconActive: 'bg-unsure text-white',
+    radio: 'bg-unsure',
+  },
+  neutral: {
+    ring: 'shadow-[0_0_0_2px_var(--color-accent),var(--shadow-card)]',
+    iconIdle: 'bg-accent-soft text-accent-ink',
+    iconActive: 'bg-accent text-white',
+    radio: 'bg-accent',
+  },
+};
+
+const BUY_AGAIN_META: Record<string, ChoiceMeta> = {
+  YES: { icon: ThumbsUp, tone: 'positive', hint: 'Klare Empfehlung' },
+  NO: { icon: ThumbsDown, tone: 'negative', hint: 'Würde ich nicht nochmal' },
+  UNSURE: { icon: CircleHelp, tone: 'warning', hint: 'Kommt drauf an' },
+};
+
+const DURATION_META: Record<string, ChoiceMeta> = {
+  LESS_THAN_WEEK: { icon: Timer, tone: 'neutral' },
+  ONE_TO_FOUR_WEEKS: { icon: CalendarDays, tone: 'neutral' },
+  ONE_TO_SIX_MONTHS: { icon: CalendarRange, tone: 'neutral' },
+  SIX_TO_TWELVE_MONTHS: { icon: Calendar, tone: 'neutral' },
+  MORE_THAN_YEAR: { icon: CalendarCheck, tone: 'positive' },
+};
+
+const MOOD_META: Record<string, ChoiceMeta> = {
+  TOP_BUY: { icon: Trophy, tone: 'positive' },
+  GOOD_DAILY_USE: { icon: CircleCheck, tone: 'positive' },
+  OKAY: { icon: Minus, tone: 'neutral' },
+  ANNOYING: { icon: TriangleAlert, tone: 'warning' },
+  DEFECTIVE: { icon: Wrench, tone: 'negative' },
+  REGRET: { icon: ThumbsDown, tone: 'negative' },
+  SURPRISINGLY_GOOD: { icon: Sparkles, tone: 'positive' },
+};
+
+function ChoiceCards<T extends string>({
+  options,
+  meta,
+  value,
+  onChange,
+}: {
+  options: ReadonlyArray<{ value: T; label: string }>;
+  meta: Record<string, ChoiceMeta>;
+  value: T | null;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="space-y-2.5">
+      {options.map((opt) => {
+        const m = meta[opt.value] ?? { icon: Minus, tone: 'neutral' as CardTone };
+        const t = TONE_STYLES[m.tone];
+        const selected = value === opt.value;
+        const Icon = m.icon;
+        return (
+          <motion.button
+            key={opt.value}
+            type="button"
+            whileTap={{ scale: 0.985 }}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              'flex w-full items-center gap-3.5 rounded-[var(--radius-lg)] bg-surface p-3 text-left transition-shadow duration-200',
+              selected ? t.ring : 'shadow-[0_0_0_1.5px_var(--color-border)]',
+            )}
+          >
+            <span
+              className={cn(
+                'grid h-12 w-12 shrink-0 place-items-center rounded-[0.85rem] transition-colors duration-200',
+                selected ? t.iconActive : t.iconIdle,
+              )}
+            >
+              <Icon className="h-[1.45rem] w-[1.45rem]" strokeWidth={2.1} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="font-display block text-[1.1875rem] leading-tight text-label">
+                {opt.label}
+              </span>
+              {m.hint && (
+                <span className="mt-0.5 block text-[0.8125rem] leading-snug text-muted-foreground">
+                  {m.hint}
+                </span>
+              )}
+            </span>
+            <span
+              className={cn(
+                'grid h-[1.6rem] w-[1.6rem] shrink-0 place-items-center rounded-full transition-all duration-200',
+                selected ? t.radio : 'bg-fill-2',
+              )}
+            >
+              {selected && <Check className="h-[0.95rem] w-[0.95rem] text-white" strokeWidth={3.2} aria-hidden />}
+            </span>
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
 
 interface FlowProps {
   productId: string;
@@ -372,16 +523,17 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
           className="space-y-5"
         >
           <div className="px-1">
-            <p className="text-[0.8125rem] text-faint">
+            <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               {productName}
               {optional && ' · optional'}
             </p>
-            <h1 className="font-display mt-1 text-[1.75rem] leading-tight text-label">{heading}</h1>
+            <h1 className="font-display mt-2 text-[1.9rem] leading-[1.08] text-label">{heading}</h1>
           </div>
 
           {current === 'buyAgain' && (
-            <OptionGrid
+            <ChoiceCards
               options={WOULD_BUY_AGAIN_OPTIONS}
+              meta={BUY_AGAIN_META}
               value={buyAgain}
               onChange={(v) => {
                 setBuyAgain(v);
@@ -390,8 +542,9 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
             />
           )}
           {current === 'duration' && (
-            <OptionGrid
+            <ChoiceCards
               options={USAGE_DURATION_OPTIONS}
+              meta={DURATION_META}
               value={duration}
               onChange={(v) => {
                 setDuration(v);
@@ -400,8 +553,9 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
             />
           )}
           {current === 'mood' && (
-            <OptionGrid
+            <ChoiceCards
               options={EXPERIENCE_MOOD_OPTIONS}
+              meta={MOOD_META}
               value={mood}
               onChange={(v) => {
                 setMood(v);
@@ -569,25 +723,32 @@ function PromptCard({
   return (
     <div className="space-y-3">
       {prompt.quickAnswers.length > 0 && (
-        <div className="card overflow-hidden">
-          {prompt.quickAnswers.map((answer, i) => {
+        <div className="space-y-2.5">
+          {prompt.quickAnswers.map((answer) => {
             const selected = value && !value.isCustom && value.answerLabel === answer;
             return (
-              <button
+              <motion.button
                 key={answer}
                 type="button"
+                whileTap={{ scale: 0.985 }}
                 onClick={() => onPick({ answerLabel: answer, isCustom: false })}
                 className={cn(
-                  'tap flex w-full items-center gap-3 px-4 py-3.5 text-left',
-                  i < prompt.quickAnswers.length - 1 && 'hairline',
+                  'flex w-full items-center gap-3 rounded-[var(--radius-lg)] bg-surface px-4 py-3.5 text-left transition-shadow duration-200',
+                  selected
+                    ? 'shadow-[0_0_0_2px_var(--color-accent),var(--shadow-card)]'
+                    : 'shadow-[0_0_0_1.5px_var(--color-border)]',
                 )}
-                style={{ ['--hairline-inset' as string]: '1rem' }}
               >
                 <span className="flex-1 text-[1.0625rem] text-label">{answer}</span>
-                {selected && (
-                  <Check className="h-[1.25rem] w-[1.25rem] text-accent" strokeWidth={3} aria-hidden />
-                )}
-              </button>
+                <span
+                  className={cn(
+                    'grid h-[1.5rem] w-[1.5rem] shrink-0 place-items-center rounded-full transition-all duration-200',
+                    selected ? 'bg-accent' : 'bg-fill-2',
+                  )}
+                >
+                  {selected && <Check className="h-[0.9rem] w-[0.9rem] text-white" strokeWidth={3.2} aria-hidden />}
+                </span>
+              </motion.button>
             );
           })}
         </div>
