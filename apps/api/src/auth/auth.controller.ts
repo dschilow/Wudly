@@ -1,7 +1,17 @@
-import { Controller, Post, Get, Body, Res, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Res,
+  Req,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import {
   registerSchema,
   loginSchema,
@@ -62,9 +72,17 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async me(
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserDto> {
-    this.setCsrfCookie(res);
+    const bearerToken = this.bearerTokenFromRequest(req);
+    if (bearerToken && !this.hasAuthCookie(req)) {
+      // The guard already verified this legacy bearer token; promote it once
+      // into the safer HttpOnly cookie so old browser sessions keep working.
+      this.setAuthCookies(res, bearerToken);
+    } else {
+      this.setCsrfCookie(res);
+    }
     return this.authService.getMe(user.id);
   }
 
@@ -86,6 +104,18 @@ export class AuthController {
 
   private createCsrfToken(): string {
     return randomBytes(32).toString('base64url');
+  }
+
+  private bearerTokenFromRequest(req: Request): string | null {
+    const authHeader = req.headers.authorization;
+    if (typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) return null;
+    const token = authHeader.slice('Bearer '.length).trim();
+    return token.length > 0 ? token : null;
+  }
+
+  private hasAuthCookie(req: Request): boolean {
+    const cookies = (req as Request & { cookies?: Record<string, string | undefined> }).cookies;
+    return Boolean(cookies?.[AUTH_COOKIE_NAME]);
   }
 
   private cookieBaseOptions(httpOnly = true) {
