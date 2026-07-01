@@ -33,7 +33,13 @@ import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { JsonLd } from '@/components/JsonLd';
-import { productJsonLd, breadcrumbJsonLd, absoluteUrl, productPath } from '@/lib/seo';
+import {
+  productJsonLd,
+  productQaPageJsonLd,
+  breadcrumbJsonLd,
+  absoluteUrl,
+  productPath,
+} from '@/lib/seo';
 import { productShareImageUrl } from '@/lib/product-media';
 import { ShareButton } from '@/components/ShareButton';
 import { SignalPanel } from '@/components/SignalPanel';
@@ -549,6 +555,7 @@ export default async function ProductPage({ params }: PageProps) {
   const publicExperiences = experiences.filter((e) => e.isPublic);
 
   const canonicalPath = productPath(product);
+  const qaJsonLd = productQaPageJsonLd(product, questions);
   const structuredData = [
     productJsonLd(product),
     breadcrumbJsonLd([
@@ -556,6 +563,7 @@ export default async function ProductPage({ params }: PageProps) {
       { name: 'Entdecken', url: absoluteUrl('/rankings') },
       { name: product.canonicalName, url: absoluteUrl(canonicalPath) },
     ]),
+    ...(qaJsonLd ? [qaJsonLd] : []),
   ];
 
   /* ── Tab contents ──────────────────────────────────────────────────── */

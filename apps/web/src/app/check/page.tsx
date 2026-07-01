@@ -3,11 +3,15 @@ import type { Metadata } from 'next';
 import type { CategoryDto, ProductSummaryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { CheckClient } from './CheckClient';
+import { JsonLd } from '@/components/JsonLd';
+import { organizationJsonLd, websiteJsonLd } from '@/lib/seo';
 import { PageSkeleton } from '@/components/states/States';
 
 export const metadata: Metadata = {
-  title: 'Produkt prüfen',
-  description: 'Suche ein Produkt und sieh, ob echte Besitzer es wieder kaufen würden.',
+  title: 'Wudly — Würden echte Besitzer es wieder kaufen?',
+  description:
+    'Recherchiere Produkte mit echten Besitzer-Erfahrungen nach echter Nutzung: Wiederkauf-Score, Regret-Score, häufige Probleme und Fragen an echte Besitzer — keine gekauften Sterne.',
+  alternates: { canonical: '/' },
 };
 
 export const revalidate = 60;
@@ -30,8 +34,11 @@ export default async function CheckPage() {
   const featured: ProductSummaryDto[] = popular.map((e) => e.product);
 
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <CheckClient categories={categories} featured={featured} freshlyAdded={freshlyAdded} />
-    </Suspense>
+    <>
+      <JsonLd data={[websiteJsonLd(), organizationJsonLd()]} />
+      <Suspense fallback={<PageSkeleton />}>
+        <CheckClient categories={categories} featured={featured} freshlyAdded={freshlyAdded} />
+      </Suspense>
+    </>
   );
 }

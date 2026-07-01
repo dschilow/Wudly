@@ -8,7 +8,7 @@ import { ApiError } from '@/lib/api-client';
 import { ProductList } from '@/components/ProductList';
 import { JsonLd } from '@/components/JsonLd';
 import { EmptyState } from '@/components/states/States';
-import { breadcrumbJsonLd, itemListJsonLd, absoluteUrl } from '@/lib/seo';
+import { breadcrumbJsonLd, collectionPageJsonLd, absoluteUrl } from '@/lib/seo';
 
 export const revalidate = 120;
 
@@ -81,17 +81,26 @@ export default async function CategoryPage({ params }: PageProps) {
 
   const { category, productCount, averageRebuyScore, top, flops, sealCount, blindSpot } = data;
 
+  const listedProducts = top.length > 0 ? top : catalogProducts;
+  const collectionDescription =
+    `Wiederkauf-Score, häufigste Probleme und die Top-Empfehlungen für ${category.name} — ` +
+    `basierend auf ${productCount} Produkten und echten Besitzer-Erfahrungen nach echter Nutzung.`;
   const structuredData = [
     breadcrumbJsonLd([
       { name: 'Start', url: absoluteUrl('/') },
       { name: 'Entdecken', url: absoluteUrl('/rankings') },
       { name: category.name, url: absoluteUrl(`/kategorie/${slug}`) },
     ]),
-    ...(top.length > 0
-      ? [itemListJsonLd(`Top ${category.name}`, top)]
-      : catalogProducts.length > 0
-        ? [itemListJsonLd(`${category.name} im Katalog`, catalogProducts)]
-        : []),
+    ...(listedProducts.length > 0
+      ? [
+          collectionPageJsonLd({
+            name: `${category.name} — Wiederkauf-Bewertungen echter Besitzer`,
+            description: collectionDescription,
+            path: `/kategorie/${slug}`,
+            products: listedProducts,
+          }),
+        ]
+      : []),
   ];
 
   return (

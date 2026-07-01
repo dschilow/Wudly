@@ -1,14 +1,30 @@
 ﻿import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
+import type { ProductSummaryDto } from '@wudly/shared';
 import ProductOverviewPage, {
   generateMetadata as generateProductMetadata,
   revalidate,
 } from '@/app/products/[id]/page';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
-import { productIdFromSlug, productPath } from '@/lib/seo';
+import { productIdFromSlug, productPath, productSlug } from '@/lib/seo';
 
 export { revalidate };
+
+/**
+ * Pre-render the most-visited products at build time so their pages are static
+ * (instant + reliably crawlable) the moment Google arrives. Any other product
+ * still renders on demand and is then cached — `dynamicParams` stays default
+ * true, so this is a warm-start list, not an allowlist.
+ */
+export async function generateStaticParams() {
+  try {
+    const page = await api.products.list({ take: 100, skip: 0 });
+    return page.items.map((product: ProductSummaryDto) => ({ slug: productSlug(product) }));
+  } catch {
+    return [];
+  }
+}
 
 interface PageProps {
   params: Promise<{ slug: string }>;
