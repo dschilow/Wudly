@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { ShowcaseRenderer } from '@/components/showcase/ShowcaseRenderer';
 import { Thumb } from '@/components/Thumb';
+import { productPath } from '@/lib/seo';
 
 export const revalidate = 60;
 
@@ -42,7 +43,7 @@ export default async function ShowcasePage({ params }: PageProps) {
   return (
     <div className="animate-fade space-y-5 pb-8 pt-1">
       <Link
-        href={`/products/${showcase.productId}`}
+        href={showcase.product ? productPath(showcase.product) : `/products/${showcase.productId}`}
         className="tap-dim inline-flex items-center gap-1.5 text-[0.9375rem] text-accent"
       >
         <ArrowLeft className="h-4 w-4" strokeWidth={2.4} />
@@ -52,7 +53,7 @@ export default async function ShowcasePage({ params }: PageProps) {
       {/* Product context + the "this is not the score" reminder */}
       {showcase.product && (
         <Link
-          href={`/products/${showcase.productId}`}
+          href={productPath(showcase.product)}
           className="press card flex items-center gap-3 p-3"
         >
           <Thumb product={showcase.product} className="h-12 w-12" rounded="rounded-[0.7rem]" />

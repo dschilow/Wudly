@@ -38,6 +38,7 @@ import { PushOptIn } from '@/components/PushOptIn';
 import { EmptyState, ErrorState, Skeleton } from '@/components/states/States';
 import { LargeTitle } from '@/components/ios/LargeTitle';
 import { Sheet } from '@/components/ui/Sheet';
+import { productPath } from '@/lib/seo';
 import { Thumb } from '@/components/Thumb';
 import { Button } from '@/components/ui/Button';
 import { formatDate, formatRelativeTime } from '@/lib/utils';
@@ -590,7 +591,7 @@ function ProductInboxSheet({
       )}
 
       <Link
-        href={`/products/${group.product.id}`}
+        href={productPath(group.product)}
         className="press flex h-12 items-center justify-center rounded-[var(--radius-lg)] bg-fill-2 text-[0.9375rem] font-semibold text-label"
       >
         Ganze Produktseite öffnen

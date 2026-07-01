@@ -38,6 +38,7 @@ import {
   EXPERIENCE_MOOD_OPTIONS,
 } from '@wudly/shared';
 import { api } from '@/lib/api';
+import { productPath } from '@/lib/seo';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
@@ -448,7 +449,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
         </p>
         <div className="mt-8 space-y-2.5">
           <Link
-            href={`/products/${productId}`}
+            href={productPath({ id: productId, canonicalName: productName })}
             className="tap-dim flex h-[3.125rem] items-center justify-center rounded-[var(--radius-md)] bg-accent text-[1.0625rem] font-semibold text-white"
           >
             Produktseite ansehen

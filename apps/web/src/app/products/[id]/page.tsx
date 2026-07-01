@@ -450,7 +450,7 @@ function Alternatives({
           return (
             <Link
               key={alt.id}
-              href={`/products/${alt.id}`}
+              href={productPath(alt)}
               className={cn(
                 'tap flex items-center gap-3.5 px-3.5 py-3',
                 i < top.length - 1 && 'hairline',

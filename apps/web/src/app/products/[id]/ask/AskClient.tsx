@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { AskForm } from '@/components/AskForm';
 import { AuthGate } from '@/components/AuthGate';
+import { productPath } from '@/lib/seo';
 
 /** Standalone /ask route — same composer the product page opens as a sheet. */
 export function AskClient({ productId, productName }: { productId: string; productName: string }) {
@@ -25,7 +26,7 @@ export function AskClient({ productId, productName }: { productId: string; produ
       <AskForm
         productId={productId}
         productName={productName}
-        onDone={() => router.push(`/products/${productId}`)}
+        onDone={() => router.push(productPath({ id: productId, canonicalName: productName }))}
       />
     </div>
   );

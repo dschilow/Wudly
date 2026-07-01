@@ -9,6 +9,7 @@ import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
+import { productPath } from '@/lib/seo';
 
 /**
  * The "Besitzer fragen" composer — textarea + AI-suggested questions. Lives in
@@ -84,7 +85,7 @@ export function AskForm({
           Melde dich an, um Besitzern von „{productName}&ldquo; eine Frage zu stellen.
         </p>
         <Link
-          href={`/login?redirect=/products/${productId}`}
+          href={`/login?redirect=${encodeURIComponent(productPath({ id: productId, canonicalName: productName }))}`}
           className="press inline-flex h-11 items-center justify-center rounded-full bg-accent px-6 text-[1rem] font-semibold text-[#f1efe6]"
         >
           Anmelden
