@@ -211,6 +211,17 @@ export interface ResearchedExternalConsensus {
   sourceUrls: string[];
 }
 
+/**
+ * Official product data AND the public rating consensus from ONE web search —
+ * the cost-optimized add path. Each half degrades independently: a product that
+ * can't be verified comes back `found:false`, an absent rating picture as an
+ * empty consensus, exactly like the two separate calls.
+ */
+export interface CombinedProductResearch {
+  product: ResearchedProduct;
+  consensus: ResearchedExternalConsensus;
+}
+
 export interface AiService {
   summarizeProductInsights(productId: string): Promise<ProductInsightSummary>;
   extractProductCandidate(input: ProductInput): Promise<ProductCandidate>;
@@ -251,6 +262,16 @@ export interface AiService {
     name: string,
     brand: string | null,
   ): Promise<ResearchedExternalConsensus>;
+  /**
+   * Research a product's official data AND its public rating consensus in a
+   * SINGLE web search, then extract both. Halves the paid search cost of the add
+   * flow versus calling researchProduct + researchExternalConsensus separately.
+   * Never throws — a failed/partial search yields `found:false` / empty consensus.
+   */
+  researchProductAndConsensus(
+    name: string,
+    categorySlugs: string[],
+  ): Promise<CombinedProductResearch>;
 }
 
 /** DI token string for the AiService binding in the backend. */

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '@prisma/client';
 import {
   normalizeProductName,
@@ -33,6 +34,7 @@ import {
   type ImageBackfillResultDto,
   type RatingBackfillReportDto,
   type RatingBackfillResultDto,
+  type ResearchedProduct,
   type ResearchedExternalConsensus,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -43,6 +45,7 @@ import { IcecatService, type EanLookupHit } from './icecat.service';
 import { ProductImageService } from './product-image.service';
 import { ExternalRatingsService } from './external-ratings.service';
 import { BraveSearchService, type BraveWebResult } from '../ai/brave-search.service';
+import type { AppConfig } from '../config/configuration';
 import { renderProductPreviewSvg } from './product-preview-svg';
 import { renderProductShareSvg } from './product-share-svg';
 import {
@@ -274,7 +277,15 @@ export class ProductsService {
     @Inject(ExternalRatingsService) private readonly externalRatings: ExternalRatingsService,
     @Inject(BraveSearchService) private readonly webSearch: BraveSearchService,
     @Inject(AI_SERVICE) private readonly ai: AiService,
-  ) {}
+    @Inject(ConfigService) config: ConfigService<AppConfig, true>,
+  ) {
+    // One combined product+consensus search per add (halves the paid search cost)
+    // unless explicitly turned off for the higher-recall per-aspect searches.
+    this.combinedResearch = config.get('PRODUCT_RESEARCH_COMBINED', { infer: true });
+  }
+
+  /** When true, the add flow researches product data + rating consensus in ONE search. */
+  private readonly combinedResearch: boolean;
 
   async list(take: number, skip: number): Promise<PaginatedDto<ProductSummaryDto>> {
     const [rows, total] = await Promise.all([
@@ -616,14 +627,23 @@ export class ProductsService {
     let aiPageUrl: string | null = null;
 
     // Enrichment cascade — only ask the AI to fill what the catalogs couldn't
-    // (description, an image, a couple of specs). DB facts always win.
+    // (description, an image, a couple of specs). DB facts always win. With
+    // combined research a SINGLE web search returns both the product data and the
+    // rating consensus; the consensus is held and stored right after create.
+    let researchedConsensus: ResearchedExternalConsensus | null = null;
     if (params.research) {
       try {
-        const slugs = await this.prisma.category.findMany({ select: { slug: true } });
-        const researched = await this.ai.researchProduct(
-          rawName,
-          slugs.map((s) => s.slug),
-        );
+        const slugs = (
+          await this.prisma.category.findMany({ select: { slug: true } })
+        ).map((s) => s.slug);
+        let researched: ResearchedProduct;
+        if (this.combinedResearch) {
+          const combined = await this.ai.researchProductAndConsensus(rawName, slugs);
+          researched = combined.product;
+          researchedConsensus = combined.consensus;
+        } else {
+          researched = await this.ai.researchProduct(rawName, slugs);
+        }
         if (researched.found) {
           if (researched.canonicalName && !params.imageUrl) {
             canonicalName = researched.canonicalName;
@@ -700,10 +720,15 @@ export class ProductsService {
     if (!dbImageUrl) huntImage(result.product.id);
     // Generate the product-specific owner/buyer question pool (one-time, async).
     this.prompts.generateInBackground(result.product.id);
-    // Complete the one-time consensus research before returning so the first
-    // product page response cannot cache an empty ratings state.
+    // Persist the rating consensus before returning so the first product page
+    // response can't cache an empty ratings state. When combined research already
+    // fetched it in the same search, store that directly — no second paid search.
     try {
-      await this.researchAndStoreRatings(result.product.id, canonicalName, brand);
+      if (researchedConsensus) {
+        await this.storeResearchedConsensus(result.product.id, researchedConsensus);
+      } else {
+        await this.researchAndStoreRatings(result.product.id, canonicalName, brand);
+      }
     } catch (err) {
       this.logger.warn(
         `Initial external consensus failed for ${result.product.id}: ${err instanceof Error ? err.message : err}`,
@@ -866,6 +891,20 @@ export class ProductsService {
       brand,
       options.aiServices,
     );
+    const { ratings, themes } = await this.storeResearchedConsensus(productId, research);
+    return { ratings, themes, cached: false };
+  }
+
+  /**
+   * Persist an already-researched external consensus: upsert the rating facts and
+   * store the themes/summary — even when empty (a negative cache so the next
+   * backfill doesn't burn another paid search). Shared by the separate rating
+   * research and the combined add-flow research, so both write it identically.
+   */
+  private async storeResearchedConsensus(
+    productId: string,
+    research: ResearchedExternalConsensus,
+  ): Promise<{ ratings: number; themes: number }> {
     let stored = 0;
     for (const rating of research.ratings) {
       if (rating.url.length > 500) continue;
@@ -882,13 +921,11 @@ export class ProductsService {
       stored += 1;
     }
     const themes = research.positiveThemes.length + research.negativeThemes.length;
-    // Persist even an empty result as a negative cache. Otherwise an unavailable
-    // product would burn another paid search on every admin backfill.
     await this.externalRatings.storeResearch(productId, research);
     if (stored > 0) {
-      this.logger.log(`External ratings researched for ${productId}: ${stored}`);
+      this.logger.log(`External ratings stored for ${productId}: ${stored}`);
     }
-    return { ratings: stored, themes, cached: false };
+    return { ratings: stored, themes };
   }
 
   private async researchExternalConsensusWithFallback(

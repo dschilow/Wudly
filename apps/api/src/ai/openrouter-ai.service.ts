@@ -127,7 +127,7 @@ const externalConsensusSchema = z.object({
 });
 const externalRatingsSchema = z.object({ ratings: externalConsensusSchema.shape.ratings });
 
-const researchSchema = z.object({
+const researchProductShape = z.object({
   canonicalName: z.string().trim().min(1).max(160),
   brand: z.string().trim().max(80).nullable().optional(),
   categorySlug: z.string().trim().max(80).nullable().optional(),
@@ -139,7 +139,27 @@ const researchSchema = z.object({
   imageUrl: z.string().trim().url().max(600).nullable().optional(),
   productUrl: z.string().trim().url().max(600).nullable().optional(),
   found: z.coerce.boolean().optional().default(false),
-}).refine((product) => product.found, { message: 'product not verified' });
+});
+const researchSchema = researchProductShape.refine((product) => product.found, {
+  message: 'product not verified',
+});
+
+/**
+ * Combined add-flow research: product data + rating consensus from ONE search.
+ * Both halves are tolerant so a weak half never voids the strong one — an
+ * unverified product still lets the consensus through, and an empty consensus
+ * (product data found, no independent reviews) still lets the product through.
+ */
+/** Consensus schema without the strict sourceUrls minimum — for the combined
+    add-flow search, where product data may exist without independent reviews. */
+const tolerantConsensusSchema = externalConsensusSchema.extend({
+  sourceUrls: z.array(z.string().trim().url().max(600)).max(12).default([]),
+});
+
+const combinedResearchSchema = z.object({
+  product: researchProductShape,
+  consensus: tolerantConsensusSchema,
+});
 
 /**
  * Real AI implementation backed by OpenRouter (Gemini Flash 3.1 Lite by default).
@@ -538,7 +558,14 @@ export class OpenRouterAiService implements AiService {
       { temperature: 0.2, maxTokens: 600 },
     );
     if (!parsed) return this.fallback.researchProduct(name, categorySlugs);
+    return this.finalizeProduct(parsed, categorySlugs);
+  }
 
+  /** Map validated product research into the shared ResearchedProduct shape. */
+  private finalizeProduct(
+    parsed: z.input<typeof researchProductShape>,
+    categorySlugs: string[],
+  ): ResearchedProduct {
     const slug =
       parsed.categorySlug && categorySlugs.includes(parsed.categorySlug)
         ? parsed.categorySlug
@@ -630,6 +657,19 @@ export class OpenRouterAiService implements AiService {
     if (!parsed) {
       return { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] };
     }
+    return this.finalizeConsensus(parsed, brand);
+  }
+
+  /**
+   * Map + sanitize validated consensus research into the shared shape: clean the
+   * rating facts, dedupe + domain-filter the sources (no blocked review farms, no
+   * brand-owned pages), and keep only recurring themes with ≥2 independent
+   * sources. Shared by the separate call and the combined add-flow research.
+   */
+  private finalizeConsensus(
+    parsed: z.input<typeof tolerantConsensusSchema>,
+    brand: string | null,
+  ): ResearchedExternalConsensus {
     const ratings = this.cleanExternalRatings(parsed.ratings ?? []);
     const sourceUrls = uniqueUrls([
       ...(parsed.sourceUrls ?? []),
@@ -687,6 +727,72 @@ export class OpenRouterAiService implements AiService {
         count: r.count ?? null,
       }))
       .filter((r) => r.source.length >= 2);
+  }
+
+  /**
+   * Combined add-flow research: official product data + public rating consensus
+   * from ONE web search — halves the paid search cost of adding a product versus
+   * researchProduct + researchExternalConsensus. Degrades gracefully: a failed
+   * search returns a name-only product + empty consensus without paying for a
+   * second recovery search; a weak half never voids the strong one (tolerant
+   * schema), reusing the exact same mapping/sanitizing as the separate calls.
+   */
+  async researchProductAndConsensus(
+    name: string,
+    categorySlugs: string[],
+  ): Promise<{ product: ResearchedProduct; consensus: ResearchedExternalConsensus }> {
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content:
+          'Du recherchierst ein Konsumprodukt für eine deutsche Produktplattform und lieferst in ' +
+          'EINEM Durchgang zwei Blöcke: (A) offizielle Produktdaten, (B) die öffentliche ' +
+          'Bewertungslage. Für (A) bevorzuge die offizielle deutsche Herstellerseite, für (B) ' +
+          'seriöse Tests, Produktbewertungen und Erfahrungsseiten. Ignoriere Preise, Versand, ' +
+          'Verfügbarkeit und Werbetexte. Falls ein Websuch-Kontext Markdown-Zitate verlangt, ' +
+          'ignoriere das: Die Antwort MUSS reines JSON ohne Markdown sein.\n' +
+          'Block "product": canonicalName (sauberer offizieller Name mit Marke), brand, ' +
+          `categorySlug (EXAKT einer aus: ${categorySlugs.join(', ')} — sonst null), description ` +
+          '(ein sachlicher deutscher Satz), specs (bis 8 sichere {label,value}-Fakten, sonst leer), ' +
+          'productUrl (offizielle Produktseite), imageUrl (direktes offizielles Foto, nur wenn sehr ' +
+          'sicher, sonst null), found (true NUR wenn zweifelsfrei erkannt, sonst false; nichts erfinden).\n' +
+          'Block "consensus": ratings nur mit belegtem Durchschnitt, Anzahl und konkreter Produkt-URL ' +
+          '(Unternehmens-/Shopbewertungen wie Trustpilot weglassen). summary in 2–3 neutralen ' +
+          'deutschen Sätzen (Stärke, Kritikpunkt, Quellenlage). positiveThemes/negativeThemes nur ' +
+          'wiederkehrend und je mit mindestens zwei unterschiedlichen Quellseiten. sourceUrls nur ' +
+          'konkrete Test-/Bewertungs-/Erfahrungsseiten. Kopiere keine Rezensionstexte. Fehlt eine ' +
+          'belastbare Bewertungslage, lass die consensus-Felder leer.\n' +
+          'Antworte ausschließlich als valides JSON ohne Markdown: ' +
+          '{"product":{"canonicalName":string,"brand":string|null,"categorySlug":string|null,' +
+          '"description":string|null,"specs":[{"label":string,"value":string}],"imageUrl":string|null,' +
+          '"productUrl":string|null,"found":boolean},"consensus":{"ratings":[{"source":string,' +
+          '"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,' +
+          '"maxValue":number,"count":number|null}],"summary":string|null,' +
+          '"positiveThemes":[{"label":string,"sourceUrls":[string,string]}],' +
+          '"negativeThemes":[{"label":string,"sourceUrls":[string,string]}],"sourceUrls":[string]}}.',
+      },
+      { role: 'user', content: `Produkt: ${name}` },
+    ];
+
+    const parsed = await this.completeResearch(
+      `${name} offizielle Herstellerseite technische Daten Modell UND Bewertungen Erfahrungen ` +
+        `Langzeittest Deutschland Amazon Idealo MediaMarkt Otto Galaxus Reddit Forum`,
+      6,
+      messages,
+      combinedResearchSchema,
+      { temperature: 0.15, maxTokens: 1400 },
+    );
+
+    if (!parsed) {
+      return {
+        product: await this.fallback.researchProduct(name, categorySlugs),
+        consensus: { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] },
+      };
+    }
+
+    const product = this.finalizeProduct(parsed.product, categorySlugs);
+    const consensus = this.finalizeConsensus(parsed.consensus, product.brand);
+    return { product, consensus };
   }
 
   private async legacyResearchExternalRatings(

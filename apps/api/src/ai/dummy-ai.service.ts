@@ -10,6 +10,7 @@ import {
   type ResearchedProduct,
   type SuggestedProductCandidate,
   type ResearchedExternalConsensus,
+  type CombinedProductResearch,
   type GeneratedPrompt,
   normalizeProductName,
   guessBrand,
@@ -118,5 +119,16 @@ export class DummyAiService implements AiService {
   ): Promise<ResearchedExternalConsensus> {
     // No web access → never invent rating facts.
     return { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] };
+  }
+
+  async researchProductAndConsensus(
+    name: string,
+    categorySlugs: string[],
+  ): Promise<CombinedProductResearch> {
+    // No web access — reuse the deterministic halves (name-only product, empty consensus).
+    return {
+      product: await this.researchProduct(name, categorySlugs),
+      consensus: await this.researchExternalConsensus(name, null),
+    };
   }
 }

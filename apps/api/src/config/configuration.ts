@@ -39,6 +39,13 @@ const envSchema = z.object({
         .filter(Boolean),
     ),
   PRODUCT_RESEARCH_SEARCH_PROVIDER: z.enum(['brave', 'openrouter']).default('openrouter'),
+  // Combine the add flow's two research web searches (product data + rating
+  // consensus) into ONE search to halve the paid search cost. Set to "false" to
+  // fall back to the separate, per-aspect searches (slightly higher recall).
+  PRODUCT_RESEARCH_COMBINED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   // Background refresh of external product ratings/themes using self-hosted Gemma.
   // Requires BRAVE_SEARCH_KEY because Ollama/Gemma cannot browse by itself.
   PRODUCT_RESEARCH_WORKER_ENABLED: z
