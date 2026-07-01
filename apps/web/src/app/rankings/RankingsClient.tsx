@@ -22,6 +22,7 @@ import { plural } from '@/lib/format';
 import { dataConfidenceLabel, isEarlySignal } from '@/lib/verdict';
 import { NetConsensusBadge } from '@/components/NetConsensusBadge';
 import { cn } from '@/lib/utils';
+import { productPath } from '@/lib/seo';
 
 type Tab = 'overview' | 'owners' | 'risk' | 'discussed' | 'new';
 type RowMode = Tab | 'category';
@@ -176,7 +177,7 @@ function HeroCard({ entry }: { entry: RankingEntryDto }) {
 
   return (
     <Link
-      href={`/products/${product.id}`}
+      href={productPath(product)}
       className="press panel-positive relative block overflow-hidden rounded-[var(--radius-lg)] p-4 shadow-[0_0_0_1px_var(--color-border)]"
     >
       <div className="flex items-start justify-between gap-3">
@@ -254,7 +255,7 @@ function RankedRow({ entry, mode }: { entry: RankingEntryDto; mode: RowMode }) {
 
   return (
     <Link
-      href={`/products/${product.id}`}
+      href={productPath(product)}
       className="tap hairline flex items-center gap-3 px-1 py-3"
     >
       <span className="mono-data w-7 shrink-0 text-right text-[0.875rem] font-semibold text-faint">

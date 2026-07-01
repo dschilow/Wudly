@@ -1236,7 +1236,13 @@ export class ProductsService {
     return this.quickVoteTally(productId);
   }
 
-  /** Products related to this one (same category), most-reviewed first. */
+  /**
+   * "Passende Alternativen" — the strongest products in the same category, best
+   * verdict first: real owner rebuy signal leads, then Netz-Konsens (external
+   * facts) to bridge the cold start, then the most-reviewed. Excludes the product
+   * itself and moderation-hidden noise. The frontend compares each score against
+   * the current product to flag the ones owners would rather buy again.
+   */
   async listSimilar(id: string, take = 6): Promise<ProductSummaryDto[]> {
     const product = await this.prisma.product.findUnique({
       where: { id },
@@ -1246,9 +1252,19 @@ export class ProductsService {
     const rows = await this.prisma.product.findMany({
       where: { categoryId: product.categoryId, status: 'ACTIVE', NOT: { id } },
       include: PRODUCT_INCLUDE,
-      orderBy: [{ insightSnapshot: { experienceCount: 'desc' } }, { createdAt: 'desc' }],
-      take: take * 2,
+      // Over-fetch so the moderation filter + verdict sort still leave a full row.
+      take: take * 4,
     });
+    // A single comparable rank so the best alternative surfaces first regardless
+    // of which signal a product has: owner rebuy (2000+), Netz-Konsens (1000+),
+    // else review volume. Keeps signal-backed picks ahead of cold entries.
+    const rank = (p: (typeof rows)[number]): number => {
+      const snap = p.insightSnapshot;
+      if (snap?.rebuyScore != null && snap.experienceCount > 0) return 2000 + snap.rebuyScore;
+      if ((snap?.externalSourceCount ?? 0) > 0 && snap?.externalAvgPercent != null)
+        return 1000 + snap.externalAvgPercent;
+      return snap?.experienceCount ?? 0;
+    };
     return rows
       .filter(
         (p) =>
@@ -1257,6 +1273,7 @@ export class ProductsService {
             categorySlug: p.category?.slug ?? null,
           }),
       )
+      .sort((a, b) => rank(b) - rank(a))
       .slice(0, take)
       .map(toProductSummaryDto);
   }

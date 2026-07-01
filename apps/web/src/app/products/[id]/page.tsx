@@ -14,6 +14,7 @@ import {
   Sparkles,
   ThumbsDown,
   ThumbsUp,
+  TrendingUp,
   UserCheck,
   UsersRound,
   Wind,
@@ -23,19 +24,22 @@ import type {
   ExperienceDto,
   ProductInsightsDto,
   ProductPromptDto,
+  ProductSummaryDto,
   QuestionDto,
   ShowcaseSummaryDto,
   InvitedVotesSummaryDto,
 } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 import { JsonLd } from '@/components/JsonLd';
-import { productJsonLd, breadcrumbJsonLd, absoluteUrl } from '@/lib/seo';
+import { productJsonLd, breadcrumbJsonLd, absoluteUrl, productPath } from '@/lib/seo';
+import { productShareImageUrl } from '@/lib/product-media';
 import { ShareButton } from '@/components/ShareButton';
 import { SignalPanel } from '@/components/SignalPanel';
 import { InviteButton } from '@/components/InviteButton';
 import { InvitedVotesCard } from '@/components/InvitedVotesCard';
-import { dataConfidenceLabel } from '@/lib/verdict';
+import { dataConfidenceLabel, isEarlySignal } from '@/lib/verdict';
 import { ProductActionBar } from '@/components/ProductActionBar';
 import { ProductTabs } from '@/components/ProductTabs';
 import { Reveal } from '@/components/motion/Reveal';
@@ -82,20 +86,32 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       (early
         ? `Erst ${earlyYes} von ${product.insights.ownerCount} Besitzern würden es wieder kaufen — noch zu wenige Bewertungen für ein verlässliches Urteil.`
         : `${score ?? '–'}% würden es wieder kaufen · ${product.insights.experienceCount} echte Erfahrungen.`);
+    const canonicalPath = productPath(product);
+    const image = productShareImageUrl(product.id);
+    const title = `${product.canonicalName}: Erfahrungen & Wiederkauf-Score`;
     return {
-      title: product.canonicalName,
+      title,
       description,
-      alternates: { canonical: `/products/${id}` },
+      alternates: { canonical: canonicalPath },
       openGraph: {
-        title: `${product.canonicalName} — Würdest du es wieder kaufen?`,
+        title: `${product.canonicalName} — Erfahrungen, Bewertung & Wudly Signal`,
         description,
-        type: 'website',
-        url: `/products/${id}`,
+        type: 'article',
+        url: canonicalPath,
+        images: [
+          {
+            url: image,
+            width: 1200,
+            height: 630,
+            alt: `Wudly Übersicht zu ${product.canonicalName}`,
+          },
+        ],
       },
       twitter: {
         card: 'summary_large_image',
-        title: `${product.canonicalName} — Würdest du es wieder kaufen?`,
+        title,
         description,
+        images: [image],
       },
     };
   } catch {
@@ -151,11 +167,15 @@ function DecisionBrief({
       <SectionTitle>Kaufentscheidung</SectionTitle>
       <div className="grid gap-3 md:grid-cols-2">
         <div className="card p-4">
-          <p className="mono-data flex items-center gap-2 text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-positive-ink">
-            <ThumbsUp className="h-4 w-4" strokeWidth={2.2} />
-            Kaufen, wenn
-          </p>
-          <ul className="mt-3 space-y-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[0.7rem] bg-positive text-white">
+              <ThumbsUp className="h-[1.1rem] w-[1.1rem]" strokeWidth={2.4} aria-hidden />
+            </span>
+            <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-positive-ink">
+              Kaufen, wenn
+            </p>
+          </div>
+          <ul className="mt-3.5 space-y-2.5">
             {(buyItems.length > 0 ? buyItems : ['die ersten Besitzer weiter positive Langzeitdaten liefern']).map(
               (item) => (
                 <li key={item} className="flex gap-2 text-[0.9375rem] leading-snug text-label">
@@ -168,11 +188,15 @@ function DecisionBrief({
         </div>
 
         <div className="card p-4">
-          <p className="mono-data flex items-center gap-2 text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-regret-ink">
-            <ThumbsDown className="h-4 w-4" strokeWidth={2.2} />
-            Lieber nicht, wenn
-          </p>
-          <ul className="mt-3 space-y-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[0.7rem] bg-regret text-white">
+              <ThumbsDown className="h-[1.1rem] w-[1.1rem]" strokeWidth={2.4} aria-hidden />
+            </span>
+            <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-regret-ink">
+              Lieber nicht, wenn
+            </p>
+          </div>
+          <ul className="mt-3.5 space-y-2.5">
             {(avoidItems.length > 0 ? avoidItems : ['du ohne mehr echte Nutzung kein Risiko eingehen willst']).map(
               (item) => (
                 <li key={item} className="flex gap-2 text-[0.9375rem] leading-snug text-label">
@@ -186,9 +210,14 @@ function DecisionBrief({
       </div>
 
       <div className="card mt-3 p-4">
-        <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-accent-ink">
-          Vor dem Kauf klären
-        </p>
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[0.7rem] bg-accent text-white">
+            <Lightbulb className="h-[1.1rem] w-[1.1rem]" strokeWidth={2.4} aria-hidden />
+          </span>
+          <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-accent-ink">
+            Vor dem Kauf klären
+          </p>
+        </div>
         <div className="mt-3 space-y-2">
           {questions.slice(0, 3).map((item) => (
             <p key={item} className="ledger-row text-[0.9375rem]">
@@ -381,6 +410,87 @@ function OwnerVoices({ prompts }: { prompts: ProductPromptDto[] }) {
   );
 }
 
+/**
+ * "Passende Alternativen" — the strongest same-category products, best verdict
+ * first. Each score is compared against the current product so owners see which
+ * ones they'd rather buy again (the honest Wudly angle: avoid the regret buy).
+ */
+function Alternatives({
+  productId,
+  alternatives,
+  currentScore,
+}: {
+  productId: string;
+  alternatives: ProductSummaryDto[];
+  currentScore: number | null;
+}) {
+  if (alternatives.length === 0) return null;
+  const top = alternatives.slice(0, 5);
+
+  return (
+    <section>
+      <div className="flex items-baseline justify-between px-1 pb-2.5">
+        <h2 className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Passende Alternativen
+        </h2>
+        <Link
+          href={`/compare?ids=${productId}`}
+          className="tap-dim mono-data flex items-center gap-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-accent"
+        >
+          <GitCompareArrows className="h-3.5 w-3.5" strokeWidth={2.3} aria-hidden />
+          Vergleichen
+        </Link>
+      </div>
+      <div className="card overflow-hidden">
+        {top.map((alt, i) => {
+          const early = isEarlySignal(alt.experienceCount);
+          const score = early ? null : alt.rebuyScore;
+          const better = currentScore != null && score != null && score > currentScore;
+          const delta = better ? score - currentScore : 0;
+          return (
+            <Link
+              key={alt.id}
+              href={`/products/${alt.id}`}
+              className={cn(
+                'tap flex items-center gap-3.5 px-3.5 py-3',
+                i < top.length - 1 && 'hairline',
+              )}
+              style={{ ['--hairline-inset' as string]: '4.4rem' }}
+            >
+              <Thumb product={alt} className="h-[3.25rem] w-[3.25rem]" fit="contain" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[1rem] font-semibold leading-tight text-label">
+                  {alt.canonicalName}
+                </p>
+                <p className="mt-0.5 truncate text-[0.8125rem] text-muted-foreground">
+                  {[alt.brand, alt.category?.name].filter(Boolean).join(' · ') || '—'}
+                </p>
+                {better && (
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-positive-soft px-2 py-0.5 text-[0.6875rem] font-semibold text-positive-ink">
+                    <TrendingUp className="h-3 w-3" strokeWidth={2.4} aria-hidden />
+                    +{delta} Pkt. Wiederkauf
+                  </span>
+                )}
+              </div>
+              <span
+                className={cn(
+                  'font-display shrink-0 text-[1.5rem] leading-none',
+                  score == null ? 'text-faint' : better ? 'text-positive-ink' : 'text-accent-ink',
+                )}
+              >
+                {score != null ? `${score}%` : '–'}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+      <p className="px-1 pt-2 text-[0.8125rem] leading-snug text-muted-foreground">
+        Gleiche Kategorie, nach echtem Wiederkauf-Signal sortiert.
+      </p>
+    </section>
+  );
+}
+
 export default async function ProductPage({ params }: PageProps) {
   const { id } = await params;
 
@@ -395,10 +505,11 @@ export default async function ProductPage({ params }: PageProps) {
   // `get` may resolve a merged/old id to the surviving product, so sub-resources
   // are loaded by the canonical id (not the requested URL id).
   const productId = product.id;
-  const [experiences, questions, prompts, showcases, invitedVotes] = await Promise.all([
+  const [experiences, questions, prompts, similar, showcases, invitedVotes] = await Promise.all([
     safe(api.products.experiences(productId, { next: { revalidate: 20 } }), [] as ExperienceDto[]),
     safe(api.products.questions(productId, { next: { revalidate: 20 } }), [] as QuestionDto[]),
     safe(api.products.prompts(productId, { next: { revalidate: 20 } }), [] as ProductPromptDto[]),
+    safe(api.products.similar(productId, { next: { revalidate: 60 } }), [] as ProductSummaryDto[]),
     safe(
       api.showcase.forProduct(productId, { next: { revalidate: 60 } }),
       [] as ShowcaseSummaryDto[],
@@ -437,12 +548,13 @@ export default async function ProductPage({ params }: PageProps) {
   const negative = ins.topNegativeAspects.slice(0, 3);
   const publicExperiences = experiences.filter((e) => e.isPublic);
 
+  const canonicalPath = productPath(product);
   const structuredData = [
     productJsonLd(product),
     breadcrumbJsonLd([
       { name: 'Start', url: absoluteUrl('/') },
       { name: 'Entdecken', url: absoluteUrl('/rankings') },
-      { name: product.canonicalName, url: absoluteUrl(`/products/${id}`) },
+      { name: product.canonicalName, url: absoluteUrl(canonicalPath) },
     ]),
   ];
 
@@ -581,7 +693,7 @@ export default async function ProductPage({ params }: PageProps) {
             description="Sei der erste Besitzer und teile, ob du es wieder kaufen würdest."
             action={
               <Link
-                href={`/products/${id}/own`}
+                href={`/products/${productId}/own`}
                 className="press inline-flex h-11 items-center rounded-full bg-accent px-6 text-[1rem] font-semibold text-[#f1efe6] shadow-[var(--shadow-glow)]"
               >
                 Ich besitze es
@@ -644,7 +756,7 @@ export default async function ProductPage({ params }: PageProps) {
           Echte Besitzer antworten — meist innerhalb weniger Tage.
         </p>
         <Link
-          href={`/products/${id}/ask`}
+          href={`/products/${productId}/ask`}
           className="tap-dim mono-data shrink-0 text-[0.8125rem] font-semibold uppercase tracking-[0.1em] text-accent"
         >
           Frage stellen
@@ -740,6 +852,13 @@ export default async function ProductPage({ params }: PageProps) {
         ]}
       />
 
+      {/* Passende Alternativen — always visible, right in the product. */}
+      <Alternatives
+        productId={product.id}
+        alternatives={similar}
+        currentScore={ins.rebuyScore}
+      />
+
       {/* Wudly Showcase — clearly separated commercial / creator content. */}
       {showcases.length > 0 && (
         <Reveal className="space-y-2.5 pt-2">
@@ -761,7 +880,7 @@ export default async function ProductPage({ params }: PageProps) {
       )}
 
       {/* 4 · Sticky action bar — "Fragen" opens the composer as a bottom sheet */}
-      <ProductActionBar productId={id} productName={product.canonicalName} />
+      <ProductActionBar productId={productId} productName={product.canonicalName} />
       <div className="h-20" aria-hidden />
       </div>
 
@@ -776,7 +895,7 @@ export default async function ProductPage({ params }: PageProps) {
             Die beste Hilfe für andere Käufer ist eine echte Langzeiterfahrung zu diesem Produkt.
           </p>
           <Link
-            href={`/products/${id}/own`}
+            href={`/products/${productId}/own`}
             className="press mt-4 flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-4 text-[0.9375rem] font-semibold text-[#f1efe6] shadow-[var(--shadow-glow)]"
           >
             <BadgeCheck className="h-4 w-4" strokeWidth={2.3} />

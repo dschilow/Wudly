@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { ProductList } from '@/components/ProductList';
+import { productPath } from '@/lib/seo';
 
 interface AddProductFormProps {
   initialName: string;
@@ -41,14 +42,14 @@ export function AddProductForm({ initialName, ownIntent }: AddProductFormProps) 
       .catch(() => undefined);
   }, []);
 
-  const goToProduct = (id: string) => {
-    router.push(ownIntent ? `/products/${id}/own` : `/products/${id}`);
+  const goToProduct = (product: ProductSummaryDto) => {
+    router.push(ownIntent ? `/products/${product.id}/own` : productPath(product));
   };
 
   const handleResult = (result: CreateProductResultDto) => {
     if (result.created) {
       show('Produkt angelegt 🎉', 'success');
-      goToProduct(result.product.id);
+      goToProduct(result.product);
     } else {
       setDuplicates(result.candidates.map((c) => c.product));
     }

@@ -25,6 +25,38 @@ export function absoluteUrl(path = '/'): string {
   return base + (path.startsWith('/') ? path : `/${path}`);
 }
 
+/** URL-safe product slug: readable for search results, stable because the id stays last. */
+export function productSlug(product: { id: string; canonicalName: string }): string {
+  return `${slugify(product.canonicalName)}-${product.id}`;
+}
+
+/** Public, canonical product overview path used by sitemap, metadata and links. */
+export function productPath(product: { id: string; canonicalName: string }): string {
+  return `/produkte/${productSlug(product)}`;
+}
+
+/** Extract the stable product id from `/produkte/<name>-<id>`. */
+export function productIdFromSlug(slug: string): string | null {
+  const match = slug.match(/-([a-z0-9]{10,})$/i);
+  return match?.[1] ?? null;
+}
+
+function slugify(value: string): string {
+  const ascii = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss')
+    .replace(/æ/g, 'ae')
+    .replace(/ø/g, 'o')
+    .replace(/đ/g, 'd');
+  return (
+    ascii
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 90) || 'produkt'
+  );
+}
 type JsonLd = Record<string, unknown>;
 
 /** Product structured data — eligible for rich results when there's real data. */
@@ -34,12 +66,21 @@ export function productJsonLd(product: ProductDetailDto): JsonLd {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.canonicalName,
-    url: absoluteUrl(`/products/${product.id}`),
+    url: absoluteUrl(productPath(product)),
+    mainEntityOfPage: absoluteUrl(productPath(product)),
     image: productThumbUrl(product),
+    inLanguage: 'de-DE',
   };
   if (product.description) data.description = product.description;
   if (product.brand) data.brand = { '@type': 'Brand', name: product.brand };
   if (product.category) data.category = product.category.name;
+  if (product.specs.length > 0) {
+    data.additionalProperty = product.specs.slice(0, 8).map((spec) => ({
+      '@type': 'PropertyValue',
+      name: spec.label,
+      value: spec.value,
+    }));
+  }
 
   // Only claim a rating when owners have actually weighed in — the score is the
   // share who would rebuy (0–100), expressed honestly as the rating value.
@@ -69,7 +110,7 @@ export function itemListJsonLd(
       '@type': 'ListItem',
       position: i + 1,
       name: p.canonicalName,
-      url: absoluteUrl(`/products/${p.id}`),
+      url: absoluteUrl(productPath(p)),
     })),
   };
 }

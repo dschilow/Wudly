@@ -6,6 +6,7 @@ import { isEarlySignal } from '@/lib/verdict';
 import { Thumb } from './Thumb';
 import { ScoreBadge } from './ScoreBadge';
 import { SealBadge } from './SealBadge';
+import { productPath } from '@/lib/seo';
 import { NetConsensusBadge } from './NetConsensusBadge';
 
 interface ProductRowProps {
@@ -40,7 +41,7 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last, intent = '
 
   return (
     <Link
-      href={own ? `/products/${product.id}/own` : `/products/${product.id}`}
+      href={own ? `/products/${product.id}/own` : productPath(product)}
       className="group block"
       aria-label={own ? `${product.canonicalName} als Besitzer eintragen` : `${product.canonicalName} ansehen`}
     >

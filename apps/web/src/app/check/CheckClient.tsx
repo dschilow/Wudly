@@ -25,6 +25,7 @@ import type {
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { productPath } from '@/lib/seo';
 import { dataConfidenceLabel, isEarlySignal } from '@/lib/verdict';
 import { OnboardingIntro } from '@/components/OnboardingIntro';
 import { ProductList } from '@/components/ProductList';
@@ -47,7 +48,7 @@ function RecentProduct({ product }: { product: ProductSummaryDto }) {
   const scoreText = product.rebuyScore === null || early ? '–' : `${product.rebuyScore}%`;
 
   return (
-    <Link href={`/products/${product.id}`} className="card press flex items-center gap-3.5 p-3">
+    <Link href={productPath(product)} className="card press flex items-center gap-3.5 p-3">
       <Thumb product={product} className="h-16 w-16" rounded="rounded-[0.8rem]" />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-[1.0625rem] font-semibold leading-tight text-label">
@@ -104,7 +105,8 @@ export function CheckClient({
    * straight into the experience wizard — the whole point of "do you own this?".
    */
   const goToProduct = useCallback(
-    (id: string) => router.push(ownIntent ? `/products/${id}/own` : `/products/${id}`),
+    (product: ProductSummaryDto) =>
+      router.push(ownIntent ? `/products/${product.id}/own` : productPath(product)),
     [ownIntent, router],
   );
 
@@ -179,7 +181,7 @@ export function CheckClient({
               )
             ).product;
         if (product) {
-          goToProduct(product.id);
+          goToProduct(product);
           return;
         }
         // Chain failed → prefill the manual add form with the real name.
@@ -215,7 +217,7 @@ export function CheckClient({
     try {
       const res = await api.products.research(q);
       if (res.product) {
-        goToProduct(res.product.id);
+        goToProduct(res.product);
         return;
       }
       setShowAdd(true);
@@ -234,7 +236,7 @@ export function CheckClient({
       try {
         const res = await api.products.resolveEan(code, { cache: 'no-store' });
         if (res.product) {
-          goToProduct(res.product.id);
+          goToProduct(res.product);
           return;
         }
         if (res.suggestion) {
@@ -266,7 +268,7 @@ export function CheckClient({
           imageDataUrl,
         });
         if (res.product) {
-          goToProduct(res.product.id);
+          goToProduct(res.product);
           return;
         }
       } catch {

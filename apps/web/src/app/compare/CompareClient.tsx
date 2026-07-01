@@ -28,6 +28,7 @@ import {
 import type { AspectStatDto, ProductDetailDto, ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { productThumbUrl } from '@/lib/product-media';
+import { productPath } from '@/lib/seo';
 import { cn, scoreColor } from '@/lib/utils';
 import { NetConsensusBadge } from '@/components/NetConsensusBadge';
 import { ScoreRing } from '@/components/ScoreRing';
@@ -695,7 +696,7 @@ function ProductSlotCard({
         <div className="min-w-0 flex-1 pr-8">
           <p className="truncate text-[0.8125rem] text-muted-foreground">{productMeta(product)}</p>
           <Link
-            href={`/products/${product.id}`}
+            href={productPath(product)}
             className="group/link mt-0.5 flex min-w-0 items-start gap-1 text-label"
           >
             <span className="line-clamp-2 text-[1rem] font-semibold leading-tight">
@@ -1347,7 +1348,7 @@ function MatrixHeader({ stats }: { stats: ProductStats[] }) {
       {stats.map((item) => (
         <Link
           key={item.product.id}
-          href={`/products/${item.product.id}`}
+          href={productPath(item.product)}
           className="tap flex items-center gap-3 border-l border-border p-3"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}

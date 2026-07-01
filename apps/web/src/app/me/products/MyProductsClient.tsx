@@ -21,6 +21,7 @@ import { dataConfidenceLabel, isEarlySignal } from '@/lib/verdict';
 import { PageSkeleton, EmptyState } from '@/components/states/States';
 import { Thumb } from '@/components/Thumb';
 import { HouseholdSwipeDeck } from '@/app/check/HouseholdSwipeDeck';
+import { productPath } from '@/lib/seo';
 
 type ProductRelation = 'owned' | 'created';
 
@@ -41,7 +42,7 @@ function ProductItem({ product, relation }: { product: ProductSummaryDto; relati
           : 'bg-regret';
 
   return (
-    <Link href={`/products/${product.id}`} className="card press flex items-center gap-3 p-3">
+    <Link href={productPath(product)} className="card press flex items-center gap-3 p-3">
       <Thumb product={product} className="h-[4.9rem] w-[4.9rem]" rounded="rounded-[1rem]" />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-[1.125rem] font-semibold leading-tight text-label">

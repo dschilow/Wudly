@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import type { CategoryDto, PaginatedDto, ProductSummaryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
-import { siteUrl } from '@/lib/seo';
+import { productPath, siteUrl } from '@/lib/seo';
 
 // Refresh hourly — new products and rankings should reach the index quickly.
 export const revalidate = 3600;
@@ -53,7 +53,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
   for (const product of products) {
     routes.push({
-      url: `${base}/products/${product.id}`,
+      url: `${base}${productPath(product)}`,
       lastModified: now,
       changeFrequency: 'weekly',
       priority: 0.7,
