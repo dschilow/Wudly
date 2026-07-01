@@ -495,7 +495,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   const optional = current === 'wish' || isPromptStep;
 
   return (
-    <div className="mx-auto max-w-md pb-28 pt-2">
+    <div className="mx-auto max-w-md pb-36 pt-2">
       {/* Progress — thin verdict segments, dynamic to the adaptive path */}
       <div className="mb-6 flex items-center gap-1.5 px-1" aria-hidden>
         {steps.map((key, i) => (
@@ -649,7 +649,9 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
         </motion.div>
       </AnimatePresence>
 
-      {/* Fixed bottom action bar */}
+      {/* Fixed bottom action bar — a soft scrim first so content fades out
+          before it ever meets the buttons, instead of clipping hard. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 h-32 bg-gradient-to-t from-canvas via-canvas/90 to-transparent md:h-24" />
       <div className="fixed inset-x-0 bottom-[4.6rem] z-30 px-5 pb-[max(env(safe-area-inset-bottom),0px)] md:bottom-4">
         <div className="mx-auto flex max-w-md items-center gap-2.5">
           {step > 0 && (

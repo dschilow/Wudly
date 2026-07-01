@@ -30,7 +30,8 @@ const BASE_ITEMS: NavItem[] = [
     href: '/check',
     label: 'Prüfen',
     icon: Search,
-    match: (p) => p === '/' || p.startsWith('/check'),
+    match: (p) =>
+      p === '/' || p.startsWith('/check') || p.startsWith('/products') || p.startsWith('/produkte'),
   },
   {
     href: '/compare',

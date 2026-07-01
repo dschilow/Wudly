@@ -47,7 +47,7 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last, intent = '
     >
       <div
         className={cn(
-          'tap relative flex min-h-[4.65rem] items-center gap-3 px-3.5 py-2.5 transition-colors duration-150 hover:bg-fill',
+          'tap group relative flex min-h-[4.65rem] items-center gap-3 px-3.5 py-2.5 transition-all duration-200 md:hover:bg-fill',
           !last && 'hairline',
         )}
         style={{ ['--hairline-inset' as string]: rank !== undefined ? '5.4rem' : '4.4rem' }}
@@ -114,7 +114,7 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last, intent = '
               labelOverride={earlySignal && !showRegret ? 'Zu früh' : undefined}
             />
             <ChevronRight
-              className="-ml-0.5 -mr-1 h-[1.0625rem] w-[1.0625rem] shrink-0 text-label-3"
+              className="-ml-0.5 -mr-1 h-[1.0625rem] w-[1.0625rem] shrink-0 text-label-3 transition-transform duration-200 md:group-hover:translate-x-0.5"
               strokeWidth={2.5}
               aria-hidden
             />

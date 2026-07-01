@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import {
-  Bell,
   ChevronRight,
   LogOut,
   MessageCircle,
@@ -114,22 +113,13 @@ export function ProfileClient() {
       animate="show"
       variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
     >
-      <motion.section className="flex items-end justify-between gap-4" variants={rise}>
-        <div>
-          <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-            Ich
-          </p>
-          <h1 className="font-display mt-2.5 text-[3rem] leading-[1.0] text-label">
-            Dein <em className="text-accent-ink">Kaufprofil</em>
-          </h1>
-        </div>
-        <Link
-          href="/me/inbox"
-          className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface text-label shadow-[0_0_0_1px_var(--color-border),var(--shadow-card)]"
-          aria-label="Mitteilungen oeffnen"
-        >
-          <Bell className="h-[1.3rem] w-[1.3rem]" strokeWidth={2.1} />
-        </Link>
+      <motion.section variants={rise}>
+        <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+          Ich
+        </p>
+        <h1 className="font-display mt-2.5 text-[3rem] leading-[1.0] text-label">
+          Dein <em className="text-accent-ink">Kaufprofil</em>
+        </h1>
       </motion.section>
 
       {/* The Kaufprofil as a Kassenbon — the shareable artifact. */}

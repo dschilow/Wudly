@@ -35,9 +35,11 @@ export function productPath(product: { id: string; canonicalName: string }): str
   return `/produkte/${productSlug(product)}`;
 }
 
-/** Extract the stable product id from `/produkte/<name>-<id>`. */
+/** Extract the stable product id from `/produkte/<name>-<id>`. IDs may be
+ *  cuids (alphanumeric) or seed/import ids (`seed_product_1`, `runtime_seed_*`)
+ *  which contain underscores — the character class must allow both. */
 export function productIdFromSlug(slug: string): string | null {
-  const match = slug.match(/-([a-z0-9]{10,})$/i);
+  const match = slug.match(/-([a-z0-9_]{6,})$/i);
   return match?.[1] ?? null;
 }
 

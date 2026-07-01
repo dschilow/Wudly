@@ -256,12 +256,16 @@ function RankedRow({ entry, mode }: { entry: RankingEntryDto; mode: RowMode }) {
   return (
     <Link
       href={productPath(product)}
-      className="tap hairline flex items-center gap-3 px-1 py-3"
+      className="tap hairline group flex items-center gap-2.5 px-1 py-3 transition-transform duration-200 md:hover:-translate-y-0.5"
     >
-      <span className="mono-data w-7 shrink-0 text-right text-[0.875rem] font-semibold text-faint">
+      <span className="mono-data w-5 shrink-0 text-right text-[0.875rem] font-semibold text-faint">
         {String(entry.rank).padStart(2, '0')}
       </span>
-      <Thumb product={product} className="h-[3.4rem] w-[3.4rem]" rounded="rounded-[0.7rem]" />
+      <Thumb
+        product={product}
+        className="h-[3.4rem] w-[3.4rem] transition-shadow duration-200 md:group-hover:shadow-[var(--shadow-elevated)]"
+        rounded="rounded-[0.7rem]"
+      />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-[1.0625rem] font-semibold leading-tight text-label">
           {product.canonicalName}
@@ -277,7 +281,7 @@ function RankedRow({ entry, mode }: { entry: RankingEntryDto; mode: RowMode }) {
           />
         </div>
       </div>
-      <div className="flex w-[3.55rem] shrink-0 flex-col items-end gap-0.5 text-right">
+      <div className="flex w-[3.4rem] shrink-0 flex-col items-end gap-0.5 text-right">
         <span className={cn('font-display text-[1.45rem] leading-none tnum', metric.className)}>
           {metric.value}
         </span>
@@ -285,7 +289,10 @@ function RankedRow({ entry, mode }: { entry: RankingEntryDto; mode: RowMode }) {
           {metric.label}
         </span>
       </div>
-      <ChevronRight className="h-5 w-5 shrink-0 text-label-3" strokeWidth={2.4} />
+      <ChevronRight
+        className="h-4 w-4 shrink-0 text-label-3 transition-transform duration-200 md:group-hover:translate-x-0.5"
+        strokeWidth={2.4}
+      />
     </Link>
   );
 }

@@ -24,7 +24,12 @@ interface DesktopItem {
   match: (p: string) => boolean;
 }
 const BASE_DESKTOP_ITEMS: DesktopItem[] = [
-  { href: '/check', label: 'Prüfen', match: (p: string) => p === '/' || p.startsWith('/check') },
+  {
+    href: '/check',
+    label: 'Prüfen',
+    match: (p: string) =>
+      p === '/' || p.startsWith('/check') || p.startsWith('/products') || p.startsWith('/produkte'),
+  },
   { href: '/compare', label: 'Vergleichen', match: (p: string) => p.startsWith('/compare') },
   { href: '/rankings', label: 'Entdecken', match: (p: string) => p.startsWith('/rankings') },
   { href: '/me/products', label: 'Besitzen', match: (p: string) => p.startsWith('/me/products') },

@@ -541,7 +541,7 @@ export function CheckClient({
                   zeigt der graue Netz-Wert, was andere Plattformen sagen.
                 </p>
               </div>
-              <ProductList products={freshlyAdded.slice(0, 6)} />
+              <ProductList products={freshlyAdded.slice(0, 6)} layout="grid" />
             </motion.section>
           )}
 
