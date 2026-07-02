@@ -372,6 +372,12 @@ model ProductSighting {
   seenCount       Int                    @default(1)
   /// Overlay interactions — a much stronger demand signal than raw views.
   engageCount     Int                    @default(0)
+  /// Shop rating facts from the page's structured data (aggregateRating).
+  /// Applied to the product as an ExternalRating ("Bewertungen anderswo")
+  /// once a catalog product exists — a free, instant Netz-Konsens source.
+  ratingValue     Float?
+  ratingMax       Float?
+  ratingCount     Int?
   status          SightingStatus         @default(PENDING)
   productId       String?
   /// Why the last pipeline step failed / was skipped (diagnostics).

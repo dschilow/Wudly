@@ -24,7 +24,27 @@ export function detectFromAmazon(doc: Document, href: string): DetectedProduct |
     // Canonical /dp/<ASIN> path — never the raw href (slug + tracking params).
     productUrl: cleanUrl(`${new URL(href).origin}/dp/${asin}`),
     domain: new URL(href).hostname,
+    rating: ratingFromDom(doc),
   };
+}
+
+/**
+ * Star rating from the review widget: "#acrPopover" carries "4,4 von 5
+ * Sternen" in its title, "#acrCustomerReviewText" reads "1.234
+ * Sternebewertungen" (German thousands dots).
+ */
+function ratingFromDom(doc: Document): DetectedProduct['rating'] {
+  const popover = doc.querySelector('#acrPopover')?.getAttribute('title') ?? '';
+  const match = popover.match(/([\d.,]+)\s+von\s+([\d.,]+)/);
+  if (!match) return undefined;
+  const value = Number.parseFloat(match[1]!.replace(',', '.'));
+  const maxValue = Number.parseFloat(match[2]!.replace(',', '.'));
+  if (!Number.isFinite(value) || !Number.isFinite(maxValue) || value > maxValue) return undefined;
+
+  const countText = doc.querySelector('#acrCustomerReviewText')?.textContent ?? '';
+  const countDigits = countText.match(/[\d.,]+/)?.[0]?.replace(/[.,]/g, '');
+  const count = countDigits ? Number.parseInt(countDigits, 10) : NaN;
+  return { value, maxValue, ...(Number.isFinite(count) && count > 0 ? { count } : {}) };
 }
 
 /** /dp/B0ABC12345, /gp/product/B0ABC12345, /-/dp/B0ABC12345/… */

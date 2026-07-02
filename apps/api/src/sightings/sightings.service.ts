@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from '../products/product-matching.service';
 import { ProductsService } from '../products/products.service';
+import { ExternalRatingsService } from '../products/external-ratings.service';
 import {
   toProductSummaryDto,
   type ProductWithRelations,
@@ -30,6 +31,21 @@ const STRONG_IDENTIFIERS = new Set<ProductIdentifierType>(['EAN', 'GTIN', 'ASIN'
  */
 const BUNDLE_PATTERN = /(^\d+\s*x\s)|\b\d+\s*(stück|stk|er[- ]?pack|er[- ]?set)\b/i;
 
+/** A shop rating below this many reviews is noise, not a fact worth showing. */
+const MIN_SHOP_RATING_COUNT = 5;
+
+/** Pretty labels for known shops; unknown domains fall back to the SLD. */
+const SHOP_LABELS: Record<string, string> = {
+  'mediamarkt.de': 'MediaMarkt',
+  'saturn.de': 'Saturn',
+  'amazon.de': 'Amazon',
+  'otto.de': 'OTTO',
+  'kaufland.de': 'Kaufland',
+  'cyberport.de': 'Cyberport',
+  'alternate.de': 'Alternate',
+  'galaxus.de': 'Galaxus',
+};
+
 /**
  * Ingestion + resolution for browser-extension product sightings.
  *
@@ -46,6 +62,7 @@ export class SightingsService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ProductsService) private readonly products: ProductsService,
     @Inject(ProductMatchingService) private readonly matching: ProductMatchingService,
+    @Inject(ExternalRatingsService) private readonly externalRatings: ExternalRatingsService,
     @Inject(ConfigService) private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
@@ -63,13 +80,17 @@ export class SightingsService {
       input.identifierValue ?? null,
       input.title,
     );
-    await this.upsertSighting(input, resolved?.id ?? null);
+    const row = await this.upsertSighting(input, resolved?.id ?? null);
 
     // Remember the shop identifier on the matched product so every future
     // sighting of it resolves via the O(1) identifier path, not name matching.
     if (resolved && input.identifierType && input.identifierValue) {
       await this.attachIdentifier(resolved.id, input.identifierType, input.identifierValue);
     }
+    // A product exists (matched now or created by an earlier pipeline run)?
+    // Apply the shop rating right away — free, attributed Netz-Konsens.
+    const productId = resolved?.id ?? row.productId;
+    if (productId) await this.applyShopRating(productId, row);
 
     if (!resolved) return { status: 'queued', product: null, webUrl: null };
     if (resolved.status === 'HIDDEN') return { status: 'rejected', product: null, webUrl: null };
@@ -191,6 +212,9 @@ export class SightingsService {
         domain: input.domain.toLowerCase(),
         seenCount: 1,
         engageCount: engage ? 1 : 0,
+        ratingValue: input.rating?.value ?? null,
+        ratingMax: input.rating?.maxValue ?? null,
+        ratingCount: input.rating?.count ?? null,
         status: productId ? 'MATCHED' : 'PENDING',
         productId,
       },
@@ -198,6 +222,14 @@ export class SightingsService {
         seenCount: { increment: engage ? 0 : 1 },
         engageCount: { increment: engage ? 1 : 0 },
         lastSeenAt: new Date(),
+        // Shop ratings evolve — refresh the facts whenever the page has them.
+        ...(input.rating
+          ? {
+              ratingValue: input.rating.value,
+              ratingMax: input.rating.maxValue,
+              ratingCount: input.rating.count ?? null,
+            }
+          : {}),
       },
     });
     // A late match upgrades the row; never downgrade an advanced status.
@@ -208,6 +240,37 @@ export class SightingsService {
       });
     }
     return row;
+  }
+
+  /**
+   * Apply a sighting's shop rating to a catalog product as an attributed
+   * "Bewertungen anderswo" FACT (average + count + link — never review
+   * texts). Idempotent per (product, shop) via the ExternalRating upsert;
+   * repeat sightings simply refresh the value. Skips silently when the data
+   * is too thin to be a fact: no rating, fewer than
+   * {@link MIN_SHOP_RATING_COUNT} reviews, or no product URL to attribute.
+   * Also used by the worker when the pipeline creates the product later.
+   */
+  async applyShopRating(
+    productId: string,
+    row: Pick<ProductSighting, 'ratingValue' | 'ratingMax' | 'ratingCount' | 'productUrl' | 'domain'>,
+  ): Promise<void> {
+    if (row.ratingValue === null || row.ratingMax === null || !row.productUrl) return;
+    if ((row.ratingCount ?? 0) < MIN_SHOP_RATING_COUNT) return;
+    const { source, label } = shopSource(row.domain);
+    try {
+      await this.externalRatings.upsert(productId, {
+        source,
+        sourceLabel: label,
+        url: row.productUrl,
+        kind: 'STARS',
+        value: row.ratingValue,
+        maxValue: row.ratingMax,
+        count: row.ratingCount,
+      });
+    } catch (err) {
+      this.logger.warn(`Shop rating upsert failed: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   /** Type-aware identifier upsert (the products-service helper is EAN-only). */
@@ -250,4 +313,22 @@ export class SightingsService {
   private get ingestEnabled(): boolean {
     return this.config.get('EXTENSION_SIGHTINGS_ENABLED', { infer: true });
   }
+}
+
+/**
+ * Stable ExternalRating source key + display label for a shop host.
+ * Known shops get their proper branding; unknown ones fall back to the
+ * second-level domain ("shop.example.de" → "example" / "Example").
+ */
+export function shopSource(domain: string): { source: string; label: string } {
+  const host = domain.toLowerCase().replace(/^www\./, '');
+  for (const [suffix, label] of Object.entries(SHOP_LABELS)) {
+    if (host === suffix || host.endsWith(`.${suffix}`)) {
+      return { source: suffix.split('.')[0]!, label };
+    }
+  }
+  const parts = host.split('.');
+  const sld = (parts.length >= 2 ? parts[parts.length - 2] : host) || 'shop';
+  const source = sld.replace(/[^a-z0-9-]/g, '').slice(0, 40) || 'shop';
+  return { source, label: source.charAt(0).toUpperCase() + source.slice(1) };
 }

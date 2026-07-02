@@ -12,6 +12,8 @@ export interface DetectedProduct {
   productUrl?: string;
   /** Shop host, e.g. "www.mediamarkt.de". */
   domain: string;
+  /** Shop rating facts (aggregateRating): average + scale + review count. */
+  rating?: { value: number; maxValue: number; count?: number };
 }
 
 /** Content script → background messages. */

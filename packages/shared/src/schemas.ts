@@ -367,6 +367,19 @@ export const productSightingSchema = z
       .regex(/^[a-z0-9.-]+$/i, 'Erwartet einen Hostnamen.'),
     /** "view" = page view; "engage" = overlay interaction (strong demand). */
     event: z.enum(['view', 'engage']).default('view'),
+    /**
+     * Shop rating from the page's structured data (aggregateRating) — becomes
+     * an attributed "Bewertungen anderswo" FACT (average + count + link),
+     * never review texts. Free, instant Netz-Konsens for fresh products.
+     */
+    rating: z
+      .object({
+        value: z.number().finite().min(0),
+        maxValue: z.number().finite().positive().max(100).default(5),
+        count: z.number().int().min(0).max(100_000_000).optional(),
+      })
+      .refine((r) => r.value <= r.maxValue, { message: 'value über maxValue.' })
+      .optional(),
   })
   .refine((d) => Boolean(d.identifierType) === Boolean(d.identifierValue), {
     message: 'identifierType und identifierValue nur gemeinsam.',

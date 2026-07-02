@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SightingsService } from './sightings.service';
+import { SightingsService, shopSource } from './sightings.service';
 import { researchQuery } from './sightings-worker.service';
 import type { ProductSightingInput } from '@wudly/shared';
 
@@ -26,12 +26,13 @@ function makeService(overrides: {
     },
     productIdentifier: {
       findFirst: vi.fn(async () => overrides.identifierHit ?? null),
-      upsert: vi.fn(async () => ({})),
+      upsert: vi.fn(async (_args: { create: Record<string, unknown> }) => ({})),
     },
   };
   const matching = {
     findDuplicateCandidates: vi.fn(async () => overrides.matchCandidates ?? []),
   };
+  const externalRatings = { upsert: vi.fn(async () => ({})) };
   const config = {
     get: vi.fn((key: string) => {
       if (key === 'EXTENSION_SIGHTINGS_ENABLED') return overrides.ingestEnabled ?? true;
@@ -43,9 +44,10 @@ function makeService(overrides: {
     prisma as never,
     {} as never,
     matching as never,
+    externalRatings as never,
     config as never,
   );
-  return { service, prisma, matching };
+  return { service, prisma, matching, externalRatings };
 }
 
 const baseInput: ProductSightingInput = {
@@ -89,7 +91,7 @@ describe('SightingsService.resolveAndRecord', () => {
     expect(result.webUrl).toContain('p1');
     // Identifier path wins — no name matching needed.
     expect(matching.findDuplicateCandidates).not.toHaveBeenCalled();
-    const upsert = prisma.productSighting.upsert.mock.calls[0][0] as {
+    const upsert = prisma.productSighting.upsert.mock.calls[0]![0] as {
       create: Record<string, unknown>;
     };
     expect(upsert.create.status).toBe('MATCHED');
@@ -101,7 +103,7 @@ describe('SightingsService.resolveAndRecord', () => {
     const result = await service.resolveAndRecord(baseInput);
     expect(result.status).toBe('queued');
     expect(result.product).toBeNull();
-    const upsert = prisma.productSighting.upsert.mock.calls[0][0] as {
+    const upsert = prisma.productSighting.upsert.mock.calls[0]![0] as {
       create: Record<string, unknown>;
     };
     expect(upsert.create.status).toBe('PENDING');
@@ -138,11 +140,78 @@ describe('SightingsService.resolveAndRecord', () => {
       identifierValue: 'b0abc12345',
     });
     expect(result.status).toBe('known');
-    const attach = prisma.productIdentifier.upsert.mock.calls[0][0] as {
+    const attach = prisma.productIdentifier.upsert.mock.calls[0]![0] as {
       create: Record<string, unknown>;
     };
     // ASINs are normalized to upper case for the global keyspace.
     expect(attach.create).toMatchObject({ productId: 'p1', type: 'ASIN', value: 'B0ABC12345' });
+  });
+});
+
+describe('SightingsService shop ratings', () => {
+  const ratedInput: ProductSightingInput = {
+    ...baseInput,
+    identifierType: 'EAN',
+    identifierValue: '4548736141549',
+    productUrl: 'https://www.mediamarkt.de/de/product/_sony-123.html',
+    rating: { value: 4.7, maxValue: 5, count: 207 },
+  };
+
+  it('applies the shop rating as an attributed fact when a product exists', async () => {
+    const { service, externalRatings } = makeService({
+      identifierHit: { product: catalogProduct },
+    });
+    await service.resolveAndRecord(ratedInput);
+    expect(externalRatings.upsert).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({
+        source: 'mediamarkt',
+        sourceLabel: 'MediaMarkt',
+        kind: 'STARS',
+        value: 4.7,
+        maxValue: 5,
+        count: 207,
+        url: ratedInput.productUrl,
+      }),
+    );
+  });
+
+  it('skips thin ratings (below the minimum review count)', async () => {
+    const { service, externalRatings } = makeService({
+      identifierHit: { product: catalogProduct },
+    });
+    await service.resolveAndRecord({ ...ratedInput, rating: { value: 5, maxValue: 5, count: 2 } });
+    expect(externalRatings.upsert).not.toHaveBeenCalled();
+  });
+
+  it('skips ratings without an attribution URL', async () => {
+    const { service, externalRatings } = makeService({
+      identifierHit: { product: catalogProduct },
+    });
+    await service.resolveAndRecord({ ...ratedInput, productUrl: undefined });
+    expect(externalRatings.upsert).not.toHaveBeenCalled();
+  });
+
+  it('does not store ratings for unknown products (no catalog product yet)', async () => {
+    const { service, externalRatings, prisma } = makeService();
+    await service.resolveAndRecord(ratedInput);
+    expect(externalRatings.upsert).not.toHaveBeenCalled();
+    // …but the facts are kept on the sighting for the pipeline to apply later.
+    const upsert = prisma.productSighting.upsert.mock.calls[0]![0] as {
+      create: Record<string, unknown>;
+    };
+    expect(upsert.create).toMatchObject({ ratingValue: 4.7, ratingMax: 5, ratingCount: 207 });
+  });
+});
+
+describe('shopSource', () => {
+  it('maps known shops to branded labels', () => {
+    expect(shopSource('www.mediamarkt.de')).toEqual({ source: 'mediamarkt', label: 'MediaMarkt' });
+    expect(shopSource('amazon.de')).toEqual({ source: 'amazon', label: 'Amazon' });
+  });
+
+  it('falls back to the second-level domain for unknown shops', () => {
+    expect(shopSource('shop.beispiel.de')).toEqual({ source: 'beispiel', label: 'Beispiel' });
   });
 });
 

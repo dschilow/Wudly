@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import type { ProductSighting } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductsService } from '../products/products.service';
+import { SightingsService } from './sightings.service';
 import type { AppConfig } from '../config/configuration';
 
 const INITIAL_DELAY_MS = 60 * 1000;
@@ -53,6 +54,7 @@ export class SightingsWorkerService implements OnModuleInit, OnModuleDestroy {
     @Inject(ConfigService) private readonly config: ConfigService<AppConfig, true>,
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ProductsService) private readonly products: ProductsService,
+    @Inject(SightingsService) private readonly sightings: SightingsService,
   ) {}
 
   onModuleInit(): void {
@@ -159,6 +161,9 @@ export class SightingsWorkerService implements OnModuleInit, OnModuleDestroy {
       lastError: null,
       processedAt: new Date(),
     });
+    // The sighting's shop rating becomes the product's first attributed
+    // "Bewertungen anderswo" fact — instant Netz-Konsens, zero AI cost.
+    await this.sightings.applyShopRating(ensured.product.id, row);
     return ensured.created;
   }
 
@@ -264,6 +269,7 @@ export class SightingsWorkerService implements OnModuleInit, OnModuleDestroy {
     if (row.identifierType === 'ASIN' && row.identifierValue) {
       await this.attachAsin(ensured.product.id, row.identifierValue);
     }
+    await this.sightings.applyShopRating(ensured.product.id, row);
     return true;
   }
 

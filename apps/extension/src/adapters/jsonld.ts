@@ -77,7 +77,37 @@ function toDetected(product: Record<string, unknown>): DetectedProduct | null {
     imageUrl: imageUrl(product.image),
     productUrl: cleanUrl(location.href),
     domain: location.hostname,
+    rating: ratingFrom(product.aggregateRating),
   };
+}
+
+/**
+ * Shop rating facts from schema.org `aggregateRating` — average, scale and
+ * review count. These become an attributed "Bewertungen anderswo" entry
+ * server-side, giving fresh products an instant Netz-Konsens for free.
+ */
+export function ratingFrom(agg: unknown): DetectedProduct['rating'] {
+  if (!agg || typeof agg !== 'object' || Array.isArray(agg)) return undefined;
+  const obj = agg as Record<string, unknown>;
+  const value = asNumber(obj.ratingValue);
+  const maxValue = asNumber(obj.bestRating) ?? 5;
+  const count = asNumber(obj.ratingCount) ?? asNumber(obj.reviewCount);
+  if (value === undefined || value < 0 || value > maxValue || maxValue > 100) return undefined;
+  return {
+    value,
+    maxValue,
+    ...(count !== undefined && count > 0 ? { count: Math.round(count) } : {}),
+  };
+}
+
+/** Numbers arrive as numbers or strings, German pages with a decimal comma. */
+function asNumber(v: unknown): number | undefined {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string') {
+    const parsed = Number.parseFloat(v.replace(',', '.'));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
 }
 
 function brandName(brand: unknown): string | undefined {
