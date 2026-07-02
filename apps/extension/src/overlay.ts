@@ -134,6 +134,14 @@ function dismissKey(product: DetectedProduct): string {
   return `wudly-dismiss:${product.identifierValue ?? product.title.slice(0, 60)}`;
 }
 
+/** Undo all ×-dismissals in this tab — the toolbar icon brings the signal back. */
+export function clearDismissals(): void {
+  for (let i = sessionStorage.length - 1; i >= 0; i--) {
+    const key = sessionStorage.key(i);
+    if (key?.startsWith('wudly-dismiss:')) sessionStorage.removeItem(key);
+  }
+}
+
 function styles(): HTMLStyleElement {
   const style = document.createElement('style');
   // Verdict design language: ink on paper, one green accent, no gradients.

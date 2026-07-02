@@ -19,6 +19,11 @@ export type ExtensionMessage =
   | { kind: 'wudly:lookup'; payload: DetectedProduct }
   | { kind: 'wudly:engage'; payload: DetectedProduct };
 
+/** Background → content script: re-show a dismissed overlay (toolbar click). */
+export interface ShowMessage {
+  kind: 'wudly:show';
+}
+
 export type LookupResult = SightingResolutionDto | null;
 
 /** User settings (chrome.storage.local). */

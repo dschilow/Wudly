@@ -1,6 +1,6 @@
 import { detectProduct } from './adapters';
-import { mountOverlay, removeOverlay } from './overlay';
-import type { DetectedProduct, LookupResult } from './types';
+import { clearDismissals, mountOverlay, removeOverlay } from './overlay';
+import type { DetectedProduct, LookupResult, ShowMessage } from './types';
 
 /**
  * Orchestration only: detect the product on the page, ask the background
@@ -76,6 +76,13 @@ function sleep(ms: number): Promise<void> {
 function debug(...args: unknown[]): void {
   console.debug('[Wudly Signal]', ...args);
 }
+
+// Toolbar-icon click re-shows an overlay the user dismissed with ×.
+chrome.runtime.onMessage.addListener((message: ShowMessage) => {
+  if (message?.kind !== 'wudly:show') return;
+  clearDismissals();
+  void detectWithRetries();
+});
 
 lastHref = location.href;
 void detectWithRetries();

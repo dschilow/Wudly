@@ -31,6 +31,14 @@ chrome.runtime.onMessage.addListener(
   },
 );
 
+// Toolbar-icon click = "show me the signal again" after an ×-dismissal.
+chrome.action.onClicked.addListener((tab) => {
+  if (tab.id === undefined) return;
+  void chrome.tabs.sendMessage(tab.id, { kind: 'wudly:show' }).catch(() => {
+    // no content script on this page (not a supported shop) — nothing to do
+  });
+});
+
 async function handleLookup(product: DetectedProduct, tabId?: number): Promise<LookupResult> {
   const settings = await loadSettings();
   if (!settings.enabled) return null;
