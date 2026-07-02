@@ -148,11 +148,27 @@ export interface ExternalConsensusThemeDto {
   sourceUrls: string[];
 }
 
+/**
+ * A product public reviewers say they switched to (or recommend instead),
+ * with the reason and source link(s). `productId` is set when the alternative
+ * could be matched to an existing catalog product (enables deep-link + compare).
+ */
+export interface SwitchAlternativeDto {
+  name: string;
+  brand: string | null;
+  reason: string;
+  sourceUrls: string[];
+  productId: string | null;
+}
+
 /** Public-review themes, source-backed and strictly separate from Wudly owner data. */
 export interface ExternalConsensusDto {
   summary: string | null;
+  /** 1–2 sentences on durability/long-term reports from public sources. */
+  longTermNote: string | null;
   positiveThemes: ExternalConsensusThemeDto[];
   negativeThemes: ExternalConsensusThemeDto[];
+  switchAlternatives: SwitchAlternativeDto[];
   sourceUrls: string[];
   fetchedAt: string;
 }

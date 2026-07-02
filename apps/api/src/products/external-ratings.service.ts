@@ -5,6 +5,7 @@ import {
   type ExternalRatingDto,
   type ExternalConsensusDto,
   type ResearchedExternalConsensus,
+  type SwitchAlternativeDto,
   type UpsertExternalRatingInput,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -30,17 +31,21 @@ export class ExternalRatingsService {
   async getConsensus(productId: string): Promise<ExternalConsensusDto | null> {
     const [row] = await this.prisma.$queryRaw<Array<{
       summary: string | null;
+      longTermNote: string | null;
       positiveThemes: unknown;
       negativeThemes: unknown;
+      switchAlternatives: unknown;
       sourceUrls: unknown;
       fetchedAt: Date;
-    }>>`SELECT "summary", "positiveThemes", "negativeThemes", "sourceUrls", "fetchedAt"
+    }>>`SELECT "summary", "longTermNote", "positiveThemes", "negativeThemes", "switchAlternatives", "sourceUrls", "fetchedAt"
        FROM "ExternalConsensus" WHERE "productId" = ${productId} LIMIT 1`;
     if (!row) return null;
     return {
       summary: row.summary,
+      longTermNote: row.longTermNote,
       positiveThemes: asThemes(row.positiveThemes),
       negativeThemes: asThemes(row.negativeThemes),
+      switchAlternatives: asSwitchAlternatives(row.switchAlternatives),
       sourceUrls: asUrls(row.sourceUrls),
       fetchedAt: row.fetchedAt.toISOString(),
     };
@@ -60,20 +65,35 @@ export class ExternalRatingsService {
     return consensus.length > 0 || Boolean(rating);
   }
 
-  async storeResearch(productId: string, research: ResearchedExternalConsensus): Promise<void> {
+  /**
+   * Persist the researched consensus. `matchedAlternatives` is the catalog-
+   * matched shape of `research.switchAlternatives` (with productId); when the
+   * caller didn't match, the raw research alternatives are stored unmatched.
+   */
+  async storeResearch(
+    productId: string,
+    research: ResearchedExternalConsensus,
+    matchedAlternatives?: SwitchAlternativeDto[],
+  ): Promise<void> {
     const sourceUrls = [...new Set(research.sourceUrls)].slice(0, 12);
     const positives = JSON.stringify(research.positiveThemes);
     const negatives = JSON.stringify(research.negativeThemes);
+    const alternatives = JSON.stringify(
+      matchedAlternatives ??
+        research.switchAlternatives.map((alt) => ({ ...alt, productId: null })),
+    );
     const sources = JSON.stringify(sourceUrls);
     await this.prisma.$executeRaw`
       INSERT INTO "ExternalConsensus"
-        ("id", "productId", "summary", "positiveThemes", "negativeThemes", "sourceUrls", "fetchedAt", "createdAt", "updatedAt")
+        ("id", "productId", "summary", "longTermNote", "positiveThemes", "negativeThemes", "switchAlternatives", "sourceUrls", "fetchedAt", "createdAt", "updatedAt")
       VALUES
-        (${crypto.randomUUID()}, ${productId}, ${research.summary}, ${positives}::jsonb, ${negatives}::jsonb, ${sources}::jsonb, NOW(), NOW(), NOW())
+        (${crypto.randomUUID()}, ${productId}, ${research.summary}, ${research.longTermNote}, ${positives}::jsonb, ${negatives}::jsonb, ${alternatives}::jsonb, ${sources}::jsonb, NOW(), NOW(), NOW())
       ON CONFLICT ("productId") DO UPDATE SET
         "summary" = EXCLUDED."summary",
+        "longTermNote" = EXCLUDED."longTermNote",
         "positiveThemes" = EXCLUDED."positiveThemes",
         "negativeThemes" = EXCLUDED."negativeThemes",
+        "switchAlternatives" = EXCLUDED."switchAlternatives",
         "sourceUrls" = EXCLUDED."sourceUrls",
         "fetchedAt" = NOW(),
         "updatedAt" = NOW()`;
@@ -165,6 +185,20 @@ function asThemes(value: unknown): ExternalConsensusDto['positiveThemes'] {
 
 function asUrls(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((url): url is string => typeof url === 'string') : [];
+}
+
+function asSwitchAlternatives(value: unknown): SwitchAlternativeDto[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .filter((row) => typeof row.name === 'string' && typeof row.reason === 'string')
+    .map((row) => ({
+      name: row.name as string,
+      brand: typeof row.brand === 'string' ? row.brand : null,
+      reason: row.reason as string,
+      sourceUrls: asUrls(row.sourceUrls),
+      productId: typeof row.productId === 'string' ? row.productId : null,
+    }));
 }
 
 export function toExternalRatingDto(row: ExternalRating): ExternalRatingDto {

@@ -48,6 +48,9 @@ interface DecisionWeights {
   external: number;
 }
 
+/** What the decision score is actually based on — shown, never hidden. */
+type DataBasis = 'owners' | 'external' | 'none';
+
 interface ProductStats {
   product: ProductDetailDto;
   rebuy: number | null;
@@ -57,6 +60,7 @@ interface ProductStats {
   trust: number;
   external: number | null;
   decisionScore: number;
+  basis: DataBasis;
   positive: AspectStatDto[];
   negative: AspectStatDto[];
 }
@@ -171,31 +175,49 @@ function trustScore(product: ProductDetailDto): number {
 function buildProductStats(product: ProductDetailDto, mode: DecisionMode): ProductStats {
   const rebuy = getRebuy(product);
   const regret = getRegret(product);
-  const regretSafety = regret === null ? 52 : 100 - regret;
+  const regretSafety = regret === null ? null : 100 - regret;
   const confidence = confidenceScore(product);
   const trust = trustScore(product);
   const external = product.externalAvgPercent;
   const weights = modeByKey[mode].weights;
+
+  // Only signals that actually exist enter the score — a missing rebuy value is
+  // NOT pretended to be "48". The weights of missing signals are redistributed
+  // across the present ones, so cold products are honestly carried by their
+  // data confidence and Netz-Konsens instead of invented baselines.
+  const parts: Array<{ value: number | null; weight: number }> = [
+    { value: rebuy, weight: weights.rebuy },
+    { value: regretSafety, weight: weights.regretSafety },
+    { value: confidence, weight: weights.confidence },
+    { value: trust, weight: weights.trust },
+    { value: external, weight: weights.external },
+  ];
+  const present = parts.filter(
+    (part): part is { value: number; weight: number } => part.value !== null,
+  );
+  const totalWeight = present.reduce((sum, part) => sum + part.weight, 0);
   const weighted =
-    (rebuy ?? 48) * weights.rebuy +
-    regretSafety * weights.regretSafety +
-    confidence * weights.confidence +
-    trust * weights.trust +
-    (external ?? 50) * weights.external;
-  const unknownPenalty =
-    (rebuy === null ? 12 : 0) +
-    (regret === null ? 5 : 0) +
-    (product.insights.experienceCount === 0 ? 8 : 0);
+    totalWeight > 0
+      ? present.reduce((sum, part) => sum + part.value * part.weight, 0) / totalWeight
+      : 0;
+
+  const basis: DataBasis =
+    product.insights.experienceCount > 0
+      ? 'owners'
+      : product.externalSourceCount > 0
+        ? 'external'
+        : 'none';
 
   return {
     product,
     rebuy,
     regret,
-    regretSafety,
+    regretSafety: regretSafety ?? 52,
     confidence,
     trust,
     external,
-    decisionScore: Math.round(clamp(weighted - unknownPenalty)),
+    decisionScore: Math.round(clamp(weighted)),
+    basis,
     positive: product.insights.topPositiveAspects.slice(0, 4),
     negative: product.insights.topNegativeAspects.slice(0, 4),
   };
@@ -249,9 +271,30 @@ function buildVerdict(stats: ProductStats[]): Verdict | null {
   const leader = sorted[0]!;
   const runnerUp = sorted[1]!;
   const gap = leader.decisionScore - runnerUp.decisionScore;
+
+  // No product has ANY data (no owners, no Netz-Konsens): say so instead of
+  // crowning a winner from noise.
+  if (stats.every((item) => item.basis === 'none')) {
+    return {
+      title: 'Noch zu wenig Daten für ein Fazit',
+      subtitle:
+        'Zu keinem der Produkte gibt es bisher Besitzerstimmen oder belastbare externe Quellen. Frag echte Besitzer oder gib die erste Erfahrung ab.',
+      leader,
+      runnerUp,
+      gap,
+      decisive: false,
+      reasons: [
+        'Keine Wudly-Besitzerstimmen vorhanden.',
+        'Kein externer Netz-Konsens gefunden.',
+        'Der Vergleich wird belastbar, sobald erste Daten da sind.',
+      ],
+    };
+  }
+
   const decisive = gap >= 6;
   const close = gap < 3;
   const reasons = buildReasons(leader, runnerUp, close);
+  const externalOnly = leader.basis === 'external';
 
   return {
     title: close
@@ -262,7 +305,11 @@ function buildVerdict(stats: ProductStats[]): Verdict | null {
     subtitle: close
       ? 'Die Produkte liegen nah beieinander. Entscheidend ist hier, welches Risiko du vermeiden willst.'
       : decisive
-        ? `Der Vorsprung beträgt ${gap} Punkte im aktuellen Entscheidungsmodell.`
+        ? `Der Vorsprung beträgt ${gap} Punkte im aktuellen Entscheidungsmodell.${
+            externalOnly
+              ? ' Basis sind externe Quellen — Wudly-Besitzerstimmen fehlen noch.'
+              : ''
+          }`
         : `Der Vorsprung beträgt nur ${gap} Punkte. Prüfe die Kritikpunkte, bevor du dich festlegst.`,
     leader,
     runnerUp,
@@ -520,6 +567,10 @@ export function CompareClient() {
 
           <motion.section variants={rise}>
             <CompareMatrix stats={stats} mode={mode} />
+          </motion.section>
+
+          <motion.section variants={rise}>
+            <SpecsComparison stats={stats} />
           </motion.section>
 
           <motion.section variants={rise}>
@@ -1097,6 +1148,11 @@ function RecommendationCard({ stats, leader }: { stats: ProductStats; leader: bo
             >
               {leader ? 'Vorteil' : scoreLabel(stats.rebuy)}
             </span>
+            {stats.basis !== 'owners' && (
+              <span className="mono-data rounded-full bg-fill-2 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                {stats.basis === 'external' ? 'Basis: Netz' : 'Keine Daten'}
+              </span>
+            )}
           </div>
           <h3 className="mt-1.5 line-clamp-2 text-[1.0625rem] font-semibold leading-tight text-label">
             {stats.product.canonicalName}
@@ -1503,6 +1559,110 @@ function metricColor(definition: MetricDefinition, raw: number | null): string {
   return scoreColor(raw, 'rebuy');
 }
 
+/**
+ * Side-by-side technical facts. Rows are the union of all spec labels, the ones
+ * every product carries first (those are the comparable ones), and cells whose
+ * value differs from the others are highlighted — the actual decision points.
+ */
+function SpecsComparison({ stats }: { stats: ProductStats[] }) {
+  const rows = useMemo(() => {
+    const order: string[] = [];
+    const byLabel = new Map<string, Map<string, string>>();
+    for (const item of stats) {
+      for (const spec of item.product.specs) {
+        const key = spec.label.trim().toLocaleLowerCase('de-DE');
+        if (!key) continue;
+        if (!byLabel.has(key)) {
+          byLabel.set(key, new Map());
+          order.push(key);
+        }
+        const values = byLabel.get(key)!;
+        if (!values.has('__label')) values.set('__label', spec.label.trim());
+        if (!values.has(item.product.id)) values.set(item.product.id, spec.value);
+      }
+    }
+    return order
+      .map((key) => {
+        const values = byLabel.get(key)!;
+        const coverage = stats.filter((item) => values.has(item.product.id)).length;
+        return { key, label: values.get('__label') ?? key, values, coverage };
+      })
+      .sort((a, b) => b.coverage - a.coverage)
+      .slice(0, 12);
+  }, [stats]);
+
+  if (rows.length === 0) return null;
+
+  const gridTemplateColumns = `minmax(9rem, 12rem) repeat(${stats.length}, minmax(0, 1fr))`;
+
+  return (
+    <div>
+      <SectionHeader
+        icon={Layers3}
+        eyebrow="Technische Daten"
+        title="Specs im direkten Vergleich"
+        description="Fakten aus Herstellerdaten und Katalogen. Unterschiede sind markiert."
+      />
+      <div className="card mt-3 overflow-x-auto">
+        <div style={{ minWidth: `${9 + stats.length * 10}rem` }}>
+          <div
+            className="grid items-center hairline"
+            style={{ gridTemplateColumns }}
+          >
+            <div className="px-4 py-2.5" />
+            {stats.map((item) => (
+              <p
+                key={item.product.id}
+                className="line-clamp-1 border-l border-border px-3 py-2.5 text-[0.75rem] font-semibold text-label"
+              >
+                {item.product.canonicalName}
+              </p>
+            ))}
+          </div>
+          {rows.map((row, rowIndex) => {
+            const distinct = new Set(
+              stats
+                .map((item) => row.values.get(item.product.id))
+                .filter((value): value is string => Boolean(value))
+                .map((value) => value.toLocaleLowerCase('de-DE')),
+            );
+            const differs = distinct.size > 1;
+            return (
+              <div
+                key={row.key}
+                className={cn('grid items-center', rowIndex < rows.length - 1 && 'hairline')}
+                style={{ gridTemplateColumns }}
+              >
+                <div className="px-4 py-3">
+                  <p className="text-[0.8125rem] font-semibold text-muted-foreground">{row.label}</p>
+                </div>
+                {stats.map((item) => {
+                  const value = row.values.get(item.product.id);
+                  return (
+                    <div key={item.product.id} className="border-l border-border px-3 py-3">
+                      <p
+                        className={cn(
+                          'text-[0.875rem] leading-snug',
+                          !value ? 'text-faint' : differs ? 'font-semibold text-label' : 'text-muted-foreground',
+                        )}
+                      >
+                        {value ?? '–'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <p className="mt-2 px-1 text-[0.75rem] leading-snug text-muted-foreground">
+        Fett markierte Werte unterscheiden sich zwischen den Produkten.
+      </p>
+    </div>
+  );
+}
+
 function InsightComparison({ stats }: { stats: ProductStats[] }) {
   return (
     <div>
@@ -1518,7 +1678,13 @@ function InsightComparison({ stats }: { stats: ProductStats[] }) {
           icon={ThumbsUp}
           tone="positive"
           stats={stats}
-          items={(item) => item.positive.map((aspect) => `${aspect.label} (${aspect.count}×)`)}
+          items={(item) =>
+            item.positive.length > 0
+              ? item.positive.map((aspect) => `${aspect.label} (${aspect.count}×)`)
+              : (item.product.externalConsensus?.positiveThemes ?? []).map(
+                  (theme) => `${theme.label} · Netz`,
+                )
+          }
           empty="Noch keine klaren Stärken."
         />
         <InsightColumn
@@ -1526,7 +1692,13 @@ function InsightComparison({ stats }: { stats: ProductStats[] }) {
           icon={ThumbsDown}
           tone="negative"
           stats={stats}
-          items={(item) => item.negative.map((aspect) => `${aspect.label} (${aspect.count}×)`)}
+          items={(item) =>
+            item.negative.length > 0
+              ? item.negative.map((aspect) => `${aspect.label} (${aspect.count}×)`)
+              : (item.product.externalConsensus?.negativeThemes ?? []).map(
+                  (theme) => `${theme.label} · Netz`,
+                )
+          }
           empty="Noch keine klare Kritik."
         />
         <InsightColumn
@@ -1538,6 +1710,9 @@ function InsightComparison({ stats }: { stats: ProductStats[] }) {
           empty="Noch keine Hinweise."
         />
       </div>
+      <p className="mt-2 px-1 text-[0.75rem] leading-snug text-muted-foreground">
+        Einträge mit „Netz“ stammen aus externen, verlinkten Quellen — nicht aus dem Wudly Signal.
+      </p>
     </div>
   );
 }

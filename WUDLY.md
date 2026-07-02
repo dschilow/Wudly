@@ -201,6 +201,26 @@ NIE in Score oder Rankings** — die bleiben rein aus Signal-Daten.
   (bewusst, „danach"):** KI-Showcase-Generator, Creator-Listen, Kampagnen, Analytics,
   Produktseiten-Tab-Struktur.
 
+**Neu (2026-07-02) — Recherche-Dossier & korrekter Vergleich:**
+- **Dossier-Recherche (weiterhin EIN Call/EINE Suche pro Produktanlage):** Die kombinierte
+  Add-Flow-Recherche (`researchProductAndConsensus`) liefert zusätzlich `longTermNote`
+  (1–2 Sätze Langzeit/Haltbarkeit), `switchAlternatives` (bis 3 belegte „Umsteiger"-Produkte
+  mit Grund + Quell-URL; Quellen-Gate: URL muss aus dem regulären Quellen-Pool stammen,
+  Selbstreferenzen fliegen raus) und bis zu 12 Specs. Migration
+  `20260702120000_add_consensus_dossier` (Spalten `longTermNote`, `switchAlternatives` auf
+  `ExternalConsensus`). Beim Speichern matcht `products.service.matchSwitchAlternatives()`
+  die Alternativen gegen den Katalog (productId → Deep-Link + Compare-Button).
+- **Produktseite:** `ExternalConsensusCard` zeigt „Langzeit & Haltbarkeit" + „Dahin wechseln
+  Nutzer" (mit Quelle, Katalog-Link und `Vergleichen`-Deep-Link `/compare?ids=a,b`).
+- **Vergleich korrekt gemacht (`CompareClient`):** (1) Entscheidungsscore erfindet keine
+  Baselines mehr (vorher rebuy??48/external??50) — fehlende Signale werden per
+  Gewichts-Redistribution ehrlich ausgelassen; (2) Fazit sagt bei komplett kalten Produkten
+  „Noch zu wenig Daten" statt einen Sieger zu küren, Basis-Chip („Basis: Netz"/„Keine Daten")
+  auf den Karten; (3) neue **Specs-Matrix** (Label-Union, Unterschiede fett, mobil scrollbar);
+  (4) Stärken/Kritik fallen ohne eigene Aspekte auf Netz-Konsens-Themen zurück („· Netz").
+- Kosten pro Produktanlage unverändert: 1 Brave-Suche + 1 Flash-Lite-Call (nur maxTokens
+  1400→1700), plus die bekannten Hintergrund-Jobs (Bild-Jagd, Fragen-Pool).
+
 **Neu (2026-06-10) — Icecat-Bilder, Bild-Cache & „Bewertungen anderswo":**
 - **Open-Icecat-Lookup** (`products/icecat.service.ts`): offizielle Herstellerdaten + Bilder
   per GTIN, **vorne** in der EAN-Kette (Icecat → Open Food Facts → UPCitemdb). Aktiv sobald

@@ -1,4 +1,15 @@
-import { AlertTriangle, ExternalLink, Globe2, ShieldCheck, Sparkles, Star } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowRightLeft,
+  ExternalLink,
+  GitCompareArrows,
+  Globe2,
+  Hourglass,
+  ShieldCheck,
+  Sparkles,
+  Star,
+} from 'lucide-react';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import {
   externalRatingPercent,
@@ -12,9 +23,12 @@ import {
 export function ExternalConsensusCard({
   consensus,
   ratings,
+  productId,
 }: {
   consensus: ExternalConsensusDto | null;
   ratings: ExternalRatingDto[];
+  /** Current product id — enables the compare deep-link on matched alternatives. */
+  productId?: string;
 }) {
   const sources = uniqueSources(consensus, ratings);
   return (
@@ -37,6 +51,19 @@ export function ExternalConsensusCard({
           <p className="mt-4 max-w-3xl text-[0.9375rem] leading-[1.65] text-label">
             {consensus.summary}
           </p>
+        )}
+        {consensus?.longTermNote && (
+          <div className="mt-3 flex max-w-3xl items-start gap-2.5 rounded-xl border border-border bg-surface/70 px-3 py-2.5">
+            <Hourglass className="mt-0.5 h-4 w-4 shrink-0 text-accent-ink" strokeWidth={2.2} aria-hidden />
+            <div className="min-w-0">
+              <p className="mono-data text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Langzeit &amp; Haltbarkeit
+              </p>
+              <p className="mt-0.5 text-[0.875rem] leading-relaxed text-label">
+                {consensus.longTermNote}
+              </p>
+            </div>
+          </div>
         )}
       </div>
 
@@ -63,6 +90,65 @@ export function ExternalConsensusCard({
             />
           </div>
         )}
+
+      {consensus && consensus.switchAlternatives.length > 0 && (
+        <div className="border-t border-border p-4 sm:p-5">
+          <h4 className="flex items-center gap-2 text-[0.75rem] font-semibold uppercase tracking-[0.1em] text-label-3">
+            <ArrowRightLeft className="h-4 w-4 text-accent-ink" strokeWidth={2.2} aria-hidden />
+            Dahin wechseln Nutzer
+          </h4>
+          <div className="mt-2.5 space-y-2.5">
+            {consensus.switchAlternatives.slice(0, 3).map((alt) => (
+              <div
+                key={alt.name}
+                className="rounded-xl border border-border bg-fill px-3 py-2.5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                  {alt.productId ? (
+                    <Link
+                      href={`/products/${alt.productId}`}
+                      className="tap-dim min-w-0 text-[0.9375rem] font-semibold leading-snug text-label underline-offset-2 hover:underline"
+                    >
+                      {alt.name}
+                    </Link>
+                  ) : (
+                    <p className="min-w-0 text-[0.9375rem] font-semibold leading-snug text-label">
+                      {alt.name}
+                    </p>
+                  )}
+                  {alt.productId && productId && (
+                    <Link
+                      href={`/compare?ids=${productId},${alt.productId}`}
+                      className="tap-dim mono-data inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-accent-ink"
+                    >
+                      <GitCompareArrows className="h-3.5 w-3.5" strokeWidth={2.3} aria-hidden />
+                      Vergleichen
+                    </Link>
+                  )}
+                </div>
+                <p className="mt-1 text-[0.875rem] leading-snug text-muted-foreground">
+                  {alt.reason}
+                </p>
+                {alt.sourceUrls[0] && (
+                  <a
+                    href={alt.sourceUrls[0]}
+                    target="_blank"
+                    rel="noopener nofollow"
+                    className="tap-dim mt-1.5 inline-flex items-center gap-1 text-[0.6875rem] text-muted-foreground hover:text-label"
+                  >
+                    Quelle: {domain(alt.sourceUrls[0])}
+                    <ExternalLink className="h-3 w-3" aria-hidden />
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[0.6875rem] leading-snug text-muted-foreground">
+            Aus öffentlichen Erfahrungsberichten. Kein Ranking, keine Werbung — nur belegte
+            Nennungen.
+          </p>
+        </div>
+      )}
 
       <div className="border-t border-border px-4 py-3.5 sm:px-5">
         <div className="flex flex-wrap gap-2">

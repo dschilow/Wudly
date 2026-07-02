@@ -105,6 +105,13 @@ const externalThemeSchema = z.union([
   z.string().trim().min(4).max(100),
 ]);
 
+const switchAlternativeSchema = z.object({
+  name: z.string().trim().min(2).max(140),
+  brand: z.string().trim().max(80).nullable().optional(),
+  reason: z.string().trim().min(6).max(220),
+  sourceUrls: z.array(z.string().trim().url().max(600)).min(1).max(3),
+});
+
 const externalConsensusSchema = z.object({
   ratings: z
     .array(
@@ -121,8 +128,10 @@ const externalConsensusSchema = z.object({
     .max(4)
     .default([]),
   summary: z.string().trim().min(20).max(600).nullable().optional(),
-  positiveThemes: z.array(externalThemeSchema).max(5).default([]),
-  negativeThemes: z.array(externalThemeSchema).max(5).default([]),
+  longTermNote: z.string().trim().min(20).max(400).nullable().optional(),
+  positiveThemes: z.array(externalThemeSchema).max(6).default([]),
+  negativeThemes: z.array(externalThemeSchema).max(6).default([]),
+  switchAlternatives: z.array(switchAlternativeSchema).max(3).default([]),
   sourceUrls: z.array(z.string().trim().url().max(600)).min(1).max(12),
 });
 const externalRatingsSchema = z.object({ ratings: externalConsensusSchema.shape.ratings });
@@ -537,7 +546,7 @@ export class OpenRouterAiService implements AiService {
           'Findest du das Produkt nicht zweifelsfrei, setze found=false und erfinde nichts. ' +
           `categorySlug MUSS exakt einer aus dieser Liste sein oder null: ${categorySlugs.join(', ')}. ` +
           '"canonicalName" ist der saubere offizielle Produktname (mit Marke), "description" ein ' +
-          'sachlicher deutscher Satz. "specs" sind bis zu 8 zentrale technische Fakten als ' +
+          'sachlicher deutscher Satz. "specs" sind bis zu 12 zentrale technische Fakten als ' +
           '{label,value}-Paare auf Deutsch (z. B. {"label":"Display","value":"6,8\\" OLED"}); nur ' +
           'sichere Fakten, sonst leer. "productUrl" ist die URL der offiziellen Produktseite ' +
           '(Hersteller bevorzugt, sonst großer Händler) — wichtig, bitte angeben wenn bekannt. ' +
@@ -640,24 +649,38 @@ export class OpenRouterAiService implements AiService {
           'Fasse die belastbare Review-Lage in summary in zwei bis drei neutralen deutschen ' +
           'Sätzen zusammen: wichtigste Stärke, wichtigster Kritikpunkt und Einordnung der ' +
           'Quellenlage. Nenne keine unbelegten Details. ' +
+          'longTermNote: 1–2 deutsche Sätze NUR zu Langzeit/Haltbarkeit (Zuverlässigkeit nach ' +
+          'Monaten, Verschleiß, Defekte), nur wenn Quellen das hergeben, sonst null. ' +
           'Erfahrungsthemen müssen wiederkehrend sein und jeweils ' +
           'mindestens zwei unterschiedliche Quellseiten nennen. Kopiere keine Rezensionstexte. ' +
+          'switchAlternatives: bis zu 3 KONKRETE Produkte, zu denen Nutzer laut den Quellen ' +
+          'gewechselt sind oder die sie stattdessen empfehlen — NUR wenn das Produkt wörtlich in ' +
+          'den Quellen genannt wird, mit kurzem Grund ("reason") und der Quellseite; niemals ' +
+          'Modellnamen erfinden, im Zweifel leere Liste. ' +
           'Ignoriere automatisch verlangte Markdown-Zitate und antworte nur als JSON: ' +
-          '{"ratings":[{"source":string,"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,"maxValue":number,"count":number|null}],"summary":string|null,"positiveThemes":[{"label":string,"sourceUrls":[string,string]}],"negativeThemes":[{"label":string,"sourceUrls":[string,string]}],"sourceUrls":[string]}.',
+          '{"ratings":[{"source":string,"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,"maxValue":number,"count":number|null}],"summary":string|null,"longTermNote":string|null,"positiveThemes":[{"label":string,"sourceUrls":[string,string]}],"negativeThemes":[{"label":string,"sourceUrls":[string,string]}],"switchAlternatives":[{"name":string,"brand":string|null,"reason":string,"sourceUrls":[string]}],"sourceUrls":[string]}.',
       },
       { role: 'user', content: `Produkt: ${label}` },
     ];
     const parsed = await this.completeResearch(
-      `${label} Bewertungen Erfahrungen Langzeittest Deutschland Amazon Idealo MediaMarkt Otto Galaxus Reddit Forum`,
+      `${label} Bewertungen Erfahrungen Langzeittest Alternative gewechselt Deutschland Amazon Idealo MediaMarkt Otto Galaxus Reddit Forum`,
       5,
       messages,
       externalConsensusSchema,
-      { temperature: 0.1, maxTokens: 900 },
+      { temperature: 0.1, maxTokens: 1100 },
     );
     if (!parsed) {
-      return { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] };
+      return {
+        ratings: [],
+        summary: null,
+        longTermNote: null,
+        positiveThemes: [],
+        negativeThemes: [],
+        switchAlternatives: [],
+        sourceUrls: [],
+      };
     }
-    return this.finalizeConsensus(parsed, brand);
+    return this.finalizeConsensus(parsed, brand, name);
   }
 
   /**
@@ -669,6 +692,7 @@ export class OpenRouterAiService implements AiService {
   private finalizeConsensus(
     parsed: z.input<typeof tolerantConsensusSchema>,
     brand: string | null,
+    productName: string,
   ): ResearchedExternalConsensus {
     const ratings = this.cleanExternalRatings(parsed.ratings ?? []);
     const sourceUrls = uniqueUrls([
@@ -694,11 +718,18 @@ export class OpenRouterAiService implements AiService {
         )
         .filter((theme) => hasIndependentSources(theme.sourceUrls, 2))
         .filter((theme) => theme.sourceUrls.every((url) => sourceSet.has(url)));
+    const hasSources = sourceUrls.length >= 1;
     return {
       ratings,
-      summary: sourceUrls.length >= 1 ? (parsed.summary ?? null) : null,
+      summary: hasSources ? (parsed.summary ?? null) : null,
+      longTermNote: hasSources ? (parsed.longTermNote ?? null) : null,
       positiveThemes: cleanThemes(parsed.positiveThemes),
       negativeThemes: cleanThemes(parsed.negativeThemes),
+      switchAlternatives: cleanSwitchAlternatives(
+        parsed.switchAlternatives ?? [],
+        sourceSet,
+        productName,
+      ),
       sourceUrls,
     };
   }
@@ -753,13 +784,20 @@ export class OpenRouterAiService implements AiService {
           'ignoriere das: Die Antwort MUSS reines JSON ohne Markdown sein.\n' +
           'Block "product": canonicalName (sauberer offizieller Name mit Marke), brand, ' +
           `categorySlug (EXAKT einer aus: ${categorySlugs.join(', ')} — sonst null), description ` +
-          '(ein sachlicher deutscher Satz), specs (bis 8 sichere {label,value}-Fakten, sonst leer), ' +
+          '(ein sachlicher deutscher Satz), specs (bis 12 sichere {label,value}-Fakten: die ' +
+          'kaufentscheidenden zuerst, sonst leer), ' +
           'productUrl (offizielle Produktseite), imageUrl (direktes offizielles Foto, nur wenn sehr ' +
           'sicher, sonst null), found (true NUR wenn zweifelsfrei erkannt, sonst false; nichts erfinden).\n' +
           'Block "consensus": ratings nur mit belegtem Durchschnitt, Anzahl und konkreter Produkt-URL ' +
           '(Unternehmens-/Shopbewertungen wie Trustpilot weglassen). summary in 2–3 neutralen ' +
-          'deutschen Sätzen (Stärke, Kritikpunkt, Quellenlage). positiveThemes/negativeThemes nur ' +
-          'wiederkehrend und je mit mindestens zwei unterschiedlichen Quellseiten. sourceUrls nur ' +
+          'deutschen Sätzen (Stärke, Kritikpunkt, Quellenlage). longTermNote: 1–2 Sätze NUR zu ' +
+          'Langzeit/Haltbarkeit (Zuverlässigkeit nach Monaten, Verschleiß, Defekte), nur wenn ' +
+          'belegt, sonst null. positiveThemes/negativeThemes nur ' +
+          'wiederkehrend und je mit mindestens zwei unterschiedlichen Quellseiten. ' +
+          'switchAlternatives: bis zu 3 KONKRETE Produkte, zu denen Nutzer laut den Quellen ' +
+          'gewechselt sind oder die sie stattdessen empfehlen — NUR wenn das Produkt wörtlich in ' +
+          'den Quellen genannt wird, mit kurzem Grund ("reason") und der Quellseite; niemals ' +
+          'Modellnamen erfinden, im Zweifel leere Liste. sourceUrls nur ' +
           'konkrete Test-/Bewertungs-/Erfahrungsseiten. Kopiere keine Rezensionstexte. Fehlt eine ' +
           'belastbare Bewertungslage, lass die consensus-Felder leer.\n' +
           'Antworte ausschließlich als valides JSON ohne Markdown: ' +
@@ -767,31 +805,45 @@ export class OpenRouterAiService implements AiService {
           '"description":string|null,"specs":[{"label":string,"value":string}],"imageUrl":string|null,' +
           '"productUrl":string|null,"found":boolean},"consensus":{"ratings":[{"source":string,' +
           '"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,' +
-          '"maxValue":number,"count":number|null}],"summary":string|null,' +
+          '"maxValue":number,"count":number|null}],"summary":string|null,"longTermNote":string|null,' +
           '"positiveThemes":[{"label":string,"sourceUrls":[string,string]}],' +
-          '"negativeThemes":[{"label":string,"sourceUrls":[string,string]}],"sourceUrls":[string]}}.',
+          '"negativeThemes":[{"label":string,"sourceUrls":[string,string]}],' +
+          '"switchAlternatives":[{"name":string,"brand":string|null,"reason":string,"sourceUrls":[string]}],' +
+          '"sourceUrls":[string]}}.',
       },
       { role: 'user', content: `Produkt: ${name}` },
     ];
 
     const parsed = await this.completeResearch(
       `${name} offizielle Herstellerseite technische Daten Modell UND Bewertungen Erfahrungen ` +
-        `Langzeittest Deutschland Amazon Idealo MediaMarkt Otto Galaxus Reddit Forum`,
+        `Langzeittest Alternative gewechselt Deutschland Amazon Idealo MediaMarkt Otto Galaxus Reddit Forum`,
       6,
       messages,
       combinedResearchSchema,
-      { temperature: 0.15, maxTokens: 1400 },
+      { temperature: 0.15, maxTokens: 1700 },
     );
 
     if (!parsed) {
       return {
         product: await this.fallback.researchProduct(name, categorySlugs),
-        consensus: { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] },
+        consensus: {
+          ratings: [],
+          summary: null,
+          longTermNote: null,
+          positiveThemes: [],
+          negativeThemes: [],
+          switchAlternatives: [],
+          sourceUrls: [],
+        },
       };
     }
 
     const product = this.finalizeProduct(parsed.product, categorySlugs);
-    const consensus = this.finalizeConsensus(parsed.consensus, product.brand);
+    const consensus = this.finalizeConsensus(
+      parsed.consensus,
+      product.brand,
+      product.canonicalName || name,
+    );
     return { product, consensus };
   }
 
@@ -904,6 +956,51 @@ function isCommerceDomain(url: string): boolean {
   } catch {
     return true;
   }
+}
+
+/**
+ * Sanitize researched switch alternatives: every claim needs at least one source
+ * URL that survived the global source gate (no blocked/brand domains), the
+ * target must not be the product itself, and duplicates collapse. Hard cap 3 —
+ * this is a pointed "Umsteiger" hint, not a ranking.
+ */
+function cleanSwitchAlternatives(
+  alternatives: Array<{
+    name: string;
+    brand?: string | null;
+    reason: string;
+    sourceUrls: string[];
+  }>,
+  allowedSources: ReadonlySet<string>,
+  productName: string,
+): Array<{ name: string; brand: string | null; reason: string; sourceUrls: string[] }> {
+  const normalize = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9äöüß]+/g, ' ')
+      .trim();
+  const self = normalize(productName);
+  const seen = new Set<string>();
+  const out: Array<{ name: string; brand: string | null; reason: string; sourceUrls: string[] }> =
+    [];
+  for (const alt of alternatives) {
+    const urls = uniqueUrls(alt.sourceUrls).filter((url) => allowedSources.has(url));
+    if (urls.length === 0) continue;
+    const key = normalize([alt.brand, alt.name].filter(Boolean).join(' '));
+    const nameKey = normalize(alt.name);
+    if (!nameKey || seen.has(key)) continue;
+    // Never suggest the product as an alternative to itself (either direction).
+    if (self && (self.includes(nameKey) || nameKey.includes(self))) continue;
+    seen.add(key);
+    out.push({
+      name: alt.name,
+      brand: alt.brand ?? guessBrand(alt.name) ?? null,
+      reason: alt.reason,
+      sourceUrls: urls.slice(0, 3),
+    });
+    if (out.length >= 3) break;
+  }
+  return out;
 }
 
 function hasIndependentSources(urls: string[], minimum: number): boolean {

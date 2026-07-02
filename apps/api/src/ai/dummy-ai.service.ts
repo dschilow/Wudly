@@ -118,7 +118,15 @@ export class DummyAiService implements AiService {
     _brand: string | null,
   ): Promise<ResearchedExternalConsensus> {
     // No web access → never invent rating facts.
-    return { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] };
+    return {
+      ratings: [],
+      summary: null,
+      longTermNote: null,
+      positiveThemes: [],
+      negativeThemes: [],
+      switchAlternatives: [],
+      sourceUrls: [],
+    };
   }
 
   async researchProductAndConsensus(

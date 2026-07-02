@@ -717,6 +717,7 @@ export default async function ProductPage({ params }: PageProps) {
           <ExternalConsensusCard
             consensus={product.externalConsensus}
             ratings={product.externalRatings}
+            productId={product.id}
           />
         </section>
       )}

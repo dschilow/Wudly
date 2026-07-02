@@ -356,8 +356,13 @@ model ExternalConsensus {
   id             String   @id @default(cuid())
   productId      String   @unique
   summary        String?
+  /// 1–2 sentences on durability/long-term reports from public sources.
+  longTermNote   String?
   positiveThemes Json     @default("[]")
   negativeThemes Json     @default("[]")
+  /// Source-backed "Umsteiger" suggestions: products reviewers switched to
+  /// (name, brand, reason, sourceUrls, matched productId). Orientation only.
+  switchAlternatives Json @default("[]")
   sourceUrls     Json     @default("[]")
   fetchedAt      DateTime @default(now())
   createdAt      DateTime @default(now())

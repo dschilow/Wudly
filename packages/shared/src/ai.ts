@@ -203,11 +203,27 @@ export interface ResearchedExternalTheme {
   sourceUrls: string[];
 }
 
+/**
+ * A concrete product that reviewers/owners in public sources say they switched
+ * to (or recommend instead) — with the reason and the page(s) that say so.
+ * Research fact, source-backed; NEVER part of the Wudly Signal.
+ */
+export interface ResearchedSwitchAlternative {
+  name: string;
+  brand: string | null;
+  /** Short German reason, e.g. "leiser und bessere Navigation". */
+  reason: string;
+  sourceUrls: string[];
+}
+
 export interface ResearchedExternalConsensus {
   ratings: ResearchedExternalRating[];
   summary: string | null;
+  /** 1–2 German sentences on durability/long-term reports (or null). */
+  longTermNote: string | null;
   positiveThemes: ResearchedExternalTheme[];
   negativeThemes: ResearchedExternalTheme[];
+  switchAlternatives: ResearchedSwitchAlternative[];
   sourceUrls: string[];
 }
 

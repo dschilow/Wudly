@@ -61,6 +61,47 @@ describe('OpenRouterAiService research cost gates', () => {
     expect(result.sourceUrls).toHaveLength(1);
   });
 
+  it('keeps only source-backed switch alternatives and drops self-references', async () => {
+    const completeJson = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        ratings: [],
+        summary: 'Mehrere Quellen vergleichen das Produkt mit direkten Konkurrenten.',
+        longTermNote: 'Langzeitberichte nennen nach einem Jahr kaum Defekte.',
+        positiveThemes: [],
+        negativeThemes: [],
+        switchAlternatives: [
+          {
+            name: 'Roborock S8 Pro',
+            brand: 'Roborock',
+            reason: 'leiser und bessere Navigation',
+            sourceUrls: ['https://review-a.de/produkt'],
+          },
+          {
+            name: 'Acme Sauger 5',
+            brand: 'Acme',
+            reason: 'Selbstreferenz muss rausfliegen',
+            sourceUrls: ['https://review-a.de/produkt'],
+          },
+          {
+            name: 'Phantom 9000',
+            brand: null,
+            reason: 'Quelle nicht im Quellen-Pool',
+            sourceUrls: ['https://unbekannt.de/never-listed'],
+          },
+        ],
+        sourceUrls: ['https://review-a.de/produkt', 'https://review-b.de/langzeittest'],
+      }),
+    );
+    const service = createService(completeJson, vi.fn(), 'openrouter');
+
+    const result = await service.researchExternalConsensus('Acme Sauger 5', 'Acme');
+
+    expect(result.longTermNote).toContain('Langzeitberichte');
+    expect(result.switchAlternatives).toHaveLength(1);
+    expect(result.switchAlternatives[0]?.name).toBe('Roborock S8 Pro');
+    expect(result.switchAlternatives[0]?.sourceUrls).toEqual(['https://review-a.de/produkt']);
+  });
+
   it('normalizes flattened themes when two independent review sources are present', async () => {
     const completeJson = vi.fn().mockResolvedValue(
       JSON.stringify({

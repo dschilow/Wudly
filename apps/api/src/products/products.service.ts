@@ -36,6 +36,7 @@ import {
   type RatingBackfillResultDto,
   type ResearchedProduct,
   type ResearchedExternalConsensus,
+  type SwitchAlternativeDto,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
@@ -259,8 +260,10 @@ function hasExternalResearchSignal(research: ResearchedExternalConsensus): boole
     research.ratings.length > 0 ||
     research.positiveThemes.length > 0 ||
     research.negativeThemes.length > 0 ||
+    research.switchAlternatives.length > 0 ||
     research.sourceUrls.length > 0 ||
-    Boolean(research.summary?.trim())
+    Boolean(research.summary?.trim()) ||
+    Boolean(research.longTermNote?.trim())
   );
 }
 @Injectable()
@@ -921,11 +924,40 @@ export class ProductsService {
       stored += 1;
     }
     const themes = research.positiveThemes.length + research.negativeThemes.length;
-    await this.externalRatings.storeResearch(productId, research);
+    const matchedAlternatives = await this.matchSwitchAlternatives(productId, research);
+    await this.externalRatings.storeResearch(productId, research, matchedAlternatives);
     if (stored > 0) {
       this.logger.log(`External ratings stored for ${productId}: ${stored}`);
     }
     return { ratings: stored, themes };
+  }
+
+  /**
+   * Link researched "Umsteiger" alternatives to catalog products: a confident
+   * name match gets the product's id (deep link + compare), everything else is
+   * stored unmatched. Best-effort — a matching failure never blocks the store.
+   */
+  private async matchSwitchAlternatives(
+    productId: string,
+    research: ResearchedExternalConsensus,
+  ): Promise<SwitchAlternativeDto[]> {
+    return Promise.all(
+      research.switchAlternatives.map(async (alt) => {
+        try {
+          const query = [alt.brand, alt.name].filter(Boolean).join(' ');
+          const candidates = await this.matching.findDuplicateCandidates(query, 1);
+          const hit = candidates.find(
+            (c) =>
+              c.similarity >= DEFAULT_SIMILARITY_THRESHOLDS.duplicate &&
+              c.product.id !== productId &&
+              c.product.status === 'ACTIVE',
+          );
+          return { ...alt, productId: hit?.product.id ?? null };
+        } catch {
+          return { ...alt, productId: null };
+        }
+      }),
+    );
   }
 
   private async researchExternalConsensusWithFallback(
@@ -954,7 +986,15 @@ export class ProductsService {
 
     if (last) return last;
     if (lastError) throw lastError;
-    return { ratings: [], summary: null, positiveThemes: [], negativeThemes: [], sourceUrls: [] };
+    return {
+      ratings: [],
+      summary: null,
+      longTermNote: null,
+      positiveThemes: [],
+      negativeThemes: [],
+      switchAlternatives: [],
+      sourceUrls: [],
+    };
   }
 
   /**
@@ -1565,8 +1605,10 @@ export class ProductsService {
       await this.externalRatings.storeResearch(product.id, {
         ratings: [],
         summary: input.consensusSummary?.trim() || null,
+        longTermNote: null,
         positiveThemes: input.positiveThemes,
         negativeThemes: input.negativeThemes,
+        switchAlternatives: [],
         sourceUrls,
       });
     }
