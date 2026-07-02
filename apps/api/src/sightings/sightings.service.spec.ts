@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SightingsService, shopSource } from './sightings.service';
-import { researchQuery } from './sightings-worker.service';
+import { SightingsService, researchQuery, shopSource } from './sightings.service';
 import type { ProductSightingInput } from '@wudly/shared';
 
 /** Minimal collaborator fakes — the service only touches what a test arms. */

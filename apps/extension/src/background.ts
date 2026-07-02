@@ -14,7 +14,12 @@ import { loadSettings } from './types';
 
 /** One 'view' per product per service-worker session — repeat SPA navigations
  *  to the same product must not inflate demand counters. */
-const sessionCache = new Map<string, LookupResult>();
+const sessionCache = new Map<string, { result: LookupResult; at: number }>();
+
+/** "queued" is transient BY DESIGN — the pipeline turns it into "known"
+ *  within minutes. Serving it from cache for the whole session would keep
+ *  telling the user "Wudly kennt es nicht" long after it does. */
+const QUEUED_TTL_MS = 3 * 60 * 1000;
 
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, sender, sendResponse: (r: LookupResponse) => void) => {
@@ -45,10 +50,11 @@ async function handleLookup(product: DetectedProduct, tabId?: number): Promise<L
 
   const key = cacheKey(product);
   const cached = sessionCache.get(key);
-  if (cached !== undefined) {
-    void badge(tabId, cached);
-    return { result: cached };
+  if (cached && (cached.result?.status === 'known' || Date.now() - cached.at < QUEUED_TTL_MS)) {
+    void badge(tabId, cached.result);
+    return { result: cached.result };
   }
+  sessionCache.delete(key);
 
   let result: LookupResult = null;
   let error: string | undefined;
@@ -66,7 +72,7 @@ async function handleLookup(product: DetectedProduct, tabId?: number): Promise<L
   // NOT poison the session — the next page view should simply try again.
   if (result !== null) {
     if (sessionCache.size > 500) sessionCache.clear();
-    sessionCache.set(key, result);
+    sessionCache.set(key, { result, at: Date.now() });
   }
   void badge(tabId, result);
   return { result, error };

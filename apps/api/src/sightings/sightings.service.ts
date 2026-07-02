@@ -79,6 +79,7 @@ export class SightingsService {
       input.identifierType ?? null,
       input.identifierValue ?? null,
       input.title,
+      input.brand ?? null,
     );
     const row = await this.upsertSighting(input, resolved?.id ?? null);
 
@@ -170,11 +171,14 @@ export class SightingsService {
     return true;
   }
 
-  /** DB-only resolution: identifier first (exact), then strong name match. */
+  /** DB-only resolution: identifier first (exact), then strong name match —
+   *  raw shop title first, then the cleaned core (shop titles carry keyword
+   *  spam that drags the similarity below the duplicate threshold). */
   private async resolveProduct(
     type: ProductIdentifierType | null,
     value: string | null,
     title: string,
+    brand: string | null = null,
   ): Promise<ProductWithRelations | null> {
     if (type && value) {
       const types: ProductIdentifierType[] =
@@ -186,11 +190,14 @@ export class SightingsService {
       if (identifier?.product) return identifier.product;
     }
     if (title.trim().length < 4) return null;
-    const candidates = await this.matching.findDuplicateCandidates(title, 3);
-    const strong = candidates.find(
-      (c) => c.similarity >= DEFAULT_SIMILARITY_THRESHOLDS.duplicate,
-    );
-    return strong?.product ?? null;
+    for (const query of [...new Set([title, researchQuery(title, brand)])]) {
+      const candidates = await this.matching.findDuplicateCandidates(query, 3);
+      const strong = candidates.find(
+        (c) => c.similarity >= DEFAULT_SIMILARITY_THRESHOLDS.duplicate,
+      );
+      if (strong) return strong.product;
+    }
+    return null;
   }
 
   private async upsertSighting(
@@ -313,6 +320,24 @@ export class SightingsService {
   private get ingestEnabled(): boolean {
     return this.config.get('EXTENSION_SIGHTINGS_ENABLED', { infer: true });
   }
+}
+
+/**
+ * Shop titles are keyword spam ("XYZ Kopfhörer Bluetooth 5.3 HiFi 120h |
+ * IPX7 …"). Both the AI research and the duplicate matcher need the focused
+ * core, not the whole banner: cut at the first hard separator, prepend the
+ * brand when missing, clamp. Exported for the worker and tests.
+ */
+export function researchQuery(title: string, brand: string | null): string {
+  let core = title.split(/\s*[|,;(]\s*/)[0]?.trim() ?? title.trim();
+  // " - " (spaced hyphen) separates marketing claims; hyphens inside model
+  // names ("WH-1000XM5") have no surrounding spaces and survive.
+  core = core.split(/\s+[-–—]\s+/)[0]?.trim() ?? core;
+  if (core.length < 8) core = title.trim().slice(0, 120);
+  if (brand && !core.toLowerCase().includes(brand.toLowerCase())) {
+    core = `${brand} ${core}`;
+  }
+  return core.slice(0, 160);
 }
 
 /**

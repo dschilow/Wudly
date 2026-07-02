@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import type { ProductSighting } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductsService } from '../products/products.service';
-import { SightingsService } from './sightings.service';
+import { SightingsService, researchQuery } from './sightings.service';
 import type { AppConfig } from '../config/configuration';
 
 const INITIAL_DELAY_MS = 60 * 1000;
@@ -327,22 +327,4 @@ export class SightingsWorkerService implements OnModuleInit, OnModuleDestroy {
   private get researchMinSeen(): number {
     return this.config.get('EXTENSION_RESEARCH_MIN_SEEN', { infer: true });
   }
-}
-
-/**
- * Shop titles are keyword spam ("XYZ Kopfhörer Bluetooth 5.3 HiFi 120h |
- * IPX7 …"). The AI research needs a focused query, not the whole banner:
- * cut at the first hard separator, prepend the brand when missing, clamp.
- * Exported for tests.
- */
-export function researchQuery(title: string, brand: string | null): string {
-  let core = title.split(/\s*[|,;(]\s*/)[0]?.trim() ?? title.trim();
-  // " - " (spaced hyphen) separates marketing claims; hyphens inside model
-  // names ("WH-1000XM5") have no surrounding spaces and survive.
-  core = core.split(/\s+[-–—]\s+/)[0]?.trim() ?? core;
-  if (core.length < 8) core = title.trim().slice(0, 120);
-  if (brand && !core.toLowerCase().includes(brand.toLowerCase())) {
-    core = `${brand} ${core}`;
-  }
-  return core.slice(0, 160);
 }
