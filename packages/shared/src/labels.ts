@@ -12,6 +12,11 @@ import {
   AspectSentiment,
   DisclosureType,
   ProfessionalProfileType,
+  PulseActionStatus,
+  PulseActionPriority,
+  PulseChangeType,
+  PulseSignalSeverity,
+  PulseConfidence,
 } from './enums';
 import type {
   WouldBuyAgain as WouldBuyAgainType,
@@ -181,3 +186,49 @@ function optionMap<T extends string>(options: ReadonlyArray<EnumOption<T>>): Rec
     {} as Record<T, string>,
   );
 }
+
+/* ------------------------------------------------------------------ *
+ * Wudly Pulse labels (German) — B2B dashboard wording, identical in
+ * API-rendered report sentences and the web UI.
+ * ------------------------------------------------------------------ */
+
+export const PULSE_ACTION_STATUS_LABEL: Record<string, string> = {
+  [PulseActionStatus.OPEN]: 'Offen',
+  [PulseActionStatus.IN_PROGRESS]: 'In Arbeit',
+  [PulseActionStatus.DONE]: 'Abgeschlossen',
+  [PulseActionStatus.DISMISSED]: 'Verworfen',
+};
+
+export const PULSE_ACTION_PRIORITY_LABEL: Record<string, string> = {
+  [PulseActionPriority.LOW]: 'Niedrig',
+  [PulseActionPriority.MEDIUM]: 'Mittel',
+  [PulseActionPriority.HIGH]: 'Hoch',
+  [PulseActionPriority.CRITICAL]: 'Kritisch',
+};
+
+export const PULSE_CHANGE_TYPE_LABEL: Record<string, string> = {
+  [PulseChangeType.FIRMWARE_UPDATE]: 'Firmware-Update',
+  [PulseChangeType.APP_UPDATE]: 'App-Update',
+  [PulseChangeType.NEW_GENERATION]: 'Neue Produktgeneration',
+  [PulseChangeType.NEW_BATCH]: 'Neue Produktcharge',
+  [PulseChangeType.SUPPLIER_CHANGE]: 'Lieferantenwechsel',
+  [PulseChangeType.PACKAGING]: 'Neue Verpackung',
+  [PulseChangeType.MANUAL_UPDATE]: 'Geänderte Bedienungsanleitung',
+  [PulseChangeType.SUPPORT_PROCESS]: 'Verbesserter Supportprozess',
+  [PulseChangeType.SPARE_PART_PRICING]: 'Geänderte Ersatzteilpreise',
+  [PulseChangeType.SHOP_LISTING]: 'Neue Produktbeschreibung im Shop',
+  [PulseChangeType.OTHER]: 'Sonstige Änderung',
+};
+
+export const PULSE_SIGNAL_SEVERITY_LABEL: Record<string, string> = {
+  [PulseSignalSeverity.CRITICAL]: 'Kritisch',
+  [PulseSignalSeverity.RELEVANT]: 'Relevant',
+  [PulseSignalSeverity.WATCH]: 'Beobachten',
+  [PulseSignalSeverity.POSITIVE]: 'Positiver Trend',
+};
+
+export const PULSE_CONFIDENCE_LABEL: Record<string, string> = {
+  [PulseConfidence.LOW]: 'Frühes Signal',
+  [PulseConfidence.MEDIUM]: 'Belastbar',
+  [PulseConfidence.HIGH]: 'Sehr belastbar',
+};

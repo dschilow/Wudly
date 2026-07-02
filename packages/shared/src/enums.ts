@@ -222,6 +222,58 @@ export const ExternalRatingKind = {
 } as const;
 export type ExternalRatingKind = (typeof ExternalRatingKind)[keyof typeof ExternalRatingKind];
 
+/* --- Wudly Pulse (B2B dashboard) — companies act on the neutral signal,
+ * they never write into it. --- */
+
+export const PulseActionStatus = {
+  OPEN: 'OPEN',
+  IN_PROGRESS: 'IN_PROGRESS',
+  DONE: 'DONE',
+  DISMISSED: 'DISMISSED',
+} as const;
+export type PulseActionStatus = (typeof PulseActionStatus)[keyof typeof PulseActionStatus];
+
+export const PulseActionPriority = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  CRITICAL: 'CRITICAL',
+} as const;
+export type PulseActionPriority = (typeof PulseActionPriority)[keyof typeof PulseActionPriority];
+
+/** A company-documented change whose impact Pulse measures before vs. after. */
+export const PulseChangeType = {
+  FIRMWARE_UPDATE: 'FIRMWARE_UPDATE',
+  APP_UPDATE: 'APP_UPDATE',
+  NEW_GENERATION: 'NEW_GENERATION',
+  NEW_BATCH: 'NEW_BATCH',
+  SUPPLIER_CHANGE: 'SUPPLIER_CHANGE',
+  PACKAGING: 'PACKAGING',
+  MANUAL_UPDATE: 'MANUAL_UPDATE',
+  SUPPORT_PROCESS: 'SUPPORT_PROCESS',
+  SPARE_PART_PRICING: 'SPARE_PART_PRICING',
+  SHOP_LISTING: 'SHOP_LISTING',
+  OTHER: 'OTHER',
+} as const;
+export type PulseChangeType = (typeof PulseChangeType)[keyof typeof PulseChangeType];
+
+/** Severity buckets of a derived Pulse signal (not persisted — computed live). */
+export const PulseSignalSeverity = {
+  CRITICAL: 'CRITICAL',
+  RELEVANT: 'RELEVANT',
+  WATCH: 'WATCH',
+  POSITIVE: 'POSITIVE',
+} as const;
+export type PulseSignalSeverity = (typeof PulseSignalSeverity)[keyof typeof PulseSignalSeverity];
+
+/** How much data is behind a Pulse metric — shown next to every number. */
+export const PulseConfidence = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+export type PulseConfidence = (typeof PulseConfidence)[keyof typeof PulseConfidence];
+
 /** Helper to turn a const-enum object into an array of its values. */
 export function enumValues<T extends Record<string, string>>(e: T): Array<T[keyof T]> {
   return Object.values(e) as Array<T[keyof T]>;

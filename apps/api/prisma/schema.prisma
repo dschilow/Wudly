@@ -188,6 +188,40 @@ enum ExternalRatingKind {
   GRADE_DE // German school grade 1.0 (best) – 6.0 (worst), e.g. Stiftung Warentest
 }
 
+// --- Wudly Pulse (B2B product-health dashboard) ---
+// Pulse READS the neutral signal data (experiences, votes, insights) and never
+// writes into it. Companies only own their watchlist, actions and change log.
+
+enum PulseActionStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  DISMISSED
+}
+
+enum PulseActionPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+/// A company-documented change whose impact Pulse measures by comparing owner
+/// feedback before vs. after `effectiveAt`.
+enum PulseChangeType {
+  FIRMWARE_UPDATE
+  APP_UPDATE
+  NEW_GENERATION
+  NEW_BATCH
+  SUPPLIER_CHANGE
+  PACKAGING
+  MANUAL_UPDATE
+  SUPPORT_PROCESS
+  SPARE_PART_PRICING
+  SHOP_LISTING
+  OTHER
+}
+
 /* ----------------------------------------------------------------- *
  * Identity
  * ----------------------------------------------------------------- */
@@ -308,6 +342,10 @@ model Product {
   prompts           ProductPrompt[]
   promptResponses   ProductPromptResponse[]
   sightings         ProductSighting[]
+  pulseWatches      PulseWatch[]
+  pulseCompetitorOf PulseCompetitor[]       @relation("PulseCompetitorProduct")
+  pulseActions      PulseAction[]
+  pulseChanges      PulseChange[]
 
   @@index([normalizedName])
   @@index([categoryId])
@@ -833,6 +871,9 @@ model ProfessionalProfile {
 
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   showcases ProductShowcase[]
+  pulseWatches PulseWatch[]
+  pulseActions PulseAction[]
+  pulseChanges PulseChange[]
 
   @@index([type])
 }
@@ -941,5 +982,100 @@ model InvitedVote {
   @@index([productId])
   @@index([inviteId])
   @@index([claimedByUserId])
+}
+
+/* ----------------------------------------------------------------- *
+ * Wudly Pulse — B2B product-health dashboard for brands / merchants.
+ *
+ * Pulse only READS the neutral signal (experiences, votes, insights) and
+ * derives signals/metrics live. What companies own here: their watchlist
+ * (portfolio + competitor mapping), an action board and a change log. None
+ * of these tables ever feed the Wudly Signal score or the rankings.
+ * ----------------------------------------------------------------- */
+
+/// One watched catalog product in a company's Pulse portfolio.
+model PulseWatch {
+  id        String   @id @default(cuid())
+  profileId String
+  productId String
+  createdAt DateTime @default(now())
+
+  profile     ProfessionalProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  product     Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  competitors PulseCompetitor[]
+
+  @@unique([profileId, productId])
+  @@index([profileId])
+  @@index([productId])
+}
+
+/// A competitor product mapped to one watched product (drives the
+/// "Wettbewerber" comparison view).
+model PulseCompetitor {
+  id                  String   @id @default(cuid())
+  watchId             String
+  competitorProductId String
+  createdAt           DateTime @default(now())
+
+  watch      PulseWatch @relation(fields: [watchId], references: [id], onDelete: Cascade)
+  competitor Product    @relation("PulseCompetitorProduct", fields: [competitorProductId], references: [id], onDelete: Cascade)
+
+  @@unique([watchId, competitorProductId])
+  @@index([watchId])
+}
+
+/// One entry on the Pulse action board ("Maßnahme"). Baseline metrics are
+/// frozen at creation so effect can be judged honestly after completion.
+model PulseAction {
+  id        String              @id @default(cuid())
+  profileId String
+  productId String
+  title     String
+  /// What triggered this (human-readable signal summary, e.g. from a signal card).
+  triggerSummary String?
+  /// Machine key of the triggering signal kind (e.g. "rebuy-drop").
+  triggerKey     String?
+  /// Free-text responsible person / team.
+  assignee       String?
+  priority       PulseActionPriority @default(MEDIUM)
+  status         PulseActionStatus   @default(OPEN)
+  /// Measurable goal, e.g. "App-Beschwerden in 60 Tagen um 20 % senken".
+  goal           String?
+  expectedImpact String?
+  dueAt          DateTime?
+  /// Metrics frozen at creation (before/after comparison after completion).
+  baselineRebuyScore      Int?
+  baselineRegretScore     Int?
+  baselineExperienceCount Int       @default(0)
+  completedAt             DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  profile ProfessionalProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  product Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, status])
+  @@index([productId])
+}
+
+/// A company-documented change (firmware, batch, packaging, …). Impact is
+/// computed live by comparing owner feedback before vs. after `effectiveAt`.
+model PulseChange {
+  id          String          @id @default(cuid())
+  profileId   String
+  productId   String
+  type        PulseChangeType
+  title       String
+  description String?
+  /// When the change reached customers.
+  effectiveAt DateTime
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  profile ProfessionalProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  product Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, productId])
+  @@index([productId, effectiveAt])
 }
 
