@@ -19,6 +19,12 @@
       details { margin-top: 12px; font-size: 12px; color: #5b5f6d; }
       details input { width: 100%; margin-top: 6px; padding: 7px 9px; border: 1px solid #0c0d1233; border-radius: 8px; font-size: 12px; }
       .saved { margin-top: 10px; font-size: 12px; color: #077951; font-weight: 600; visibility: hidden; }
+      .testrow { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+      .testrow button { border: 1px solid #0c0d1233; background: #fff; border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+      .testrow button:hover { background: #f1f2f6; }
+      #teststatus { font-size: 12px; font-weight: 600; }
+      #teststatus.ok { color: #077951; }
+      #teststatus.fail { color: #b3261e; }
     </style>
   </head>
   <body>
@@ -37,6 +43,10 @@
         <summary>Für Entwickler</summary>
         <label>API-URL <input type="url" id="apiUrl" placeholder="https://…/api" /></label>
       </details>
+      <div class="testrow">
+        <button type="button" id="test">Verbindung testen</button>
+        <span id="teststatus"></span>
+      </div>
       <div class="saved" id="saved">Gespeichert.</div>
     </div>
     <script src="options.js"></script>

@@ -27,3 +27,33 @@ async function save(): Promise<void> {
 enabled.addEventListener('change', () => void save());
 reporting.addEventListener('change', () => void save());
 apiUrl.addEventListener('change', () => void save());
+
+/* "Warum sehe ich nichts?" — one click shows whether the API is reachable.
+ * Also warms a sleeping free-tier instance, so the next page view answers fast. */
+const test = document.getElementById('test') as HTMLButtonElement;
+const testStatus = document.getElementById('teststatus') as HTMLSpanElement;
+
+test.addEventListener('click', () => {
+  void (async () => {
+    // Persist a just-typed URL first, then test exactly what will be used.
+    await save();
+    const base = (apiUrl.value.trim() || DEFAULT_SETTINGS.apiUrl).replace(/\/+$/, '');
+    testStatus.className = '';
+    testStatus.textContent = 'Prüfe … (schlafende API braucht bis zu 30 s)';
+    try {
+      const res = await fetch(`${base}/sightings/resolve?q=verbindungstest`, {
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.ok) {
+        testStatus.className = 'ok';
+        testStatus.textContent = '✓ API erreichbar';
+      } else {
+        testStatus.className = 'fail';
+        testStatus.textContent = `✗ API antwortet mit HTTP ${res.status}`;
+      }
+    } catch {
+      testStatus.className = 'fail';
+      testStatus.textContent = '✗ Nicht erreichbar (URL prüfen / API gestartet?)';
+    }
+  })();
+});

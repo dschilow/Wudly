@@ -58,8 +58,12 @@ async function handleLookup(product: DetectedProduct, tabId?: number): Promise<L
   } catch {
     result = null; // API down / rate limited → fail silent, never break the shop page
   }
-  if (sessionCache.size > 500) sessionCache.clear();
-  sessionCache.set(key, result);
+  // Cache only real answers. A failure (cold-starting API, network blip) must
+  // NOT poison the session — the next page view should simply try again.
+  if (result !== null) {
+    if (sessionCache.size > 500) sessionCache.clear();
+    sessionCache.set(key, result);
+  }
   void badge(tabId, result);
   return result;
 }
@@ -80,11 +84,12 @@ async function postSighting(
   product: DetectedProduct,
   event: 'view' | 'engage',
 ): Promise<LookupResult> {
+  // Generous timeout: the free-tier API sleeps and needs seconds to cold-start.
   const res = await fetch(`${trim(apiUrl)}/sightings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...product, event }),
-    signal: AbortSignal.timeout(8_000),
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) return null;
   return (await res.json()) as LookupResult;
@@ -99,7 +104,7 @@ async function resolveOnly(apiUrl: string, product: DetectedProduct): Promise<Lo
     params.set('q', product.title);
   }
   const res = await fetch(`${trim(apiUrl)}/sightings/resolve?${params}`, {
-    signal: AbortSignal.timeout(8_000),
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) return null;
   return (await res.json()) as LookupResult;

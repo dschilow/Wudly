@@ -72,9 +72,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Diagnosis for "why is nothing showing?" — visible via DevTools console. */
+/** Diagnosis for "why is nothing showing?". console.info, deliberately not
+ *  console.debug — DevTools hides the Verbose level by default and these lines
+ *  exist precisely for users staring at a silent overlay. */
 function debug(...args: unknown[]): void {
-  console.debug('[Wudly Signal]', ...args);
+  console.info('[Wudly Signal]', ...args);
 }
 
 // Toolbar-icon click re-shows an overlay the user dismissed with ×.
