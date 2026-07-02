@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import type {
   CategoryAspectDto,
+  ProductPromptDto,
   WouldBuyAgain,
   UsageDuration,
   ExperienceMood,
@@ -34,6 +35,7 @@ export default function OwnExperienceScreen() {
 
   const [productName, setProductName] = useState('');
   const [aspects, setAspects] = useState<CategoryAspectDto[]>([]);
+  const [prompts, setPrompts] = useState<ProductPromptDto[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [step, setStep] = useState(1);
@@ -48,6 +50,7 @@ export default function OwnExperienceScreen() {
   const [insteadOf, setInsteadOf] = useState('');
   const [positives, setPositives] = useState<string[]>([]);
   const [negatives, setNegatives] = useState<string[]>([]);
+  const [promptAnswers, setPromptAnswers] = useState<Record<string, { answerLabel: string; isCustom: boolean }>>({});
   const [isPublic, setIsPublic] = useState(true);
 
   useEffect(() => {
@@ -63,6 +66,7 @@ export default function OwnExperienceScreen() {
         const all = await api.categories.aspects().catch(() => ({}) as Record<string, CategoryAspectDto[]>);
         setAspects(all[product.category.slug] ?? []);
       }
+      void api.products.prompts(id).then(setPrompts).catch(() => {});
     } catch {
       /* keep wizard usable even if aspects fail */
     } finally {
@@ -86,6 +90,18 @@ export default function OwnExperienceScreen() {
     setNegatives((n) => (n.includes(key) ? n.filter((k) => k !== key) : [...n, key]));
   };
 
+  const setPromptAnswer = (promptId: string, answerLabel: string, isCustom = false) => {
+    setPromptAnswers((prev) => {
+      const label = answerLabel.trim();
+      if (!label) {
+        const next = { ...prev };
+        delete next[promptId];
+        return next;
+      }
+      return { ...prev, [promptId]: { answerLabel: label, isCustom } };
+    });
+  };
+
   const canNext =
     (step === 1 && buyAgain) || (step === 2 && duration) || (step === 3 && mood) || step === 4;
 
@@ -99,6 +115,11 @@ export default function OwnExperienceScreen() {
     setSubmitting(true);
     setError(null);
     try {
+      const promptResponses = Object.entries(promptAnswers).map(([promptId, answer]) => ({
+        promptId,
+        answerLabel: answer.answerLabel,
+        isCustom: answer.isCustom,
+      }));
       await api.experiences.create(id!, {
         wouldBuyAgain: buyAgain,
         usageDuration: duration,
@@ -107,6 +128,7 @@ export default function OwnExperienceScreen() {
         insteadOfText: insteadOf.trim() || undefined,
         positiveAspects: positives.length ? positives : undefined,
         negativeAspects: negatives.length ? negatives : undefined,
+        promptResponses: promptResponses.length ? promptResponses : undefined,
         isPublic,
       });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -233,6 +255,19 @@ export default function OwnExperienceScreen() {
                 <MultiSelectChips options={negativeAspects} selected={negatives} onToggle={toggleNegative} tone="negative" />
               </View>
             )}
+            {prompts.length > 0 && (
+              <View style={{ gap: spacing.md }}>
+                <Label text="Das wollen Kaeufer wissen" />
+                {prompts.slice(0, 4).map((prompt) => (
+                  <PromptAnswerCard
+                    key={prompt.id}
+                    prompt={prompt}
+                    selected={promptAnswers[prompt.id]}
+                    onAnswer={(answerLabel, isCustom) => setPromptAnswer(prompt.id, answerLabel, isCustom)}
+                  />
+                ))}
+              </View>
+            )}
             <View
               style={{
                 flexDirection: 'row',
@@ -277,6 +312,55 @@ export default function OwnExperienceScreen() {
         )}
       </View>
     </SafeAreaView>
+  );
+}
+
+function PromptAnswerCard({
+  prompt,
+  selected,
+  onAnswer,
+}: {
+  prompt: ProductPromptDto;
+  selected?: { answerLabel: string; isCustom: boolean };
+  onAnswer: (answerLabel: string, isCustom?: boolean) => void;
+}) {
+  const { colors, radius } = useTheme();
+  const [custom, setCustom] = useState(selected?.isCustom ? selected.answerLabel : '');
+  return (
+    <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 10 }}>
+      <Text style={{ color: colors.label, fontSize: 15, fontWeight: '700', lineHeight: 20 }}>{prompt.questionText}</Text>
+      {prompt.quickAnswers.length > 0 && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {prompt.quickAnswers.map((answer) => {
+            const active = selected?.answerLabel === answer && !selected.isCustom;
+            return (
+              <Pressable
+                key={answer}
+                onPress={() => onAnswer(active ? '' : answer, false)}
+                style={{
+                  borderRadius: radius.pill,
+                  backgroundColor: active ? colors.accent : colors.fill2,
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                }}
+              >
+                <Text style={{ color: active ? '#fff' : colors.label, fontSize: 13, fontWeight: '700' }}>{answer}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+      <TextInput
+        value={custom}
+        onChangeText={(value) => {
+          setCustom(value);
+          onAnswer(value, true);
+        }}
+        placeholder={prompt.quickAnswers.length > 0 ? 'Andere Antwort (optional)' : 'Deine Antwort'}
+        placeholderTextColor={colors.faint}
+        style={{ backgroundColor: colors.fill2, borderRadius: radius.md, padding: 12, fontSize: 15, color: colors.label }}
+      />
+    </View>
   );
 }
 

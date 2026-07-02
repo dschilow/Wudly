@@ -10,7 +10,7 @@ export function OptionGrid<T extends string>({
   value,
   onChange,
 }: {
-  options: ReadonlyArray<EnumOption<T>>;
+  options: readonly EnumOption<T>[];
   value: T | null;
   onChange: (v: T) => void;
 }) {

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,7 +9,6 @@ import { api } from '@/lib/api';
 import { useTheme } from '@/theme/ThemeProvider';
 import { ScoreRing } from '@/components/ScoreRing';
 import { Card, Muted } from '@/components/ui';
-import { rebuyVerdict } from '@/theme/verdict';
 
 const MAX_COMPARE = 3;
 
@@ -62,6 +61,23 @@ export default function CompareScreen() {
     }, 300);
   };
 
+  useEffect(() => {
+    const raw = params.ids;
+    const ids = typeof raw === 'string' ? raw.split(',').map((x) => x.trim()).filter(Boolean).slice(0, MAX_COMPARE) : [];
+    if (ids.length === 0) return;
+    let active = true;
+    Promise.all(ids.map((id) => api.products.get(id).catch(() => null))).then((items) => {
+      if (!active) return;
+      const loaded = items.filter((item): item is ProductDetailDto => Boolean(item));
+      const unique = loaded.filter((item, index, arr) => arr.findIndex((x) => x.id === item.id) === index);
+      setProducts(unique);
+      setAdding(unique.length < 2);
+    });
+    return () => {
+      active = false;
+    };
+  }, [params.ids]);
+
   const remove = (id: string) => setProducts((prev) => prev.filter((p) => p.id !== id));
 
   // Best value per metric for highlighting.
@@ -74,7 +90,6 @@ export default function CompareScreen() {
         {products.length > 0 && (
           <View style={{ flexDirection: 'row', gap: spacing.md }}>
             {products.map((p) => {
-              const verdict = rebuyVerdict(p.rebuyScore, colors);
               const isBest = p.rebuyScore !== null && p.rebuyScore === bestRebuy && products.length > 1;
               return (
                 <Card key={p.id} style={{ flex: 1, alignItems: 'center', gap: 8, borderColor: isBest ? colors.accent : colors.border, borderWidth: isBest ? 2 : 1 }}>

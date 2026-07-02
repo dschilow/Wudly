@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View, Linking, Pressable } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View, Linking, Pressable, Share } from 'react-native';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,9 @@ import type {
   ExternalRatingDto,
   QuestionDto,
   ProductSummaryDto,
+  ProductPromptDto,
   ShowcaseSummaryDto,
+  InvitedVotesSummaryDto,
 } from '@wudly/shared';
 import { DISCLOSURE_META } from '@wudly/shared';
 import { useAuth } from '@/lib/AuthContext';
@@ -36,7 +38,9 @@ export default function ProductDetailScreen() {
   const [experiences, setExperiences] = useState<ExperienceDto[]>([]);
   const [questions, setQuestions] = useState<QuestionDto[]>([]);
   const [similar, setSimilar] = useState<ProductSummaryDto[]>([]);
+  const [prompts, setPrompts] = useState<ProductPromptDto[]>([]);
   const [showcases, setShowcases] = useState<ShowcaseSummaryDto[]>([]);
+  const [invitedVotes, setInvitedVotes] = useState<InvitedVotesSummaryDto>({ count: 0, yesCount: 0, votes: [] });
   const [owning, setOwning] = useState(false);
   const [owned, setOwned] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -46,8 +50,10 @@ export default function ProductDetailScreen() {
     if (!id) return;
     void api.products.experiences(id).then(setExperiences).catch(() => {});
     void api.products.questions(id).then(setQuestions).catch(() => {});
+    void api.products.prompts(id).then(setPrompts).catch(() => {});
     void api.products.similar(id).then(setSimilar).catch(() => {});
     void api.showcase.forProduct(id).then(setShowcases).catch(() => {});
+    void api.invites.forProduct(id).then(setInvitedVotes).catch(() => {});
   }, [id]);
 
   const markOwned = useCallback(async () => {
@@ -114,6 +120,18 @@ export default function ProductDetailScreen() {
 
   const verdict = rebuyVerdict(product.rebuyScore, colors);
   const early = isEarlySignal(product.experienceCount);
+
+  const shareProduct = async () => {
+    await Share.share({
+      title: product.canonicalName + ' - Wuerdest du es wieder kaufen?',
+      message:
+        product.canonicalName +
+        ': ' +
+        (product.rebuyScore ?? '-') +
+        '% wuerden es wieder kaufen. https://wudly.app/products/' +
+        product.id,
+    }).catch(() => {});
+  };
 
   return (
     <ScrollView
@@ -186,6 +204,23 @@ export default function ProductDetailScreen() {
         />
       </View>
 
+      <View style={{ flexDirection: 'row', gap: spacing.md }}>
+        <Button
+          title="Teilen"
+          variant="soft"
+          onPress={shareProduct}
+          icon={<Ionicons name="share-outline" size={18} color={colors.label} />}
+          style={{ flex: 1 }}
+        />
+        <Button
+          title="Vergleichen"
+          variant="soft"
+          onPress={() => router.push({ pathname: '/compare', params: { ids: product.id } })}
+          icon={<Ionicons name="git-compare-outline" size={18} color={colors.label} />}
+          style={{ flex: 1 }}
+        />
+      </View>
+
       {/* Secondary: mark owned without rating */}
       <Pressable onPress={markOwned} disabled={owning || owned} style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
         <Ionicons name={owned ? 'checkmark-circle' : 'add-circle-outline'} size={16} color={owned ? colors.positiveInk : colors.accent} />
@@ -193,6 +228,8 @@ export default function ProductDetailScreen() {
           {owned ? 'Zu deinen Produkten hinzugefügt' : owning ? 'Wird hinzugefügt…' : 'Nur zu meinen Produkten'}
         </Text>
       </Pressable>
+
+      <InviteCard productId={product.id} productName={product.canonicalName} />
 
       {early && (
         <View
@@ -221,6 +258,8 @@ export default function ProductDetailScreen() {
         </Card>
       )}
 
+      <DecisionBrief insights={product.insights} />
+
       {/* Stat row */}
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
         <Stat label="Besitzer" value={String(product.ownerCount)} />
@@ -230,6 +269,9 @@ export default function ProductDetailScreen() {
           value={product.externalAvgPercent !== null ? `${product.externalAvgPercent}%` : '–'}
         />
       </View>
+
+      <TrustPanel insights={product.insights} />
+      <QuickSignalPanel insights={product.insights} />
 
       {/* Aspects */}
       {insights && (insights.topPositiveAspects.length > 0 || insights.topNegativeAspects.length > 0) && (
@@ -243,6 +285,8 @@ export default function ProductDetailScreen() {
           ))}
         </Card>
       )}
+
+      <OwnerVoices prompts={prompts} />
 
       {/* Wish-known */}
       {insights && insights.wishKnownHighlights.length > 0 && (
@@ -314,6 +358,8 @@ export default function ProductDetailScreen() {
         </Card>
       )}
 
+      <InvitedVotesSection data={invitedVotes} />
+
       {/* Showcases — clearly-labelled creator/brand content */}
       {showcases.length > 0 && (
         <View>
@@ -368,7 +414,7 @@ export default function ProductDetailScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <Text style={{ color: colors.label, fontSize: 16, fontWeight: '800' }}>Ähnliche Produkte</Text>
             <Pressable
-              onPress={() => router.push('/compare')}
+              onPress={() => router.push({ pathname: '/compare', params: { ids: product.id } })}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
             >
               <Ionicons name="git-compare-outline" size={16} color={colors.accent} />
@@ -383,6 +429,288 @@ export default function ProductDetailScreen() {
         </View>
       )}
     </ScrollView>
+  );
+}
+
+
+function DecisionBrief({ insights }: { insights: ProductInsightsDto }) {
+  const { colors, radius } = useTheme();
+  const buyItems =
+    insights.suitedFor.length > 0
+      ? insights.suitedFor
+      : insights.topPositiveAspects.map((a) => 'Wenn dir ' + a.label.toLowerCase() + ' wichtig ist').slice(0, 3);
+  const avoidItems =
+    insights.notSuitedFor.length > 0
+      ? insights.notSuitedFor
+      : insights.topNegativeAspects.map((a) => 'Wenn dich ' + a.label.toLowerCase() + ' stark stoert').slice(0, 3);
+  const questions =
+    insights.wishKnownHighlights.length > 0
+      ? insights.wishKnownHighlights.slice(0, 3)
+      : insights.topNegativeAspects.map((a) => 'Wie stark faellt ' + a.label.toLowerCase() + ' im Alltag auf?').slice(0, 3);
+
+  if (buyItems.length === 0 && avoidItems.length === 0 && questions.length === 0 && insights.experienceCount === 0) {
+    return null;
+  }
+
+  return (
+    <Card style={{ gap: 12 }}>
+      <SectionTitle title="Kaufentscheidung" />
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <DecisionColumn
+          title="Kaufen, wenn"
+          icon="thumbs-up"
+          color={colors.positiveInk}
+          background={colors.positiveSoft}
+          items={buyItems.length > 0 ? buyItems.slice(0, 3) : ['die ersten Besitzer weiter positive Langzeitdaten liefern']}
+        />
+        <DecisionColumn
+          title="Lieber nicht, wenn"
+          icon="thumbs-down"
+          color={colors.regretInk}
+          background={colors.regretSoft}
+          items={avoidItems.length > 0 ? avoidItems.slice(0, 3) : ['du ohne mehr echte Nutzung kein Risiko eingehen willst']}
+        />
+      </View>
+      {questions.length > 0 && (
+        <View style={{ backgroundColor: colors.fill2, borderRadius: radius.md, padding: 12 }}>
+          <Text style={{ color: colors.accentInk, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', marginBottom: 6 }}>
+            Vor dem Kauf klaeren
+          </Text>
+          {questions.slice(0, 3).map((item, i) => (
+            <Text key={i} style={{ color: colors.label, fontSize: 14, lineHeight: 19, marginTop: i === 0 ? 0 : 5 }}>
+              - {item}
+            </Text>
+          ))}
+        </View>
+      )}
+    </Card>
+  );
+}
+
+function DecisionColumn({
+  title,
+  icon,
+  color,
+  background,
+  items,
+}: {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  background: string;
+  items: string[];
+}) {
+  const { colors, radius } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: background, borderRadius: radius.md, padding: 12, gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Ionicons name={icon} size={16} color={color} />
+        <Text style={{ color, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', flex: 1 }}>{title}</Text>
+      </View>
+      {items.map((item, i) => (
+        <Text key={i} style={{ color: colors.label, fontSize: 13, lineHeight: 18 }}>
+          - {item}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+function TrustPanel({ insights }: { insights: ProductInsightsDto }) {
+  const { colors, radius } = useTheme();
+  const verification = insights.verification;
+  if (!verification) return null;
+  const level =
+    verification.total === 0
+      ? 'Noch offen'
+      : verification.verified > 0
+        ? verification.verifiedShare >= 50
+          ? 'Verifiziertes Signal'
+          : 'Gemischter Nachweis'
+        : 'Selbst deklariert';
+
+  return (
+    <Card style={{ gap: 12 }}>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="shield-checkmark-outline" size={21} color={colors.accentInk} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.accentInk, fontSize: 12, fontWeight: '800', textTransform: 'uppercase' }}>{level}</Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 3, lineHeight: 18 }}>
+            Verifizierte Besitzer zaehlen im Score staerker. Selbst deklarierte Stimmen bleiben sichtbar.
+          </Text>
+        </View>
+      </View>
+      <View style={{ height: 7, borderRadius: 4, backgroundColor: colors.fill2, overflow: 'hidden' }}>
+        <View style={{ width: (verification.verifiedShare + '%') as any, height: '100%', backgroundColor: colors.accent }} />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <TrustMetric label="Verifiziert" value={verification.verified} />
+        <TrustMetric label="Selbst" value={verification.selfDeclared} />
+        <TrustMetric label="Offen" value={verification.unverified} />
+      </View>
+    </Card>
+  );
+}
+
+function TrustMetric({ label, value }: { label: string; value: number }) {
+  const { colors, radius } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.fill2, borderRadius: radius.md, padding: 10, alignItems: 'center' }}>
+      <Text style={{ color: colors.label, fontSize: 19, fontWeight: '800' }}>{value}</Text>
+      <Text style={{ color: colors.faint, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', textAlign: 'center' }}>{label}</Text>
+    </View>
+  );
+}
+
+function QuickSignalPanel({ insights }: { insights: ProductInsightsDto }) {
+  const { colors, radius } = useTheme();
+  const quick = insights.quickVotes;
+  if (!quick || quick.count === 0) return null;
+  return (
+    <Card style={{ gap: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.unsureSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="flash-outline" size={21} color={colors.unsureInk} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.label, fontSize: 26, fontWeight: '800' }}>{quick.rebuy !== null ? quick.rebuy + '%' : '-'}</Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 18 }}>
+            {quick.count} Schnellcheck{quick.count === 1 ? '' : 's'}, getrennt vom belastbaren Wudly Signal.
+          </Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flex: 1, backgroundColor: colors.positiveSoft, borderRadius: radius.md, padding: 10 }}>
+          <Text style={{ color: colors.positiveInk, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }}>Wieder kaufen</Text>
+          <Text style={{ color: colors.positiveInk, fontSize: 24, fontWeight: '800' }}>{quick.yes}</Text>
+        </View>
+        <View style={{ flex: 1, backgroundColor: colors.regretSoft, borderRadius: radius.md, padding: 10 }}>
+          <Text style={{ color: colors.regretInk, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }}>Nie wieder</Text>
+          <Text style={{ color: colors.regretInk, fontSize: 24, fontWeight: '800' }}>{quick.no}</Text>
+        </View>
+      </View>
+    </Card>
+  );
+}
+
+function OwnerVoices({ prompts }: { prompts: ProductPromptDto[] }) {
+  const { colors, radius } = useTheme();
+  const answered = prompts.filter((p) => p.responseCount > 0 && p.answerStats.length > 0).slice(0, 4);
+  if (answered.length === 0) return null;
+  return (
+    <Card>
+      <SectionTitle title="Das sagen Besitzer" />
+      <View style={{ gap: 12 }}>
+        {answered.map((prompt) => {
+          const total = prompt.answerStats.reduce((sum, a) => sum + a.count, 0);
+          return (
+            <View key={prompt.id} style={{ backgroundColor: colors.fill2, borderRadius: radius.md, padding: 12 }}>
+              <Text style={{ color: colors.label, fontSize: 14, fontWeight: '700', lineHeight: 19 }}>{prompt.questionText}</Text>
+              <View style={{ gap: 8, marginTop: 10 }}>
+                {prompt.answerStats.slice(0, 4).map((stat) => {
+                  const pct = total > 0 ? Math.round((stat.count / total) * 100) : 0;
+                  return (
+                    <View key={stat.label}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+                        <Text numberOfLines={1} style={{ color: colors.label, fontSize: 13, flex: 1 }}>{stat.label}</Text>
+                        <Text style={{ color: colors.faint, fontSize: 12, fontWeight: '700' }}>{stat.count}</Text>
+                      </View>
+                      <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.surface, overflow: 'hidden', marginTop: 4 }}>
+                        <View style={{ width: (pct + '%') as any, height: '100%', backgroundColor: colors.accent }} />
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </Card>
+  );
+}
+
+function InvitedVotesSection({ data }: { data: InvitedVotesSummaryDto }) {
+  const { colors, radius } = useTheme();
+  if (data.count === 0) return null;
+  return (
+    <Card style={{ gap: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ width: 38, height: 38, borderRadius: radius.md, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="person-add-outline" size={19} color={colors.accentInk} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <SectionTitle title="Eingeladene Stimmen" />
+          <Text style={{ color: colors.label, fontSize: 15, fontWeight: '700' }}>{data.yesCount} von {data.count} wuerden wieder kaufen</Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>Von Bekannten per Einladung, separat ausgewiesen.</Text>
+        </View>
+      </View>
+      {data.votes.slice(0, 5).map((vote) => (
+        <View key={vote.id} style={{ paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+            <Text numberOfLines={1} style={{ color: colors.label, fontSize: 14, fontWeight: '700', flex: 1 }}>{vote.guestName ?? 'Bekannte:r'}</Text>
+            <Chip
+              label={WOULD_BUY_AGAIN_LABEL[vote.wouldBuyAgain]}
+              tone={vote.wouldBuyAgain === 'YES' ? 'positive' : vote.wouldBuyAgain === 'NO' ? 'negative' : 'neutral'}
+            />
+          </View>
+          {vote.comment && <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 18, marginTop: 5 }}>{vote.comment}</Text>}
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+function InviteCard({ productId, productName }: { productId: string; productName: string }) {
+  const { colors, radius } = useTheme();
+  const router = useRouter();
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const invite = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.invites.create(productId);
+      const url = res.url.startsWith('http') ? res.url : 'https://wudly.app' + res.url;
+      await Share.share({
+        title: 'Wudly - kurz bewerten',
+        message: 'Du besitzt "' + productName + '"? Bewerte es in 10 Sekunden - ohne Anmeldung: ' + url,
+      }).catch(() => {});
+      setShared(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.displayMessage : 'Konnte den Link nicht erstellen.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={{ width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name={shared ? 'checkmark' : 'person-add-outline'} size={22} color={colors.accentInk} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: colors.label, fontSize: 15, fontWeight: '800' }}>Kennst du jemanden mit diesem Produkt?</Text>
+        <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 18, marginTop: 2 }}>Lass es in 10 Sekunden bewerten, ohne Anmeldung.</Text>
+        {error && <Text style={{ color: colors.regretInk, fontSize: 12, marginTop: 4 }}>{error}</Text>}
+      </View>
+      <Pressable
+        onPress={invite}
+        disabled={busy}
+        style={{ backgroundColor: colors.accent, borderRadius: radius.pill, paddingVertical: 10, paddingHorizontal: 14, opacity: busy ? 0.6 : 1 }}
+      >
+        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{shared ? 'Geteilt' : 'Fragen'}</Text>
+      </Pressable>
+    </Card>
   );
 }
 

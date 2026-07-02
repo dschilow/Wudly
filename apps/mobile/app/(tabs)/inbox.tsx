@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } 
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { NotificationDto, NotificationListDto, OpenQuestionDto, NotificationType } from '@wudly/shared';
+import type { GroupedNotificationInboxDto, NotificationDto, NotificationListDto, NotificationProductGroupDto, OpenQuestionDto, NotificationType } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -19,11 +19,12 @@ const typeIcon: Record<NotificationType, keyof typeof Ionicons.glyphMap> = {
 };
 
 export default function InboxScreen() {
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing } = useTheme();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
   const [data, setData] = useState<NotificationListDto | null>(null);
+  const [grouped, setGrouped] = useState<GroupedNotificationInboxDto | null>(null);
   const [openQuestions, setOpenQuestions] = useState<OpenQuestionDto[]>([]);
   const [myQuestions, setMyQuestions] = useState<OpenQuestionDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,12 +36,14 @@ export default function InboxScreen() {
       return;
     }
     try {
-      const [list, open, mine] = await Promise.all([
+      const [list, threads, open, mine] = await Promise.all([
         api.notifications.list(30),
+        api.notifications.grouped().catch(() => null),
         api.notifications.openQuestions().catch(() => []),
         api.notifications.myQuestions().catch(() => []),
       ]);
       setData(list);
+      setGrouped(threads);
       setOpenQuestions(open);
       setMyQuestions(mine);
       if (list.unreadCount > 0) void api.notifications.markAllRead().catch(() => {});
@@ -86,7 +89,8 @@ export default function InboxScreen() {
   }
 
   const items = data?.items ?? [];
-  const isEmpty = !loading && items.length === 0 && openQuestions.length === 0 && myQuestions.length === 0;
+  const groups = grouped?.groups ?? [];
+  const isEmpty = !loading && items.length === 0 && groups.length === 0 && openQuestions.length === 0 && myQuestions.length === 0;
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
@@ -100,6 +104,15 @@ export default function InboxScreen() {
           </View>
         ) : (
           <>
+            {groups.length > 0 && (
+              <View style={{ gap: 10 }}>
+                <SectionLabel text={'Produkt-Threads - ' + groups.length} />
+                {groups.slice(0, 8).map((group) => (
+                  <ThreadRow key={group.product.id} group={group} router={router} />
+                ))}
+              </View>
+            )}
+
             {myQuestions.length > 0 && (
               <View style={{ gap: 10 }}>
                 <SectionLabel text={`Meine Fragen · ${myQuestions.length}`} />
@@ -166,8 +179,58 @@ function SectionLabel({ text }: { text: string }) {
   );
 }
 
-function MyQuestionRow({ item, onPress }: { item: OpenQuestionDto; onPress: () => void }) {
+function ThreadRow({
+  group,
+  router,
+}: {
+  group: NotificationProductGroupDto;
+  router: ReturnType<typeof useRouter>;
+}) {
   const { colors, radius } = useTheme();
+  const latest = group.notifications[0];
+  const canAnswer = group.questions.filter((q) => q.canAnswer).length;
+  const go = () => {
+    void api.notifications.markProductRead(group.product.id).catch(() => {});
+    router.push({ pathname: '/product/[id]', params: { id: group.product.id } });
+  };
+  return (
+    <Pressable
+      onPress={go}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: colors.surface,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: group.unreadCount > 0 ? colors.accent : colors.border,
+        padding: 12,
+      }}
+    >
+      <View style={{ width: 42, height: 42, borderRadius: radius.md, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name={canAnswer > 0 ? 'chatbubble-ellipses-outline' : 'cube-outline'} size={20} color={colors.accentInk} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text numberOfLines={1} style={{ flex: 1, color: colors.label, fontSize: 15, fontWeight: '800' }}>
+            {group.product.canonicalName}
+          </Text>
+          {group.unreadCount > 0 && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent }} />}
+        </View>
+        <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 2 }}>
+          {canAnswer > 0 ? canAnswer + ' offene Frage' + (canAnswer === 1 ? '' : 'n') + ' fuer dich' : latest?.title ?? 'Aktivitaet gesammelt'}
+        </Text>
+        <Text style={{ color: colors.faint, fontSize: 12, marginTop: 2 }}>
+          {group.notifications.length + ' Ereignis' + (group.notifications.length === 1 ? '' : 'se') + ' - ' + formatRelativeTime(group.latestAt)}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+    </Pressable>
+  );
+}
+
+function MyQuestionRow({ item, onPress }: { item: OpenQuestionDto; onPress: () => void }) {
+  const { colors } = useTheme();
   const total = item.question.ownerCount;
   const answered = Math.min(item.question.answerCount, total > 0 ? total : item.question.answerCount);
   const pct = total > 0 ? Math.round((answered / total) * 100) : answered > 0 ? 100 : 0;

@@ -64,7 +64,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
       body: json !== undefined ? JSON.stringify(json) : undefined,
       signal: controller.signal,
     });
-  } catch (err) {
+  } catch {
     clearTimeout(timeout);
     if (controller.signal.aborted) {
       throw new ApiError(0, 'Zeitüberschreitung. Bitte Verbindung prüfen.');

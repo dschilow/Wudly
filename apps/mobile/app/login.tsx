@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/theme/ThemeProvider';
 import { useAuth } from '@/lib/AuthContext';
@@ -100,6 +100,10 @@ export default function LoginScreen() {
           style={inputStyle}
         />
 
+        {mode === 'login' && (
+          <Button title="Passwort vergessen?" variant="ghost" onPress={() => router.push('/passwort-vergessen' as any)} />
+        )}
+
         {error && <Text style={{ color: colors.regretInk, fontSize: 14 }}>{error}</Text>}
 
         <Button
@@ -121,3 +125,4 @@ export default function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
+

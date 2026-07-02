@@ -1,8 +1,4 @@
-/**
- * Typed API surface for the Wudly app, mirroring apps/web/src/lib/api.ts. Every
- * method returns a shared DTO type so screens are fully typed against the backend
- * contract. Auth is via the Bearer token in SecureStore (see api-client).
- */
+/** Typed API surface for the native Wudly app. Mirrors apps/web/src/lib/api.ts. */
 import type {
   AuthResponseDto,
   UserDto,
@@ -12,28 +8,38 @@ import type {
   CreateProductResultDto,
   ExperienceDto,
   QuestionDto,
+  ProductPromptDto,
   AnswerDto,
   OwnershipDto,
   RankingEntryDto,
-  RegretCardDto,
+  MergeCandidateDto,
   ProfileSummaryDto,
   CategoryDto,
   CategoryOverviewDto,
   PaginatedDto,
+  ComparePairDto,
   NotificationListDto,
+  GroupedNotificationInboxDto,
+  PushTestResultDto,
   OpenQuestionDto,
   RegisterInput,
   LoginInput,
+  RequestPasswordResetInput,
+  ResetPasswordInput,
   CreateProductInput,
+  CreateCuratedProductInput,
   CreateExperienceInput,
   CreateQuestionInput,
   CreateAnswerInput,
   CreateOwnershipInput,
+  PushSubscriptionInput,
   CategoryAspectDto,
   IdentifiedProductDto,
   EanResolutionDto,
   EnsuredProductDto,
   ExternalProductSuggestionDto,
+  ProductCurationResearchDto,
+  ProductCurationDraftDto,
   ProductFindResultDto,
   MyProductsDto,
   FromPhotoInput,
@@ -41,9 +47,35 @@ import type {
   RegretCheckInput,
   QuickVoteInput,
   QuickVoteResultDto,
+  RegretCardDto,
+  BlindSpotDto,
   ShowcaseSummaryDto,
   ShowcaseDetailDto,
+  ShowcaseBlockDto,
+  ProductTemplateDto,
+  ProfessionalProfileDto,
   ProfileDetailDto,
+  CreateProfileInput,
+  UpdateProfileInput,
+  CreateShowcaseInput,
+  UpdateShowcaseInput,
+  CreateBlockInput,
+  UpdateBlockInput,
+  ReorderBlocksInput,
+  ExternalRatingDto,
+  UpsertExternalRatingInput,
+  AiPlaygroundTarget,
+  AiPlaygroundReply,
+  AiPlaygroundChatRequest,
+  AiPlaygroundPing,
+  AiPlaygroundWarmup,
+  AiPlaygroundTargetId,
+  ImagelessProductDto,
+  ImageBackfillReportDto,
+  RatingBackfillReportDto,
+  RatingInviteDto,
+  PublicInviteDto,
+  InvitedVotesSummaryDto,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -61,11 +93,14 @@ export const api = {
       apiFetch<AuthResponseDto>('/auth/login', { method: 'POST', json: input }),
     logout: () => apiFetch<{ success: true }>('/auth/logout', { method: 'POST' }),
     me: (opts?: RequestOptions) => apiFetch<UserDto>('/auth/me', opts),
+    requestPasswordReset: (input: RequestPasswordResetInput) =>
+      apiFetch<{ success: true }>('/auth/request-password-reset', { method: 'POST', json: input }),
+    resetPassword: (input: ResetPasswordInput) =>
+      apiFetch<{ success: true }>('/auth/reset-password', { method: 'POST', json: input }),
   },
 
   categories: {
     list: (opts?: RequestOptions) => apiFetch<CategoryDto[]>('/categories', opts),
-    /** Aspect vocabulary per category slug (for the like/dislike rating step). */
     aspects: (opts?: RequestOptions) =>
       apiFetch<Record<string, CategoryAspectDto[]>>('/categories/aspects', opts),
   },
@@ -86,12 +121,16 @@ export const api = {
       apiFetch<ProductInsightsDto>(`/products/${id}/insights`, opts),
     similar: (id: string, opts?: RequestOptions) =>
       apiFetch<ProductSummaryDto[]>(`/products/${id}/similar`, opts),
+    comparePairs: (take = 30, opts?: RequestOptions) =>
+      apiFetch<ComparePairDto[]>(`/products/compare-pairs${qs({ take })}`, opts),
     experiences: (id: string, opts?: RequestOptions) =>
       apiFetch<ExperienceDto[]>(`/products/${id}/experiences`, opts),
     questions: (id: string, opts?: RequestOptions) =>
       apiFetch<QuestionDto[]>(`/products/${id}/questions`, opts),
     questionSuggestions: (id: string, opts?: RequestOptions) =>
       apiFetch<{ questions: string[] }>(`/products/${id}/question-suggestions`, opts),
+    prompts: (id: string, opts?: RequestOptions) =>
+      apiFetch<ProductPromptDto[]>(`/products/${id}/prompts`, opts),
     create: (input: CreateProductInput) =>
       apiFetch<CreateProductResultDto>('/products', { method: 'POST', json: input }),
     identify: (image: string) =>
@@ -109,6 +148,18 @@ export const api = {
       apiFetch<QuickVoteResultDto>(`/products/${id}/vote`, { method: 'POST', json: input }),
     newest: (take = 8, opts?: RequestOptions) =>
       apiFetch<ProductSummaryDto[]>(`/products/newest${qs({ take })}`, opts),
+  },
+
+  invites: {
+    create: (productId: string) =>
+      apiFetch<RatingInviteDto>(`/products/${productId}/invites`, { method: 'POST' }),
+    publicInvite: (token: string, opts?: RequestOptions) =>
+      apiFetch<PublicInviteDto>(`/e/${token}`, opts),
+    rate: (token: string, input: { wouldBuyAgain: string; guestName?: string; comment?: string }) =>
+      apiFetch<{ success: true }>(`/e/${token}/rate`, { method: 'POST', json: input }),
+    claim: (token: string) => apiFetch<{ success: true }>(`/e/${token}/claim`, { method: 'POST' }),
+    forProduct: (productId: string, opts?: RequestOptions) =>
+      apiFetch<InvitedVotesSummaryDto>(`/products/${productId}/invited-votes`, opts),
   },
 
   experiences: {
@@ -145,6 +196,7 @@ export const api = {
       apiFetch<RankingEntryDto[]>(`/rankings/category/${slug}${qs({ take, minExperiences })}`, opts),
     categoryOverview: (slug: string, opts?: RequestOptions) =>
       apiFetch<CategoryOverviewDto>(`/rankings/category/${slug}/overview`, opts),
+    blindSpots: (opts?: RequestOptions) => apiFetch<BlindSpotDto[]>('/rankings/blind-spots', opts),
   },
 
   profile: {
@@ -152,6 +204,8 @@ export const api = {
   },
 
   notifications: {
+    grouped: (opts?: RequestOptions) =>
+      apiFetch<GroupedNotificationInboxDto>('/me/notifications/grouped', opts),
     list: (take = 30, opts?: RequestOptions) =>
       apiFetch<NotificationListDto>(`/me/notifications${qs({ take })}`, opts),
     unreadCount: (opts?: RequestOptions) =>
@@ -161,16 +215,108 @@ export const api = {
     myQuestions: (opts?: RequestOptions) =>
       apiFetch<OpenQuestionDto[]>('/me/notifications/my-questions', opts),
     markRead: (id: string) => apiFetch<void>(`/me/notifications/${id}/read`, { method: 'PATCH' }),
+    markProductRead: (productId: string) =>
+      apiFetch<void>(`/me/notifications/product/${productId}/read`, { method: 'PATCH' }),
     markAllRead: () => apiFetch<void>('/me/notifications/read-all', { method: 'PATCH' }),
+    pushKey: (opts?: RequestOptions) =>
+      apiFetch<{ publicKey: string | null }>('/me/notifications/push/key', opts),
+    pushSubscribe: (input: PushSubscriptionInput) =>
+      apiFetch<void>('/me/notifications/push/subscribe', { method: 'POST', json: input }),
+    pushUnsubscribe: (endpoint: string) =>
+      apiFetch<void>('/me/notifications/push/unsubscribe', { method: 'POST', json: { endpoint } }),
+    pushTest: () => apiFetch<PushTestResultDto>('/me/notifications/push/test', { method: 'POST' }),
   },
 
   showcase: {
-    forProduct: (productId: string, opts?: RequestOptions) =>
-      apiFetch<ShowcaseSummaryDto[]>(`/products/${productId}/showcases`, opts),
-    get: (id: string, opts?: RequestOptions) =>
-      apiFetch<ShowcaseDetailDto>(`/showcases/${id}`, opts),
-    /** Public creator/brand profile with its published showcases. */
     profile: (slug: string, opts?: RequestOptions) =>
       apiFetch<ProfileDetailDto>(`/profiles/${slug}`, opts),
+    myProfile: (opts?: RequestOptions) =>
+      apiFetch<ProfessionalProfileDto | null>('/me/profile/professional', opts),
+    createProfile: (input: CreateProfileInput) =>
+      apiFetch<ProfessionalProfileDto>('/profiles', { method: 'POST', json: input }),
+    updateProfile: (id: string, input: UpdateProfileInput) =>
+      apiFetch<ProfessionalProfileDto>(`/profiles/${id}`, { method: 'PATCH', json: input }),
+    requestVerification: (id: string) =>
+      apiFetch<ProfessionalProfileDto>(`/profiles/${id}/verify-request`, { method: 'POST' }),
+    forProduct: (productId: string, opts?: RequestOptions) =>
+      apiFetch<ShowcaseSummaryDto[]>(`/products/${productId}/showcases`, opts),
+    mine: (opts?: RequestOptions) => apiFetch<ShowcaseSummaryDto[]>('/me/showcases', opts),
+    get: (id: string, opts?: RequestOptions) => apiFetch<ShowcaseDetailDto>(`/showcases/${id}`, opts),
+    create: (productId: string, input: CreateShowcaseInput) =>
+      apiFetch<ShowcaseDetailDto>(`/products/${productId}/showcases`, {
+        method: 'POST',
+        json: input,
+      }),
+    update: (id: string, input: UpdateShowcaseInput) =>
+      apiFetch<ShowcaseDetailDto>(`/showcases/${id}`, { method: 'PATCH', json: input }),
+    publish: (id: string) =>
+      apiFetch<ShowcaseDetailDto>(`/showcases/${id}/publish`, { method: 'POST' }),
+    addBlock: (showcaseId: string, input: CreateBlockInput) =>
+      apiFetch<ShowcaseBlockDto>(`/showcases/${showcaseId}/blocks`, {
+        method: 'POST',
+        json: input,
+      }),
+    updateBlock: (blockId: string, input: UpdateBlockInput) =>
+      apiFetch<ShowcaseBlockDto>(`/showcase-blocks/${blockId}`, { method: 'PATCH', json: input }),
+    deleteBlock: (blockId: string) =>
+      apiFetch<{ success: true }>(`/showcase-blocks/${blockId}`, { method: 'DELETE' }),
+    reorderBlocks: (showcaseId: string, input: ReorderBlocksInput) =>
+      apiFetch<ShowcaseDetailDto>(`/showcases/${showcaseId}/reorder-blocks`, {
+        method: 'PATCH',
+        json: input,
+      }),
+    templates: (opts?: RequestOptions) => apiFetch<ProductTemplateDto[]>('/templates', opts),
+    templatesForCategory: (categorySlug: string, opts?: RequestOptions) =>
+      apiFetch<ProductTemplateDto[]>(`/templates/category/${categorySlug}`, opts),
+  },
+
+  ai: {
+    playgroundTargets: (opts?: RequestOptions) =>
+      apiFetch<AiPlaygroundTarget[]>('/ai/playground/targets', opts),
+    playgroundChat: (input: AiPlaygroundChatRequest, opts?: RequestOptions) =>
+      apiFetch<AiPlaygroundReply>('/ai/playground/chat', { ...opts, method: 'POST', json: input }),
+    playgroundPing: (target: AiPlaygroundTargetId, opts?: RequestOptions) =>
+      apiFetch<AiPlaygroundPing>(`/ai/playground/ping?target=${encodeURIComponent(target)}`, opts),
+    playgroundWarmup: (target: AiPlaygroundTargetId, opts?: RequestOptions) =>
+      apiFetch<AiPlaygroundWarmup>('/ai/playground/warmup', {
+        ...opts,
+        method: 'POST',
+        json: { targetId: target },
+      }),
+  },
+
+  admin: {
+    mergeCandidates: (opts?: RequestOptions) =>
+      apiFetch<MergeCandidateDto[]>('/admin/merge-candidates', opts),
+    merge: (id: string) =>
+      apiFetch<{ canonicalProductId: string }>(`/admin/merge-candidates/${id}/merge`, {
+        method: 'POST',
+      }),
+    reject: (id: string) =>
+      apiFetch<{ success: true }>(`/admin/merge-candidates/${id}/reject`, { method: 'POST' }),
+    curationResearch: (q: string, opts?: RequestOptions) =>
+      apiFetch<ProductCurationResearchDto>(`/admin/products/curation-research${qs({ q })}`, opts),
+    curationDraft: (ean: string, opts?: RequestOptions) =>
+      apiFetch<ProductCurationDraftDto | null>(`/admin/products/curation-draft${qs({ ean })}`, opts),
+    createCuratedProduct: (input: CreateCuratedProductInput) =>
+      apiFetch<CreateProductResultDto>('/admin/products/curated', {
+        method: 'POST',
+        json: input,
+      }),
+    externalRatings: (productId: string, opts?: RequestOptions) =>
+      apiFetch<ExternalRatingDto[]>(`/admin/products/${productId}/external-ratings`, opts),
+    upsertExternalRating: (productId: string, input: UpsertExternalRatingInput) =>
+      apiFetch<ExternalRatingDto>(`/admin/products/${productId}/external-ratings`, {
+        method: 'POST',
+        json: input,
+      }),
+    deleteExternalRating: (id: string) =>
+      apiFetch<{ success: true }>(`/admin/external-ratings/${id}`, { method: 'DELETE' }),
+    imagelessProducts: (opts?: RequestOptions) =>
+      apiFetch<ImagelessProductDto[]>('/admin/products/imageless', opts),
+    backfillImages: () =>
+      apiFetch<ImageBackfillReportDto>('/admin/products/backfill-images', { method: 'POST' }),
+    backfillRatings: () =>
+      apiFetch<RatingBackfillReportDto>('/admin/products/backfill-ratings', { method: 'POST' }),
   },
 };

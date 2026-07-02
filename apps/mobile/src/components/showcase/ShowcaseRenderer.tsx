@@ -21,7 +21,7 @@ export function ShowcaseRenderer({ showcase }: { showcase: ShowcaseDetailDto }) 
 }
 
 function DisclosureHeader({ showcase }: { showcase: ShowcaseDetailDto }) {
-  const { colors, radius } = useTheme();
+  const { colors } = useTheme();
   const router = useRouter();
   const { profile } = showcase;
   return (

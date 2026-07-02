@@ -89,6 +89,12 @@ export default function CheckScreen() {
   const market = find?.market ?? [];
 
   return (
+    <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ color: colors.label, fontSize: 18, fontWeight: '700' }}>Wudly Startscreen Debug</Text>
+    </SafeAreaView>
+  );
+
+  return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Search bar */}
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md }}>
@@ -317,3 +323,4 @@ function MarketResults({
     </View>
   );
 }
+
