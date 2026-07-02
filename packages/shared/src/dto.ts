@@ -82,6 +82,17 @@ export interface ProductSummaryDto {
   externalSourceCount: number;
 }
 
+/**
+ * A worthwhile head-to-head pairing: the two strongest same-category products
+ * with actual signal (owner data or Netz-Konsens) — the basis for pre-rendered
+ * `/vergleich/x-vs-y` SEO pages. Never includes cold, data-less products.
+ */
+export interface ComparePairDto {
+  a: ProductSummaryDto;
+  b: ProductSummaryDto;
+  categoryName: string | null;
+}
+
 export interface ProductInsightsDto {
   productId: string;
   ownerCount: number;

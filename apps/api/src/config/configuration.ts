@@ -108,6 +108,15 @@ const envSchema = z.object({
   // Get a key at api-dashboard.search.brave.com (free "Data for Search" plan).
   // Optional: without it the image hunt falls back to DuckDuckGo.
   BRAVE_SEARCH_KEY: z.string().optional(),
+  // Transactional email (password reset, "question answered" notification) via
+  // Resend (resend.com — free tier 3,000 emails/month, no card required).
+  // Optional: without a key the EmailService logs instead of sending, so the app
+  // still boots and the reset FLOW is fully testable without a real provider.
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().default('Wudly <hallo@wudly.app>'),
+  // Base URL the web app is reachable at, used to build links inside emails
+  // (password reset, notification deep links). No trailing slash.
+  WEB_APP_URL: z.string().default('http://localhost:3000'),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

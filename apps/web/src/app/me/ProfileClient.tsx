@@ -243,6 +243,18 @@ export function ProfileClient() {
         </motion.section>
       )}
 
+      <motion.section variants={rise} className="flex flex-wrap gap-x-4 gap-y-1.5 px-4">
+        <Link href="/impressum" className="text-[0.8125rem] text-muted-foreground">
+          Impressum
+        </Link>
+        <Link href="/datenschutz" className="text-[0.8125rem] text-muted-foreground">
+          Datenschutz
+        </Link>
+        <Link href="/agb" className="text-[0.8125rem] text-muted-foreground">
+          AGB
+        </Link>
+      </motion.section>
+
       <motion.section variants={rise}>
         <button
           onClick={async () => {

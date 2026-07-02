@@ -267,6 +267,12 @@ export default function ProductDetailScreen() {
         </Card>
       )}
 
+      {/* Netz-Konsens dossier: source-backed summary, long-term note, themes,
+          and "switched to" alternatives — never part of the Wudly Signal. */}
+      {product.externalConsensus && (
+        <ExternalConsensusSection consensus={product.externalConsensus} />
+      )}
+
       {/* Specs */}
       {product.specs.length > 0 && (
         <Card>
@@ -436,5 +442,108 @@ function ExternalRatingRow({ rating }: { rating: ExternalRatingDto }) {
       </Text>
       <Ionicons name="open-outline" size={15} color={colors.faint} />
     </Pressable>
+  );
+}
+
+/** Source-backed public-review dossier: summary, long-term note, recurring
+    themes and "switched to" alternatives. Orientation only — never the Wudly Signal. */
+function ExternalConsensusSection({ consensus }: { consensus: ProductDetailDto['externalConsensus'] }) {
+  const { colors, radius } = useTheme();
+  const router = useRouter();
+  if (!consensus) return null;
+
+  const hasThemes = consensus.positiveThemes.length > 0 || consensus.negativeThemes.length > 0;
+  const hasAlternatives = consensus.switchAlternatives.length > 0;
+  if (!consensus.summary && !consensus.longTermNote && !hasThemes && !hasAlternatives) return null;
+
+  return (
+    <Card style={{ gap: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <Ionicons name="globe-outline" size={16} color={colors.accentInk} />
+        <Text style={{ color: colors.accentInk, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+          Netz-Konsens
+        </Text>
+      </View>
+
+      {consensus.summary && (
+        <Text style={{ color: colors.label, fontSize: 14, lineHeight: 20 }}>{consensus.summary}</Text>
+      )}
+
+      {consensus.longTermNote && (
+        <View
+          style={{
+            flexDirection: 'row',
+            gap: 8,
+            backgroundColor: colors.fill2,
+            borderRadius: radius.md,
+            padding: 10,
+            marginTop: 10,
+          }}
+        >
+          <Ionicons name="hourglass-outline" size={16} color={colors.accentInk} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.faint, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
+              Langzeit &amp; Haltbarkeit
+            </Text>
+            <Text style={{ color: colors.label, fontSize: 13, lineHeight: 19, marginTop: 2 }}>
+              {consensus.longTermNote}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {hasThemes && (
+        <View style={{ marginTop: 12, gap: 6 }}>
+          {consensus.positiveThemes.slice(0, 3).map((theme) => (
+            <ThemeRow key={theme.label} label={theme.label} tone="positive" />
+          ))}
+          {consensus.negativeThemes.slice(0, 3).map((theme) => (
+            <ThemeRow key={theme.label} label={theme.label} tone="negative" />
+          ))}
+        </View>
+      )}
+
+      {hasAlternatives && (
+        <View style={{ marginTop: 12, gap: 8 }}>
+          <Text style={{ color: colors.faint, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
+            Dahin wechseln Nutzer
+          </Text>
+          {consensus.switchAlternatives.slice(0, 3).map((alt) => (
+            <Pressable
+              key={alt.name}
+              disabled={!alt.productId}
+              onPress={() =>
+                alt.productId &&
+                router.push({ pathname: '/product/[id]', params: { id: alt.productId } })
+              }
+              style={{
+                backgroundColor: colors.fill2,
+                borderRadius: radius.md,
+                padding: 10,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <Text style={{ color: colors.label, fontSize: 14, fontWeight: '700', flex: 1 }}>{alt.name}</Text>
+                {alt.productId && <Ionicons name="chevron-forward" size={16} color={colors.faint} />}
+              </View>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 3, lineHeight: 17 }}>
+                {alt.reason}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </Card>
+  );
+}
+
+function ThemeRow({ label, tone }: { label: string; tone: 'positive' | 'negative' }) {
+  const { colors } = useTheme();
+  const color = tone === 'positive' ? colors.positiveInk : colors.regretInk;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Ionicons name={tone === 'positive' ? 'shield-checkmark' : 'alert-circle'} size={15} color={color} />
+      <Text style={{ color: colors.label, fontSize: 13, flex: 1 }}>{label}</Text>
+    </View>
   );
 }

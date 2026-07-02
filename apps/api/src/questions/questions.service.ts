@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   NotificationType,
   type CreateQuestionInput,
@@ -9,6 +10,9 @@ import {
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../email/email.service';
+import { questionAnsweredEmail } from '../email/email-templates';
+import type { AppConfig } from '../config/configuration';
 import { toProductSummaryDto, type ProductWithRelations } from '../products/product.mapper';
 import {
   toQuestionDto,
@@ -23,9 +27,13 @@ const QUESTION_INCLUDE = {
 
 @Injectable()
 export class QuestionsService {
+  private readonly logger = new Logger(QuestionsService.name);
+
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(NotificationsService) private readonly notifications: NotificationsService,
+    @Inject(EmailService) private readonly email: EmailService,
+    @Inject(ConfigService) private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
   async listForProduct(productId: string): Promise<QuestionDto[]> {
@@ -146,7 +154,7 @@ export class QuestionsService {
   ): Promise<AnswerDto> {
     const question = await this.prisma.productQuestion.findUnique({
       where: { id: questionId },
-      select: { id: true, productId: true, askedByUserId: true },
+      select: { id: true, productId: true, askedByUserId: true, questionText: true },
     });
     if (!question) throw new NotFoundException('Frage nicht gefunden.');
 
@@ -173,12 +181,19 @@ export class QuestionsService {
       data: { status: 'ANSWERED' },
     });
 
-    // Notify the asker that their question got an answer.
+    // Notify the asker that their question got an answer: in-app always, email
+    // best-effort on top (the core Q&A loop must not depend on mail delivery).
     if (question.askedByUserId && question.askedByUserId !== userId) {
-      const product = await this.prisma.product.findUnique({
-        where: { id: question.productId },
-        select: { canonicalName: true },
-      });
+      const [product, asker] = await Promise.all([
+        this.prisma.product.findUnique({
+          where: { id: question.productId },
+          select: { canonicalName: true },
+        }),
+        this.prisma.user.findUnique({
+          where: { id: question.askedByUserId },
+          select: { email: true },
+        }),
+      ]);
       void this.notifications.create({
         userId: question.askedByUserId,
         type: NotificationType.QUESTION_ANSWERED,
@@ -188,9 +203,41 @@ export class QuestionsService {
         productId: question.productId,
         questionId,
       });
+      if (asker?.email) {
+        this.sendAnsweredEmail(asker.email, {
+          productName: product?.canonicalName ?? 'deinem Produkt',
+          questionText: question.questionText,
+          answerText: input.answerText,
+          productId: question.productId,
+          questionId,
+        });
+      }
     }
 
     return toAnswerDto(answer);
+  }
+
+  /** Fire-and-forget: a failed email must never fail the answer request. */
+  private sendAnsweredEmail(
+    to: string,
+    params: {
+      productName: string;
+      questionText: string;
+      answerText: string;
+      productId: string;
+      questionId: string;
+    },
+  ): void {
+    const webAppUrl = this.config.get('WEB_APP_URL', { infer: true });
+    const message = questionAnsweredEmail({
+      productName: params.productName,
+      questionText: params.questionText,
+      answerText: params.answerText,
+      questionUrl: `${webAppUrl}/me/inbox?product=${params.productId}&question=${params.questionId}`,
+    });
+    void this.email.send({ to, ...message }).catch((err) => {
+      this.logger.warn(`Question-answered email failed: ${err instanceof Error ? err.message : err}`);
+    });
   }
 
   /** Increment helpful count and notify the answer's author. */

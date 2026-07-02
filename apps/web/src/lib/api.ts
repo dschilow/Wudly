@@ -19,12 +19,15 @@ import type {
   ProfileSummaryDto,
   CategoryDto,
   PaginatedDto,
+  ComparePairDto,
   NotificationListDto,
   GroupedNotificationInboxDto,
   PushTestResultDto,
   OpenQuestionDto,
   RegisterInput,
   LoginInput,
+  RequestPasswordResetInput,
+  ResetPasswordInput,
   CreateProductInput,
   CreateCuratedProductInput,
   CreateExperienceInput,
@@ -95,6 +98,10 @@ export const api = {
       apiFetch<AuthResponseDto>('/auth/login', { method: 'POST', json: input }),
     logout: () => apiFetch<{ success: true }>('/auth/logout', { method: 'POST' }),
     me: (opts?: RequestOptions) => apiFetch<UserDto>('/auth/me', opts),
+    requestPasswordReset: (input: RequestPasswordResetInput) =>
+      apiFetch<{ success: true }>('/auth/request-password-reset', { method: 'POST', json: input }),
+    resetPassword: (input: ResetPasswordInput) =>
+      apiFetch<{ success: true }>('/auth/reset-password', { method: 'POST', json: input }),
   },
 
   categories: {
@@ -120,6 +127,9 @@ export const api = {
       apiFetch<ProductInsightsDto>(`/products/${id}/insights`, opts),
     similar: (id: string, opts?: RequestOptions) =>
       apiFetch<ProductSummaryDto[]>(`/products/${id}/similar`, opts),
+    /** Worthwhile head-to-head pairings for pre-rendered /vergleich/x-vs-y pages. */
+    comparePairs: (take = 30, opts?: RequestOptions) =>
+      apiFetch<ComparePairDto[]>(`/products/compare-pairs${qs({ take })}`, opts),
     experiences: (id: string, opts?: RequestOptions) =>
       apiFetch<ExperienceDto[]>(`/products/${id}/experiences`, opts),
     questions: (id: string, opts?: RequestOptions) =>

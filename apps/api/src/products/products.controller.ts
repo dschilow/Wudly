@@ -44,6 +44,7 @@ import {
   type PaginatedDto,
   type ExperienceDto,
   type QuestionDto,
+  type ComparePairDto,
 } from '@wudly/shared';
 import { ProductsService } from './products.service';
 import { ProductInsightsService } from './product-insights.service';
@@ -134,6 +135,14 @@ export class ProductsController {
     @Query(new ZodValidationPipe(paginationQuerySchema)) query: { take: number },
   ): Promise<ProductSummaryDto[]> {
     return this.products.listNewest(query.take);
+  }
+
+  /** Worthwhile head-to-head pairings for pre-rendered `/vergleich/x-vs-y` pages. */
+  @Get('compare-pairs')
+  listComparePairs(
+    @Query(new ZodValidationPipe(paginationQuerySchema)) query: { take: number },
+  ): Promise<ComparePairDto[]> {
+    return this.products.listComparePairs(query.take);
   }
 
   @Get('image/:normalizedName')

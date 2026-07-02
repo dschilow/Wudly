@@ -7,7 +7,7 @@
  * stays honest — an aggregateRating is only emitted when real owner experiences
  * back the score, never for empty products.
  */
-import type { ProductDetailDto } from '@wudly/shared';
+import type { ComparePairDto, ProductDetailDto, ProductSummaryDto } from '@wudly/shared';
 import { productThumbUrl } from './product-media';
 
 const FALLBACK_SITE_URL = 'https://wudly-web-production.up.railway.app';
@@ -41,6 +41,27 @@ export function productPath(product: { id: string; canonicalName: string }): str
 export function productIdFromSlug(slug: string): string | null {
   const match = slug.match(/-([a-z0-9_]{6,})$/i);
   return match?.[1] ?? null;
+}
+
+/**
+ * Stable `<name-a>-vs-<name-b>-<idA>-<idB>` slug for a compare pair — readable
+ * for search results (matches "x vs y" query intent) and unambiguous because
+ * both ids are recoverable from the tail (mirrors {@link productIdFromSlug}).
+ */
+export function comparePairSlug(pair: { a: ProductSummaryDto; b: ProductSummaryDto }): string {
+  return `${slugify(pair.a.canonicalName)}-vs-${slugify(pair.b.canonicalName)}-${pair.a.id}-${pair.b.id}`;
+}
+
+/** Public, canonical path for a compare-pair SEO page. */
+export function comparePairPath(pair: ComparePairDto): string {
+  return `/vergleich/${comparePairSlug(pair)}`;
+}
+
+/** Extract both stable product ids from a `/vergleich/<slug>` slug's tail. */
+export function compareIdsFromSlug(slug: string): [string, string] | null {
+  const match = slug.match(/-([a-z0-9_]{6,})-([a-z0-9_]{6,})$/i);
+  if (!match) return null;
+  return [match[1]!, match[2]!];
 }
 
 function slugify(value: string): string {

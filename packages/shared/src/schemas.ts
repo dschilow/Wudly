@@ -66,6 +66,17 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const requestPasswordResetSchema = z.object({
+  email: z.string().email(),
+});
+export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchema>;
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8, 'Mindestens 8 Zeichen').max(128),
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
 /* ------------------------------------------------------------------ *
  * Products
  * ------------------------------------------------------------------ */

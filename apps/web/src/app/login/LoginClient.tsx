@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { registerSchema, loginSchema } from '@wudly/shared';
 import { useAuth } from '@/lib/auth-context';
@@ -107,11 +108,33 @@ export function LoginClient() {
           />
         </div>
 
+        {mode === 'login' && (
+          <p className="px-1 text-right">
+            <Link href="/passwort-vergessen" className="text-[0.875rem] font-medium text-accent">
+              Passwort vergessen?
+            </Link>
+          </p>
+        )}
+
         {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
 
         <Button type="submit" fullWidth size="lg" loading={submitting}>
           {mode === 'login' ? 'Anmelden' : 'Konto erstellen'}
         </Button>
+
+        {mode === 'register' && (
+          <p className="px-1 text-center text-[0.8125rem] leading-snug text-muted-foreground">
+            Mit der Kontoerstellung akzeptierst du unsere{' '}
+            <Link href="/agb" className="font-medium text-accent">
+              AGB
+            </Link>{' '}
+            und{' '}
+            <Link href="/datenschutz" className="font-medium text-accent">
+              Datenschutzerklärung
+            </Link>
+            .
+          </p>
+        )}
       </form>
 
       <p className="mt-5 text-center text-[0.9375rem] text-muted-foreground">

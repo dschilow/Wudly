@@ -99,6 +99,7 @@ export function CheckClient({
   const deepDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Monotonic id so stale responses can never overwrite a newer query. */
   const seqRef = useRef(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   /**
    * Where a resolved product lands. In "own" mode (?own=1) we drop the user
@@ -208,6 +209,16 @@ export function CheckClient({
   useEffect(() => {
     if (scanIntent) setScannerOpen(true);
   }, [scanIntent]);
+
+  // Focus imperatively instead of the `autoFocus` JSX prop: `autoFocus` renders
+  // the `autofocus` HTML attribute into the server-rendered markup, and React
+  // then discards/recreates that DOM node during hydration reconciliation —
+  // briefly leaving two <input> elements in the live DOM (harmless visually,
+  // but breaks anything querying by role/placeholder, incl. a11y tooling).
+  useEffect(() => {
+    if (!scanIntent && !ownIntent) searchInputRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleResearch = useCallback(async () => {
     const q = query.trim();
@@ -325,7 +336,7 @@ export function CheckClient({
         <div className="flex h-[4rem] items-center gap-3 rounded-full bg-surface pl-5 pr-2 shadow-[0_0_0_1px_var(--color-border),var(--shadow-card)] transition-shadow duration-300 focus-within:shadow-[0_0_0_2px_var(--color-accent),var(--shadow-elevated)]">
           <Search className="h-[1.4rem] w-[1.4rem] shrink-0 text-faint" strokeWidth={2.1} />
           <input
-            autoFocus={!scanIntent && !ownIntent}
+            ref={searchInputRef}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);

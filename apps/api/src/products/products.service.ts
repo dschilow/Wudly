@@ -37,6 +37,7 @@ import {
   type ResearchedProduct,
   type ResearchedExternalConsensus,
   type SwitchAlternativeDto,
+  type ComparePairDto,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
@@ -1353,6 +1354,57 @@ export class ProductsService {
       .sort((a, b) => rank(b) - rank(a))
       .slice(0, take)
       .map(toProductSummaryDto);
+  }
+
+  /**
+   * Worthwhile head-to-head pairings for pre-rendered `/vergleich/x-vs-y` SEO
+   * pages: per category, the two strongest products by the SAME signal rank as
+   * `listSimilar` (owner rebuy > Netz-Konsens > review volume) — never a pair
+   * where either side has zero signal, since a data-less comparison has nothing
+   * to say and would hurt more than it helps in search. One pair per category,
+   * sorted by combined strength so the best pairings build first when capped.
+   */
+  async listComparePairs(take = 30): Promise<ComparePairDto[]> {
+    const categories = await this.prisma.category.findMany({ select: { id: true, name: true } });
+    const rank = (p: ProductWithRelations): number => {
+      const snap = p.insightSnapshot;
+      if (snap?.rebuyScore != null && snap.experienceCount > 0) return 2000 + snap.rebuyScore;
+      if ((snap?.externalSourceCount ?? 0) > 0 && snap?.externalAvgPercent != null)
+        return 1000 + snap.externalAvgPercent;
+      return 0;
+    };
+
+    const pairs = await Promise.all(
+      categories.map(async (category): Promise<{ pair: ComparePairDto; strength: number } | null> => {
+        const rows = await this.prisma.product.findMany({
+          where: { categoryId: category.id, status: 'ACTIVE' },
+          include: PRODUCT_INCLUDE,
+          take: 20,
+        });
+        const ranked = rows
+          .filter(
+            (p) =>
+              rank(p) > 0 &&
+              !isExcludedFromRankings({
+                canonicalName: p.canonicalName,
+                categorySlug: p.category?.slug ?? null,
+              }),
+          )
+          .sort((a, b) => rank(b) - rank(a));
+        const [top, runnerUp] = ranked;
+        if (!top || !runnerUp) return null;
+        return {
+          pair: { a: toProductSummaryDto(top), b: toProductSummaryDto(runnerUp), categoryName: category.name },
+          strength: rank(top) + rank(runnerUp),
+        };
+      }),
+    );
+
+    return pairs
+      .filter((entry): entry is { pair: ComparePairDto; strength: number } => entry !== null)
+      .sort((x, y) => y.strength - x.strength)
+      .slice(0, take)
+      .map((entry) => entry.pair);
   }
 
   /**

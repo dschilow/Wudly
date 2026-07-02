@@ -201,6 +201,49 @@ NIE in Score oder Rankings** — die bleiben rein aus Signal-Daten.
   (bewusst, „danach"):** KI-Showcase-Generator, Creator-Listen, Kampagnen, Analytics,
   Produktseiten-Tab-Struktur.
 
+**Neu (2026-07-02, Teil 2) — Release-Härtung „Weg zur 10.0" (Punkte 2–7 aus dem Auftrag; Punkt 1
+„Katalog vorbefüllen" bewusst ausgelassen, macht der Nutzer selbst):**
+- **E-Mail-Versand (`EmailModule`, `apps/api/src/email/`):** Neuer Provider **Resend**
+  (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `WEB_APP_URL` in Config). Ohne Key loggt
+  `EmailService.send()` nur (nie ein Absturz) — gleiches Degradations-Pattern wie `AiService`/
+  `BraveSearchService`. Templates in `email-templates.ts` (inline-CSS-HTML + Text-Fallback).
+  Bewusst **kein** Wechsel des Auth-Stacks (Clerk o.ä.) — nur E-Mail-Infrastruktur ergänzt,
+  Credentials+JWT-Auth bleibt unverändert.
+- **Passwort-Reset:** `PasswordResetToken`-Modell (Migration `20260702130000_add_password_reset`,
+  Token nur gehasht gespeichert, 1h gültig, Einmalnutzung, alte Tokens werden beim erfolgreichen
+  Reset invalidiert). Endpoints `POST /auth/request-password-reset` + `POST /auth/reset-password`
+  (beide rate-limited, kein User-Enumeration-Leak). Web-Seiten `/passwort-vergessen` +
+  `/reset-passwort`, Link von `/login`.
+- **E-Mail bei beantworteter Frage:** `QuestionsService.createAnswer` schickt zusätzlich zur
+  bestehenden In-App-Notification eine E-Mail an den Fragesteller (best-effort, blockiert die
+  Antwort nie). Unit-Tests in `test/questions.service.spec.ts`.
+- **Rechtsseiten:** `/impressum`, `/datenschutz`, `/agb` (`LegalPage`-Shell-Komponente,
+  `robots: noindex`). Firmendaten als `[TODO: ...]`-Platzhalter markiert — **vor Release durch
+  echte Angaben ersetzen** (Impressumspflicht § 5 DDG). Verlinkt aus `/me` (Profil) und beim
+  Registrieren (AGB/Datenschutz-Hinweis).
+- **Vergleichs-SEO (`/vergleich/[slug]`):** Neuer Backend-Endpoint `GET /products/compare-pairs`
+  (`ComparePairDto`) liefert pro Kategorie das stärkste Paar (gleiche Rank-Formel wie
+  `listSimilar`: Owner-Rebuy > Netz-Konsens > 0 — nie ein komplett datenloses Paar). SSG mit
+  `generateStaticParams` (bis 60 Top-Paare vorgerendert, Rest on-demand + `revalidate=300`,
+  gleiches Warm-Start-Pattern wie `/produkte/[slug]`). Volles JSON-LD (`Product` je Produkt +
+  `BreadcrumbList`). „Beliebte Vergleiche"-Sektion auf `/compare` verlinkt dorthin.
+- **Mobile-Parität:** `apps/mobile/app/product/[id]/index.tsx` zeigt jetzt auch
+  `product.externalConsensus` (Zusammenfassung, Langzeit-Note, Themen, „Dahin wechseln
+  Nutzer"-Alternativen mit Deep-Link bei Katalog-Match) — vorher nur `externalRatings`.
+- **E2E-Tests (Playwright, `apps/web/e2e/`, neu — vorher keine E2E-Abdeckung):** 3 Kernflows:
+  Produktanlage (`add-product.spec.ts`), Erfahrungs-Wizard (`submit-experience.spec.ts`),
+  Vergleich (`compare.spec.ts`). Laufen gegen `pnpm --filter @wudly/api dev` +
+  `pnpm --filter @wudly/web dev` (lokale Docker-DB), `pnpm --filter @wudly/web e2e`. Nutzen
+  `DummyAiService` (kein AI-Key nötig) für deterministische, kostenlose Läufe.
+  **Nebenbefund + Fix:** `CheckClient.tsx` hatte die `autoFocus`-JSX-Prop auf dem Such-Input,
+  was bei SSR+Hydration kurzzeitig ein doppeltes `<input>`-DOM-Element erzeugte (kein sichtbarer
+  User-Bug, aber bricht A11y-Tools/genaue DOM-Queries) — behoben durch `useEffect`+`ref`-Fokus
+  statt JSX-Prop.
+- **Status:** typecheck/lint/unit-tests (73: 46 shared + 27 api) + beide Prod-Builds (api, web)
+  grün verifiziert. E2E 3× wiederholt grün (keine Flakiness). **NICHT committed/gepusht/deployed.**
+  Migration `20260702130000_add_password_reset` lokal angewendet, muss in prod via
+  `railway up --service wudly-api --ci` (läuft automatisch über den Docker-Entrypoint).
+
 **Neu (2026-07-02) — Recherche-Dossier & korrekter Vergleich:**
 - **Dossier-Recherche (weiterhin EIN Call/EINE Suche pro Produktanlage):** Die kombinierte
   Add-Flow-Recherche (`researchProductAndConsensus`) liefert zusätzlich `longTermNote`

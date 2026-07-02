@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AiModule } from './ai/ai.module';
+import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
 import { CsrfGuard } from './auth/csrf.guard';
 import { UsersModule } from './users/users.module';
@@ -30,6 +31,7 @@ import { HealthModule } from './health/health.module';
     }),
     PrismaModule,
     AiModule,
+    EmailModule,
     AuthModule,
     UsersModule,
     CategoriesModule,

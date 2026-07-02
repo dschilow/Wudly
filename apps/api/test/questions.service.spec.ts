@@ -3,6 +3,8 @@ import { NotificationType } from '@wudly/shared';
 import { QuestionsService } from '../src/questions/questions.service';
 import type { PrismaService } from '../src/prisma/prisma.service';
 import type { NotificationsService } from '../src/notifications/notifications.service';
+import type { EmailService } from '../src/email/email.service';
+import type { ConfigService } from '@nestjs/config';
 
 describe('QuestionsService owner notifications', () => {
   it('notifies product owners and the product creator, including the asker when they are an owner', async () => {
@@ -62,16 +64,61 @@ describe('QuestionsService owner notifications', () => {
   });
 });
 
+describe('QuestionsService.createAnswer notifications', () => {
+  it('notifies the asker in-app and by email, but not when answering own question', async () => {
+    const { service, notifications, email } = createService({ owners: [] });
+
+    await service.createAnswer('question-1', 'answerer', { answerText: 'Hält seit Monaten super.' });
+
+    expect(notifications.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'asker',
+        type: NotificationType.QUESTION_ANSWERED,
+        productId: 'product-1',
+        questionId: 'question-1',
+      }),
+    );
+    expect(email.send).toHaveBeenCalledOnce();
+    expect(email.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'asker@example.test', subject: expect.any(String) }),
+    );
+  });
+
+  it('does not notify or email when the asker answers their own question', async () => {
+    const { service, notifications, email } = createService({
+      owners: [],
+      askedByUserId: 'same-user',
+    });
+
+    await service.createAnswer('question-1', 'same-user', { answerText: 'Update von mir selbst.' });
+
+    expect(notifications.create).not.toHaveBeenCalled();
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('still creates the answer even if the email send fails', async () => {
+    const { service, email } = createService({ owners: [] });
+    email.send.mockRejectedValueOnce(new Error('Resend down'));
+
+    await expect(
+      service.createAnswer('question-1', 'answerer', { answerText: 'Trotzdem gespeichert.' }),
+    ).resolves.toMatchObject({ id: 'answer-1' });
+  });
+});
+
 function createService(input: {
   owners: string[] | Promise<Array<{ userId: string }>>;
   createdByUserId?: string | null;
+  askedByUserId?: string | null;
 }): {
   service: QuestionsService;
-  notifications: Pick<NotificationsService, 'createMany'>;
+  notifications: Pick<NotificationsService, 'createMany' | 'create'>;
+  email: { send: ReturnType<typeof vi.fn> };
 } {
   const now = new Date('2026-06-07T12:00:00.000Z');
   const ownerRows =
     Array.isArray(input.owners) ? input.owners.map((userId) => ({ userId })) : input.owners;
+  const askedByUserId = input.askedByUserId ?? 'asker';
 
   const prisma = {
     product: {
@@ -93,6 +140,31 @@ function createService(input: {
         askedBy: null,
         answers: [],
       }),
+      findUnique: vi.fn().mockResolvedValue({
+        id: 'question-1',
+        productId: 'product-1',
+        askedByUserId,
+        questionText: 'Wie ist das Produkt nach ein paar Monaten?',
+      }),
+      update: vi.fn().mockResolvedValue(undefined),
+    },
+    productAnswer: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({
+        id: 'answer-1',
+        questionId: 'question-1',
+        productId: 'product-1',
+        answeredByUserId: 'answerer',
+        answerText: 'Hält seit Monaten super.',
+        quickAnswer: null,
+        helpfulCount: 0,
+        createdAt: now,
+        updatedAt: now,
+        answeredBy: { id: 'answerer', displayName: 'Answerer' },
+      }),
+    },
+    user: {
+      findUnique: vi.fn().mockResolvedValue({ email: 'asker@example.test' }),
     },
     ownership: {
       findMany: vi.fn().mockResolvedValue(ownerRows),
@@ -100,13 +172,19 @@ function createService(input: {
   };
   const notifications = {
     createMany: vi.fn().mockResolvedValue(undefined),
+    create: vi.fn().mockResolvedValue(undefined),
   };
+  const email = { send: vi.fn().mockResolvedValue(true) };
+  const config = { get: vi.fn().mockReturnValue('http://localhost:3000') };
 
   return {
     service: new QuestionsService(
       prisma as unknown as PrismaService,
       notifications as unknown as NotificationsService,
+      email as unknown as EmailService,
+      config as unknown as ConfigService,
     ),
     notifications,
+    email,
   };
 }

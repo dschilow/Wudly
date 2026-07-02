@@ -203,8 +203,25 @@ model User {
   sentInvites         RatingInvite[]       @relation("SentInvites")
   claimedInvitedVotes InvitedVote[]        @relation("ClaimedInvitedVotes")
   promptResponses     ProductPromptResponse[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([role])
+}
+
+/// A one-time password-reset link. `tokenHash` (not the raw token) is stored so
+/// a leaked database can't be used to reset accounts; `usedAt` makes it single-use.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /* ----------------------------------------------------------------- *

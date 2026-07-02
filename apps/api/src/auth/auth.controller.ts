@@ -15,8 +15,12 @@ import type { Request, Response } from 'express';
 import {
   registerSchema,
   loginSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
   type RegisterInput,
   type LoginInput,
+  type RequestPasswordResetInput,
+  type ResetPasswordInput,
   type AuthResponseDto,
   type UserDto,
 } from '@wudly/shared';
@@ -65,6 +69,31 @@ export class AuthController {
   logout(@Res({ passthrough: true }) res: Response): { success: true } {
     res.clearCookie(AUTH_COOKIE_NAME, this.cookieBaseOptions());
     res.clearCookie(CSRF_COOKIE_NAME, this.cookieBaseOptions(false));
+    return { success: true };
+  }
+
+  /**
+   * Always returns success regardless of whether the email exists (no user
+   * enumeration) — the actual no-op-on-unknown-email branch lives in the service.
+   */
+  @Post('request-password-reset')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ limit: 5, windowMs: 60_000 })
+  async requestPasswordReset(
+    @Body(new ZodValidationPipe(requestPasswordResetSchema)) dto: RequestPasswordResetInput,
+  ): Promise<{ success: true }> {
+    const webAppUrl = this.config.get('WEB_APP_URL', { infer: true });
+    await this.authService.requestPasswordReset(dto.email, webAppUrl);
+    return { success: true };
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ limit: 10, windowMs: 60_000 })
+  async resetPassword(
+    @Body(new ZodValidationPipe(resetPasswordSchema)) dto: ResetPasswordInput,
+  ): Promise<{ success: true }> {
+    await this.authService.resetPassword(dto.token, dto.password);
     return { success: true };
   }
 
