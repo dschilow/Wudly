@@ -2,9 +2,15 @@ import type { DetectedProduct } from '../types';
 
 /**
  * Generic schema.org adapter: most German shops (MediaMarkt, Saturn, Otto,
- * Kaufland, Cyberport, …) embed a JSON-LD `Product` with gtin/brand/name.
+ * Kaufland, Cyberport, …) embed JSON-LD with the product's gtin/brand/name.
  * Parsing structured data instead of the DOM survives shop redesigns — DOM
  * selectors are only ever a per-shop fallback, never the primary path.
+ *
+ * Shops wrap the product node differently: a bare `Product`, an `@graph`
+ * array, or an Action wrapper (MediaMarkt ships `BuyAction` → `object` →
+ * `ProductGroup`). `ProductGroup` counts as a product node; its `hasVariant`
+ * children are deliberately NOT searched — they are the OTHER size/color
+ * variants, not the product this page shows.
  */
 export function detectFromJsonLd(doc: Document): DetectedProduct | null {
   for (const script of doc.querySelectorAll('script[type="application/ld+json"]')) {
@@ -22,7 +28,12 @@ export function detectFromJsonLd(doc: Document): DetectedProduct | null {
   return null;
 }
 
-/** Depth-first search through arrays / @graph nesting for a Product node. */
+const PRODUCT_TYPES = new Set(['product', 'productgroup']);
+/** Wrapper keys whose value can hold THE page's product node. Never variant
+ *  or list keys (`hasVariant`, `itemListElement`) — those are other products. */
+const CONTAINER_KEYS = ['@graph', 'object', 'mainEntity', 'itemOffered'] as const;
+
+/** Depth-first search through arrays and known wrapper keys for a product node. */
 function findProductNode(node: unknown, depth: number): Record<string, unknown> | null {
   if (depth > 4 || node === null || typeof node !== 'object') return null;
   if (Array.isArray(node)) {
@@ -35,8 +46,13 @@ function findProductNode(node: unknown, depth: number): Record<string, unknown> 
   const obj = node as Record<string, unknown>;
   const type = obj['@type'];
   const types = Array.isArray(type) ? type : [type];
-  if (types.some((t) => typeof t === 'string' && t.toLowerCase() === 'product')) return obj;
-  if (obj['@graph']) return findProductNode(obj['@graph'], depth + 1);
+  if (types.some((t) => typeof t === 'string' && PRODUCT_TYPES.has(t.toLowerCase()))) return obj;
+  for (const key of CONTAINER_KEYS) {
+    if (obj[key]) {
+      const found = findProductNode(obj[key], depth + 1);
+      if (found) return found;
+    }
+  }
   return null;
 }
 

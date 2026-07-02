@@ -4,38 +4,57 @@ import type { DetectedProduct, LookupResult } from './types';
 
 /**
  * Orchestration only: detect the product on the page, ask the background
- * worker to resolve it, render the overlay. Re-runs on SPA navigations
- * (MediaMarkt/Otto render product pages client-side) via a cheap URL poll —
- * there is no navigation event for pushState available to content scripts.
+ * worker to resolve it, render the overlay.
+ *
+ * Shops are SPAs (MediaMarkt/Otto render client-side, JSON-LD arrives with
+ * hydration, sometimes seconds after document_idle), so detection RETRIES
+ * with a backoff instead of running once, and re-arms on every URL change —
+ * there is no pushState navigation event available to content scripts.
  */
 
-let lastHref = '';
-let running = false;
+const RETRY_DELAYS_MS = [500, 1000, 2000, 4000, 6000];
 
-async function run(): Promise<void> {
-  if (running) return;
-  running = true;
-  try {
+let lastHref = '';
+let runToken = 0;
+
+async function detectWithRetries(): Promise<void> {
+  const token = ++runToken;
+  for (let attempt = 0; ; attempt++) {
+    if (token !== runToken) return; // a newer navigation superseded this run
     const product = detectProduct(document, location.href);
-    if (!product) {
+    if (product) {
+      debug('detected', product);
+      await resolveAndRender(product, token);
+      return;
+    }
+    const delay = RETRY_DELAYS_MS[attempt];
+    if (delay === undefined) {
+      debug('no product found after retries');
       removeOverlay();
       return;
     }
-    const result = await lookup(product);
-    if (!result || result.status === 'rejected') {
-      removeOverlay();
-      return;
-    }
-    mountOverlay(product, result, (p) => void engage(p));
-  } finally {
-    running = false;
+    await sleep(delay);
   }
+}
+
+async function resolveAndRender(product: DetectedProduct, token: number): Promise<void> {
+  const result = await lookup(product);
+  if (token !== runToken) return;
+  debug('resolution', result);
+  if (!result || result.status === 'rejected') {
+    removeOverlay();
+    return;
+  }
+  mountOverlay(product, result, (p) => void engage(p));
 }
 
 function lookup(product: DetectedProduct): Promise<LookupResult> {
   return chrome.runtime
     .sendMessage({ kind: 'wudly:lookup', payload: product })
-    .catch(() => null);
+    .catch((err) => {
+      debug('lookup failed', err);
+      return null;
+    });
 }
 
 function engage(product: DetectedProduct): void {
@@ -46,10 +65,18 @@ function onUrlMaybeChanged(): void {
   if (location.href === lastHref) return;
   lastHref = location.href;
   removeOverlay();
-  // Give the SPA a moment to render the new product before detecting.
-  setTimeout(() => void run(), 800);
+  void detectWithRetries();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Diagnosis for "why is nothing showing?" — visible via DevTools console. */
+function debug(...args: unknown[]): void {
+  console.debug('[Wudly Signal]', ...args);
 }
 
 lastHref = location.href;
-void run();
+void detectWithRetries();
 setInterval(onUrlMaybeChanged, 1_500);

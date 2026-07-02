@@ -32,6 +32,20 @@ als API-URL `http://localhost:4000/api` eintragen.
   Pill → aufklappbare Verdict-Karte. Ein Klick zählt serverseitig als
   „engage" (starkes Nachfrage-Signal, zieht bezahlte Anreicherung vor).
 
+## Troubleshooting: „Es wird nichts angezeigt"
+
+1. **DevTools-Konsole der Shopseite** öffnen (F12): das Content-Script loggt
+   `[Wudly Signal] detected …` (Produkt erkannt) und `resolution …` (API-Antwort).
+   - Kein `detected`-Log → Adapter hat kein Produkt gefunden (kein/unerwartetes
+     JSON-LD). Die Erkennung wiederholt sich bis ~13 s nach Seitenladen (SPAs).
+   - `resolution null` → API nicht erreichbar **oder der `/sightings`-Endpoint
+     ist dort noch nicht deployt** (die Extension bleibt dann bewusst stumm).
+2. Nach Code-Änderungen: `pnpm --filter @wudly/extension build` und in
+   `chrome://extensions` **neu laden** (↻) — sonst läuft das alte Bundle.
+3. Shop-Eigenheiten: MediaMarkt verpackt das Produkt als `BuyAction` →
+   `ProductGroup` (wird unterstützt); `hasVariant` (andere Größen) wird bewusst
+   ignoriert, damit nie die falsche Variante gemeldet wird.
+
 ## Privatsphäre (bewusste Entscheidungen)
 
 - Keine Nutzer-, Installations- oder Session-Kennungen — weder im Payload noch
