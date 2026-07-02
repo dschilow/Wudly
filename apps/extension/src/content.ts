@@ -1,6 +1,6 @@
 import { detectProduct } from './adapters';
 import { clearDismissals, mountOverlay, removeOverlay } from './overlay';
-import type { DetectedProduct, LookupResult, ShowMessage } from './types';
+import type { DetectedProduct, LookupResponse, ShowMessage } from './types';
 
 /**
  * Orchestration only: detect the product on the page, ask the background
@@ -38,9 +38,10 @@ async function detectWithRetries(): Promise<void> {
 }
 
 async function resolveAndRender(product: DetectedProduct, token: number): Promise<void> {
-  const result = await lookup(product);
+  const { result, error } = await lookup(product);
   if (token !== runToken) return;
-  debug('resolution', result);
+  if (error) debug('lookup FEHLGESCHLAGEN:', error);
+  else debug('resolution', result);
   if (!result || result.status === 'rejected') {
     removeOverlay();
     return;
@@ -48,13 +49,11 @@ async function resolveAndRender(product: DetectedProduct, token: number): Promis
   mountOverlay(product, result, (p) => void engage(p));
 }
 
-function lookup(product: DetectedProduct): Promise<LookupResult> {
+function lookup(product: DetectedProduct): Promise<LookupResponse> {
   return chrome.runtime
     .sendMessage({ kind: 'wudly:lookup', payload: product })
-    .catch((err) => {
-      debug('lookup failed', err);
-      return null;
-    });
+    .then((response: LookupResponse | undefined) => response ?? { result: null })
+    .catch((err) => ({ result: null, error: err instanceof Error ? err.message : String(err) }));
 }
 
 function engage(product: DetectedProduct): void {

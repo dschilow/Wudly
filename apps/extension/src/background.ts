@@ -1,4 +1,4 @@
-import type { DetectedProduct, ExtensionMessage, LookupResult } from './types';
+import type { DetectedProduct, ExtensionMessage, LookupResponse, LookupResult } from './types';
 import { loadSettings } from './types';
 
 /**
@@ -17,11 +17,11 @@ import { loadSettings } from './types';
 const sessionCache = new Map<string, LookupResult>();
 
 chrome.runtime.onMessage.addListener(
-  (message: ExtensionMessage, sender, sendResponse: (r: LookupResult) => void) => {
+  (message: ExtensionMessage, sender, sendResponse: (r: LookupResponse) => void) => {
     if (message?.kind === 'wudly:lookup') {
       void handleLookup(message.payload, sender.tab?.id)
         .then(sendResponse)
-        .catch(() => sendResponse(null));
+        .catch((err) => sendResponse({ result: null, error: describe(err) }));
       return true; // async response
     }
     if (message?.kind === 'wudly:engage') {
@@ -39,24 +39,28 @@ chrome.action.onClicked.addListener((tab) => {
   });
 });
 
-async function handleLookup(product: DetectedProduct, tabId?: number): Promise<LookupResult> {
+async function handleLookup(product: DetectedProduct, tabId?: number): Promise<LookupResponse> {
   const settings = await loadSettings();
-  if (!settings.enabled) return null;
+  if (!settings.enabled) return { result: null };
 
   const key = cacheKey(product);
   const cached = sessionCache.get(key);
   if (cached !== undefined) {
     void badge(tabId, cached);
-    return cached;
+    return { result: cached };
   }
 
   let result: LookupResult = null;
+  let error: string | undefined;
   try {
     result = settings.reporting
       ? await postSighting(settings.apiUrl, product, 'view')
       : await resolveOnly(settings.apiUrl, product);
-  } catch {
-    result = null; // API down / rate limited → fail silent, never break the shop page
+  } catch (err) {
+    // Overlay stays silent (never break the shop page), but the REASON must
+    // be visible: relayed to the page console and logged here in the worker.
+    error = `${describe(err)} [API: ${settings.apiUrl}]`;
+    console.warn('[Wudly Signal] lookup failed:', error);
   }
   // Cache only real answers. A failure (cold-starting API, network blip) must
   // NOT poison the session — the next page view should simply try again.
@@ -65,7 +69,11 @@ async function handleLookup(product: DetectedProduct, tabId?: number): Promise<L
     sessionCache.set(key, result);
   }
   void badge(tabId, result);
-  return result;
+  return { result, error };
+}
+
+function describe(err: unknown): string {
+  return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
 }
 
 /** Overlay interaction = strong demand signal; also warms the daily budgets. */
@@ -91,7 +99,7 @@ async function postSighting(
     body: JSON.stringify({ ...product, event }),
     signal: AbortSignal.timeout(20_000),
   });
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${await res.text().catch(() => '')}`.trim());
   return (await res.json()) as LookupResult;
 }
 
@@ -106,7 +114,7 @@ async function resolveOnly(apiUrl: string, product: DetectedProduct): Promise<Lo
   const res = await fetch(`${trim(apiUrl)}/sightings/resolve?${params}`, {
     signal: AbortSignal.timeout(20_000),
   });
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return (await res.json()) as LookupResult;
 }
 

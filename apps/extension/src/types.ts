@@ -26,6 +26,13 @@ export interface ShowMessage {
 
 export type LookupResult = SightingResolutionDto | null;
 
+/** Background → content answer: the resolution plus, on failure, WHY it
+ *  failed — surfaced in the page console so "nothing shows" is diagnosable. */
+export interface LookupResponse {
+  result: LookupResult;
+  error?: string;
+}
+
 /** User settings (chrome.storage.local). */
 export interface Settings {
   /** Master switch — off renders nothing and sends nothing. */
