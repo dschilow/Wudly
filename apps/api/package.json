@@ -18,6 +18,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:reset": "prisma migrate reset --force",
     "prisma:seed": "tsx prisma/seed.ts",
+    "seed:pulse-demo": "tsx prisma/seed-pulse-demo.ts",
     "cleanup:seed": "tsx prisma/cleanup-seed.ts",
     "resync:snapshots": "tsx prisma/resync-snapshots.ts",
     "benchmark:product-search": "tsx scripts/benchmark-product-search.ts",

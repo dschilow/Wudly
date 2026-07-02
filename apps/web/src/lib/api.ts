@@ -78,6 +78,23 @@ import type {
   ProductCurationDraftDto,
   PublicInviteDto,
   InvitedVotesSummaryDto,
+  PulseAccessDto,
+  PulseWorkspaceDto,
+  PulseOverviewDto,
+  PulseSignalDto,
+  PulseProduct360Dto,
+  PulseCompetitorSetDto,
+  PulseActionDto,
+  PulseChangeDto,
+  PulseFeedbackPageDto,
+  PulseReportDto,
+  PulseReportType,
+  PulseWatchInput,
+  PulseCompetitorInput,
+  CreatePulseActionInput,
+  UpdatePulseActionInput,
+  CreatePulseChangeInput,
+  UpdatePulseChangeInput,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -370,5 +387,69 @@ export const api = {
     /** Research external ratings for products that have none (one batch per call). */
     backfillRatings: () =>
       apiFetch<RatingBackfillReportDto>('/admin/products/backfill-ratings', { method: 'POST' }),
+  },
+
+  /**
+   * Wudly Pulse — the B2B product-health dashboard for brands / merchants.
+   * Reads the neutral signal; writes only its own watchlist, actions, changes.
+   */
+  pulse: {
+    access: (opts?: RequestOptions) => apiFetch<PulseAccessDto>('/pulse/access', opts),
+    workspace: (days: number, opts?: RequestOptions) =>
+      apiFetch<PulseWorkspaceDto>(`/pulse/workspace${qs({ days })}`, opts),
+    overview: (days: number, opts?: RequestOptions) =>
+      apiFetch<PulseOverviewDto>(`/pulse/overview${qs({ days })}`, opts),
+    signals: (days: number, opts?: RequestOptions) =>
+      apiFetch<PulseSignalDto[]>(`/pulse/signals${qs({ days })}`, opts),
+    product360: (productId: string, days: number, opts?: RequestOptions) =>
+      apiFetch<PulseProduct360Dto>(`/pulse/products/${productId}${qs({ days })}`, opts),
+    competitors: (days: number, opts?: RequestOptions) =>
+      apiFetch<PulseCompetitorSetDto[]>(`/pulse/competitors${qs({ days })}`, opts),
+
+    watch: (input: PulseWatchInput) =>
+      apiFetch<{ id: string }>('/pulse/watch', { method: 'POST', json: input }),
+    unwatch: (watchId: string) =>
+      apiFetch<{ success: true }>(`/pulse/watch/${watchId}`, { method: 'DELETE' }),
+    addCompetitor: (watchId: string, input: PulseCompetitorInput) =>
+      apiFetch<{ id: string }>(`/pulse/watch/${watchId}/competitors`, {
+        method: 'POST',
+        json: input,
+      }),
+    removeCompetitor: (competitorId: string) =>
+      apiFetch<{ success: true }>(`/pulse/competitors/${competitorId}`, { method: 'DELETE' }),
+
+    actions: (opts?: RequestOptions) => apiFetch<PulseActionDto[]>('/pulse/actions', opts),
+    createAction: (input: CreatePulseActionInput) =>
+      apiFetch<PulseActionDto>('/pulse/actions', { method: 'POST', json: input }),
+    updateAction: (id: string, input: UpdatePulseActionInput) =>
+      apiFetch<PulseActionDto>(`/pulse/actions/${id}`, { method: 'PATCH', json: input }),
+    deleteAction: (id: string) =>
+      apiFetch<{ success: true }>(`/pulse/actions/${id}`, { method: 'DELETE' }),
+
+    changes: (opts?: RequestOptions) => apiFetch<PulseChangeDto[]>('/pulse/changes', opts),
+    createChange: (input: CreatePulseChangeInput) =>
+      apiFetch<PulseChangeDto>('/pulse/changes', { method: 'POST', json: input }),
+    updateChange: (id: string, input: UpdatePulseChangeInput) =>
+      apiFetch<PulseChangeDto>(`/pulse/changes/${id}`, { method: 'PATCH', json: input }),
+    deleteChange: (id: string) =>
+      apiFetch<{ success: true }>(`/pulse/changes/${id}`, { method: 'DELETE' }),
+
+    feedback: (
+      params: {
+        productId?: string;
+        wouldBuyAgain?: string;
+        usageDuration?: string;
+        verified?: string;
+        sentiment?: string;
+        days?: number;
+        q?: string;
+        take?: number;
+        skip?: number;
+      },
+      opts?: RequestOptions,
+    ) => apiFetch<PulseFeedbackPageDto>(`/pulse/feedback${qs(params)}`, opts),
+
+    report: (type: PulseReportType, days: number, opts?: RequestOptions) =>
+      apiFetch<PulseReportDto>(`/pulse/reports/${type}${qs({ days })}`, opts),
   },
 };

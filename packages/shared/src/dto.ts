@@ -23,6 +23,11 @@ import type {
   ShowcaseBlockType,
   DisclosureType,
   ExternalRatingKind,
+  PulseActionStatus,
+  PulseActionPriority,
+  PulseChangeType,
+  PulseSignalSeverity,
+  PulseConfidence,
 } from './enums';
 import type { UsageDurationStats } from './scoring';
 
@@ -752,4 +757,296 @@ export interface ProductTemplateDto {
   category: CategoryDto | null;
   /** Preset blocks: ordered { type, content } entries. */
   blocks: Array<{ type: ShowcaseBlockType; content: Record<string, unknown> }>;
+}
+
+/* ------------------------------------------------------------------ *
+ * Wudly Pulse — B2B product-health dashboard DTOs.
+ *
+ * Pulse derives everything from the neutral signal data (experiences,
+ * votes, insight snapshots) and answers four questions for every number:
+ * what changed, why, who is affected, and what to do next. Every metric
+ * carries a confidence level so thin data is never oversold.
+ * ------------------------------------------------------------------ */
+
+export interface PulseAccessDto {
+  allowed: boolean;
+  /** Why access is denied (null when allowed). */
+  reason: 'NO_PROFILE' | 'WRONG_TYPE' | null;
+  profile: ProfessionalProfileDto | null;
+}
+
+/** Windowed before/after comparison of a 0–100 score. */
+export interface PulseTrendDto {
+  /** Score in the selected window (null = not enough data in the window). */
+  current: number | null;
+  /** Score in the equally long window right before it. */
+  previous: number | null;
+  /** current − previous in points (null when either side is missing). */
+  delta: number | null;
+}
+
+export interface PulseProductMetricsDto {
+  product: ProductSummaryDto;
+  /** Watchlist row id when this is a portfolio product (enables unwatch / competitor mapping). */
+  watchId: string | null;
+  /** Product Health Index 0–100: rebuy minus a regret penalty (see API docs). */
+  healthIndex: number | null;
+  rebuyScore: number | null;
+  regretScore: number | null;
+  /** Rebuy score, selected window vs. previous window. */
+  trend: PulseTrendDto;
+  confidence: PulseConfidence;
+  /** All-time public owner experiences. */
+  experienceCount: number;
+  /** New public experiences inside the selected window. */
+  newExperiences: number;
+  /** Share of verified owners, 0–100. */
+  verifiedShare: number;
+  /** Long-term experiences (≥ 6 months of ownership). */
+  longTermCount: number;
+  /** Dominant ownership duration, human-readable (e.g. "meist über 1 Jahr"). */
+  typicalOwnership: string | null;
+}
+
+/** A derived early-warning / positive signal. Computed live, never persisted. */
+export interface PulseSignalDto {
+  /** Stable derived id `${kind}:${productId}` for client-side dedupe. */
+  id: string;
+  kind: string;
+  severity: PulseSignalSeverity;
+  title: string;
+  /** Understandable, complete sentence(s) — no metric jargon. */
+  description: string;
+  productId: string;
+  productName: string;
+  metricLabel: string | null;
+  deltaPoints: number | null;
+  /** Most important driver (e.g. the top rising negative aspect). */
+  cause: string | null;
+  /** Affected owner group — only honest cohorts Wudly really knows. */
+  segment: string | null;
+  recommendation: string;
+  confidence: PulseConfidence;
+  periodDays: number;
+}
+
+export interface PulseOverviewDto {
+  periodDays: number;
+  generatedAt: string;
+  /** Portfolio Product Health Index (experience-weighted). */
+  healthIndex: number | null;
+  healthTrend: PulseTrendDto;
+  /** Portfolio rebuy score (experience-weighted). */
+  rebuyScore: number | null;
+  rebuyTrend: PulseTrendDto;
+  productCount: number;
+  experienceCount: number;
+  longTermExperienceCount: number;
+  verifiedShare: number;
+  /** Products with at least one critical/relevant signal. */
+  attentionProductCount: number;
+  criticalSignalCount: number;
+  /** "Benötigt jetzt Aufmerksamkeit" — worst first. */
+  attention: PulseSignalDto[];
+  /** "Was läuft gut?" */
+  positives: PulseSignalDto[];
+  confidence: PulseConfidence;
+}
+
+export interface PulseCurvePointDto {
+  bucket: UsageDuration;
+  /** e.g. "nach 6–12 Monaten". */
+  label: string;
+  rebuyScore: number | null;
+  count: number;
+}
+
+export interface PulseSegmentStatDto {
+  key: string;
+  /** Honest cohort labels only (verification, ownership duration, variant, guest votes). */
+  label: string;
+  rebuyScore: number | null;
+  count: number;
+  tone: 'positive' | 'negative' | 'neutral';
+}
+
+/** A concrete problem theme and how it is developing across windows. */
+export interface PulseIssueDto {
+  key: string;
+  label: string;
+  /** Mentions in the selected window. */
+  count: number;
+  /** Mentions in the window before it. */
+  previousCount: number;
+  trend: 'new' | 'rising' | 'stable' | 'falling';
+}
+
+export interface PulseProduct360Dto {
+  metrics: PulseProductMetricsDto;
+  variantNames: string[];
+  /** Long-term satisfaction by real ownership-duration buckets. */
+  curve: PulseCurvePointDto[];
+  strengths: AspectStatDto[];
+  /** Top reasons owners would NOT buy again. */
+  regretReasons: AspectStatDto[];
+  /** Problems that are new or clearly increasing in the selected window. */
+  emergingIssues: PulseIssueDto[];
+  segments: PulseSegmentStatDto[];
+  suitedFor: string[];
+  notSuitedFor: string[];
+  aiHeadline: string | null;
+  /** "Hätte lieber X gekauft" highlights. */
+  insteadOfHighlights: string[];
+  wishKnownHighlights: string[];
+  signals: PulseSignalDto[];
+  recentVoices: PulseFeedbackItemDto[];
+  externalAvgPercent: number | null;
+  externalSourceCount: number;
+}
+
+export interface PulseCompetitorEntryDto {
+  /** PulseCompetitor row id (for removal). */
+  id: string;
+  metrics: PulseProductMetricsDto;
+  strengths: AspectStatDto[];
+  regretReasons: AspectStatDto[];
+}
+
+export interface PulseCompetitorSetDto {
+  watchId: string;
+  own: PulseProductMetricsDto;
+  ownStrengths: AspectStatDto[];
+  ownRegretReasons: AspectStatDto[];
+  competitors: PulseCompetitorEntryDto[];
+  /** Plain-language verdict: where the own product wins / loses. */
+  verdict: string | null;
+  /** Same-category candidates not yet mapped as competitors. */
+  suggestions: ProductSummaryDto[];
+}
+
+export interface PulseActionDto {
+  id: string;
+  productId: string;
+  productName: string;
+  title: string;
+  triggerSummary: string | null;
+  triggerKey: string | null;
+  assignee: string | null;
+  priority: PulseActionPriority;
+  status: PulseActionStatus;
+  goal: string | null;
+  expectedImpact: string | null;
+  dueAt: string | null;
+  baselineRebuyScore: number | null;
+  baselineRegretScore: number | null;
+  baselineExperienceCount: number;
+  /** Live scores now — honest before/after view of the measure's effect. */
+  currentRebuyScore: number | null;
+  currentRegretScore: number | null;
+  newExperiencesSinceCreation: number;
+  /** currentRebuy − baselineRebuy (null when either side is missing). */
+  effectDelta: number | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface PulseChangeWindowDto {
+  rebuyScore: number | null;
+  regretScore: number | null;
+  count: number;
+}
+
+export interface PulseChangeImpactDto {
+  /** Symmetric compare window in days around `effectiveAt`. */
+  windowDays: number;
+  before: PulseChangeWindowDto;
+  after: PulseChangeWindowDto;
+  rebuyDelta: number | null;
+  /** Negative themes that clearly went down after the change. */
+  improvedIssues: PulseIssueDto[];
+  /** Negative themes still present after the change. */
+  persistingIssues: PulseIssueDto[];
+  /** Negative themes that only appeared after the change. */
+  newIssues: PulseIssueDto[];
+  confidence: PulseConfidence;
+  /** One honest German sentence summarizing the effect. */
+  summary: string;
+}
+
+export interface PulseChangeDto {
+  id: string;
+  productId: string;
+  productName: string;
+  type: PulseChangeType;
+  title: string;
+  description: string | null;
+  effectiveAt: string;
+  createdAt: string;
+  impact: PulseChangeImpactDto | null;
+}
+
+/** One anonymized owner voice for the B2B feedback view. */
+export interface PulseFeedbackItemDto {
+  id: string;
+  productId: string;
+  productName: string;
+  variantName: string | null;
+  wouldBuyAgain: WouldBuyAgain;
+  usageDuration: UsageDuration;
+  experienceMood: ExperienceMood;
+  verificationStatus: VerificationStatus;
+  freeText: string | null;
+  wishKnownText: string | null;
+  insteadOfText: string | null;
+  aspects: ExperienceAspectDto[];
+  createdAt: string;
+}
+
+export interface PulseFeedbackSummaryDto {
+  positiveThemes: AspectStatDto[];
+  negativeThemes: AspectStatDto[];
+  /** Themes that are new in the selected window. */
+  newThemes: PulseIssueDto[];
+  /** "Hätte ich vorher gewusst…" highlights across the portfolio. */
+  wishes: string[];
+  /** Central verbatim quotes (short, anonymized). */
+  quotes: string[];
+  /** Per-product AI one-liners from the insight snapshots (no extra AI spend). */
+  aiHeadlines: Array<{ productId: string; productName: string; headline: string }>;
+}
+
+export interface PulseFeedbackPageDto {
+  items: PulseFeedbackItemDto[];
+  total: number;
+  summary: PulseFeedbackSummaryDto;
+}
+
+export type PulseReportType = 'health' | 'executive' | 'longterm' | 'competition' | 'actions';
+
+export interface PulseReportMetricDto {
+  label: string;
+  value: string;
+  delta?: number | null;
+}
+
+export interface PulseReportSectionDto {
+  title: string;
+  /** Clear management statements — complete sentences, no chart required. */
+  statements: string[];
+  metrics: PulseReportMetricDto[];
+}
+
+export interface PulseReportDto {
+  type: PulseReportType;
+  title: string;
+  periodDays: number;
+  generatedAt: string;
+  intro: string;
+  sections: PulseReportSectionDto[];
+}
+
+export interface PulseWorkspaceDto {
+  profile: ProfessionalProfileDto;
+  periodDays: number;
+  products: PulseProductMetricsDto[];
 }

@@ -18,6 +18,9 @@ import {
   ShowcaseBlockType,
   DisclosureType,
   ExternalRatingKind,
+  PulseActionStatus,
+  PulseActionPriority,
+  PulseChangeType,
   enumValues,
 } from './enums';
 
@@ -512,3 +515,73 @@ export const reorderBlocksSchema = z.object({
   blockIds: z.array(idSchema).min(1).max(40),
 });
 export type ReorderBlocksInput = z.infer<typeof reorderBlocksSchema>;
+
+/* ------------------------------------------------------------------ *
+ * Wudly Pulse (B2B dashboard) — watchlist, actions, change log.
+ * ------------------------------------------------------------------ */
+
+const pulseActionStatusSchema = z.enum(
+  enumValues(PulseActionStatus) as [string, ...string[]],
+) as z.ZodType<(typeof PulseActionStatus)[keyof typeof PulseActionStatus]>;
+const pulseActionPrioritySchema = z.enum(
+  enumValues(PulseActionPriority) as [string, ...string[]],
+) as z.ZodType<(typeof PulseActionPriority)[keyof typeof PulseActionPriority]>;
+const pulseChangeTypeSchema = z.enum(
+  enumValues(PulseChangeType) as [string, ...string[]],
+) as z.ZodType<(typeof PulseChangeType)[keyof typeof PulseChangeType]>;
+
+/** ISO date(-time) string that must parse to a valid Date. */
+const isoDateSchema = z
+  .string()
+  .refine((v) => !Number.isNaN(Date.parse(v)), 'Ungültiges Datum');
+
+export const pulseWatchSchema = z.object({
+  productId: idSchema,
+});
+export type PulseWatchInput = z.infer<typeof pulseWatchSchema>;
+
+export const pulseCompetitorSchema = z.object({
+  competitorProductId: idSchema,
+});
+export type PulseCompetitorInput = z.infer<typeof pulseCompetitorSchema>;
+
+export const createPulseActionSchema = z.object({
+  productId: idSchema,
+  title: z.string().trim().min(3).max(160),
+  triggerSummary: z.string().trim().max(500).optional(),
+  triggerKey: z.string().trim().max(60).optional(),
+  assignee: z.string().trim().max(80).optional(),
+  priority: pulseActionPrioritySchema.optional(),
+  goal: z.string().trim().max(500).optional(),
+  expectedImpact: z.string().trim().max(300).optional(),
+  dueAt: isoDateSchema.optional(),
+});
+export type CreatePulseActionInput = z.infer<typeof createPulseActionSchema>;
+
+export const updatePulseActionSchema = z.object({
+  title: z.string().trim().min(3).max(160).optional(),
+  assignee: z.string().trim().max(80).nullable().optional(),
+  priority: pulseActionPrioritySchema.optional(),
+  status: pulseActionStatusSchema.optional(),
+  goal: z.string().trim().max(500).nullable().optional(),
+  expectedImpact: z.string().trim().max(300).nullable().optional(),
+  dueAt: isoDateSchema.nullable().optional(),
+});
+export type UpdatePulseActionInput = z.infer<typeof updatePulseActionSchema>;
+
+export const createPulseChangeSchema = z.object({
+  productId: idSchema,
+  type: pulseChangeTypeSchema,
+  title: z.string().trim().min(3).max(160),
+  description: z.string().trim().max(1000).optional(),
+  effectiveAt: isoDateSchema,
+});
+export type CreatePulseChangeInput = z.infer<typeof createPulseChangeSchema>;
+
+export const updatePulseChangeSchema = z.object({
+  type: pulseChangeTypeSchema.optional(),
+  title: z.string().trim().min(3).max(160).optional(),
+  description: z.string().trim().max(1000).nullable().optional(),
+  effectiveAt: isoDateSchema.optional(),
+});
+export type UpdatePulseChangeInput = z.infer<typeof updatePulseChangeSchema>;
