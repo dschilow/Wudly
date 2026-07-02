@@ -93,10 +93,14 @@ async function postSighting(
   event: 'view' | 'engage',
 ): Promise<LookupResult> {
   // Generous timeout: the free-tier API sleeps and needs seconds to cold-start.
+  // credentials 'omit' is load-bearing twice over: sightings are anonymous by
+  // design (never link browsing to an account), and a logged-in user's auth
+  // cookie would trip the API's CSRF guard (403) if it were sent along.
   const res = await fetch(`${trim(apiUrl)}/sightings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...product, event }),
+    credentials: 'omit',
     signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${await res.text().catch(() => '')}`.trim());
@@ -112,6 +116,7 @@ async function resolveOnly(apiUrl: string, product: DetectedProduct): Promise<Lo
     params.set('q', product.title);
   }
   const res = await fetch(`${trim(apiUrl)}/sightings/resolve?${params}`, {
+    credentials: 'omit',
     signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

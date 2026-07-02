@@ -42,6 +42,7 @@ test.addEventListener('click', () => {
     testStatus.textContent = 'Prüfe … (schlafende API braucht bis zu 30 s)';
     try {
       const res = await fetch(`${base}/sightings/resolve?q=verbindungstest`, {
+        credentials: 'omit',
         signal: AbortSignal.timeout(30_000),
       });
       if (res.ok) {
