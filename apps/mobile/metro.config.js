@@ -9,8 +9,15 @@ const monorepoRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// 1. Watch all files in the monorepo so workspace package edits hot-reload.
-config.watchFolders = [monorepoRoot];
+// 1. Watch only what apps/mobile actually depends on: the workspace package
+// (@wudly/shared) and the hoisted root node_modules — NOT the whole monorepo.
+// Watching sibling apps (api/web/extension/gemma) previously made Metro's
+// file-map crash on unrelated file-lock churn there (e.g. an EBUSY on
+// apps/extension/node_modules/esbuild) and slowed the initial scan a lot.
+config.watchFolders = [
+  path.resolve(monorepoRoot, 'packages/shared'),
+  path.resolve(monorepoRoot, 'node_modules'),
+];
 
 // 2. Resolve modules from the app first, then the hoisted root node_modules.
 config.resolver.nodeModulesPaths = [

@@ -628,6 +628,34 @@ export interface EnsuredProductDto {
   created: boolean;
 }
 
+/**
+ * What the browser extension gets back for a sighting/lookup:
+ * - "known": the product is in the catalog — render the full signal.
+ * - "queued": not in the catalog yet; the staged pipeline will pick it up.
+ * - "rejected": failed a quality gate (junk title etc.) — render nothing.
+ */
+export interface SightingResolutionDto {
+  status: 'known' | 'queued' | 'rejected';
+  product: ProductSummaryDto | null;
+  /** Absolute Wudly product page URL, when known. */
+  webUrl: string | null;
+}
+
+/** Admin observability for the extension ingestion pipeline. */
+export interface SightingStatsDto {
+  total: number;
+  byStatus: Record<string, number>;
+  /** Most-demanded sightings still waiting for a catalog product. */
+  topPending: Array<{
+    dedupeKey: string;
+    title: string;
+    domain: string;
+    seenCount: number;
+    engageCount: number;
+    lastSeenAt: string;
+  }>;
+}
+
 /** The current user's products, split by how they relate to them. */
 export interface MyProductsDto {
   /** Products the user owns / has reviewed. */

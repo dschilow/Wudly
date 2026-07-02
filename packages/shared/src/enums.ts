@@ -97,6 +97,16 @@ export const ProductSourceType = {
 } as const;
 export type ProductSourceType = (typeof ProductSourceType)[keyof typeof ProductSourceType];
 
+/** Lifecycle of a browser-extension product sighting (staged, cost-bounded). */
+export const SightingStatus = {
+  PENDING: 'PENDING',
+  MATCHED: 'MATCHED',
+  CREATED: 'CREATED',
+  RESEARCHED: 'RESEARCHED',
+  REJECTED: 'REJECTED',
+} as const;
+export type SightingStatus = (typeof SightingStatus)[keyof typeof SightingStatus];
+
 export const CategoryAspectType = {
   POSITIVE: 'POSITIVE',
   NEGATIVE: 'NEGATIVE',

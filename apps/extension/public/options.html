@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Wudly Signal — Einstellungen</title>
+    <style>
+      body {
+        font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #0c0d12; background: #f5f6f8; margin: 0; padding: 20px; min-width: 340px;
+      }
+      h1 { font-size: 15px; margin: 0 0 4px; }
+      p.sub { margin: 0 0 16px; color: #5b5f6d; font-size: 12px; }
+      .card { background: #fff; border: 1px solid #0c0d1226; border-radius: 14px; padding: 14px 16px; }
+      label.row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #0c0d1216; cursor: pointer; }
+      label.row:last-of-type { border-bottom: 0; }
+      .row input[type="checkbox"] { margin-top: 3px; accent-color: #0aa06a; }
+      .row b { display: block; font-size: 13px; }
+      .row span { display: block; font-size: 12px; color: #5b5f6d; margin-top: 2px; }
+      details { margin-top: 12px; font-size: 12px; color: #5b5f6d; }
+      details input { width: 100%; margin-top: 6px; padding: 7px 9px; border: 1px solid #0c0d1233; border-radius: 8px; font-size: 12px; }
+      .saved { margin-top: 10px; font-size: 12px; color: #077951; font-weight: 600; visibility: hidden; }
+    </style>
+  </head>
+  <body>
+    <h1>Wudly Signal</h1>
+    <p class="sub">Anonym unterwegs: Wudly speichert keine Nutzer- oder Installations-Kennungen.</p>
+    <div class="card">
+      <label class="row">
+        <input type="checkbox" id="enabled" />
+        <div><b>Signal anzeigen</b><span>Zeigt das Wudly-Urteil auf Produktseiten unterstützter Shops.</span></div>
+      </label>
+      <label class="row">
+        <input type="checkbox" id="reporting" />
+        <div><b>Unbekannte Produkte melden</b><span>Produkte, die Wudly noch nicht kennt, werden anonym in den Katalog aufgenommen. Ohne Häkchen wird nur nachgeschlagen, nichts übertragen.</span></div>
+      </label>
+      <details>
+        <summary>Für Entwickler</summary>
+        <label>API-URL <input type="url" id="apiUrl" placeholder="https://…/api" /></label>
+      </details>
+      <div class="saved" id="saved">Gespeichert.</div>
+    </div>
+    <script src="options.js"></script>
+  </body>
+</html>

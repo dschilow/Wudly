@@ -112,6 +112,17 @@ enum MergeCandidateStatus {
   REJECTED
 }
 
+/// Lifecycle of a browser-extension product sighting. Stages exist to keep AI
+/// spend bounded: matching and stub creation are free; paid research only runs
+/// once a sighting has proven demand (seen/engage thresholds + daily budget).
+enum SightingStatus {
+  PENDING // recorded; no catalog product yet (awaiting free stub or demand threshold)
+  MATCHED // resolved to an existing catalog product — nothing to create
+  CREATED // stub product created from free catalog data (no AI spend yet)
+  RESEARCHED // paid AI enrichment (Netz-Konsens + question pool) has run
+  REJECTED // failed a quality gate — never auto-create from this row
+}
+
 enum NotificationType {
   QUESTION_ASKED // a question was asked about a product you own
   QUESTION_ANSWERED // your question got an answer
@@ -296,6 +307,7 @@ model Product {
   invitedVotes      InvitedVote[]
   prompts           ProductPrompt[]
   promptResponses   ProductPromptResponse[]
+  sightings         ProductSighting[]
 
   @@index([normalizedName])
   @@index([categoryId])
@@ -333,6 +345,45 @@ model ProductIdentifier {
   variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   @@unique([type, value])
+  @@index([productId])
+}
+
+/// A product seen by the browser extension on a shop page. One row per
+/// real-world product (deduped via `dedupeKey`), not per page view — repeat
+/// views only bump `seenCount`, so the table doubles as a demand ranking that
+/// decides which sightings earn (paid) enrichment. Deliberately stores no user
+/// or install identifiers: sightings are anonymous by design.
+model ProductSighting {
+  id              String                 @id @default(cuid())
+  /// "ean:4011700...", "asin:B0ABC12345" or "name:<loose-normalized>@<domain>".
+  dedupeKey       String                 @unique
+  identifierType  ProductIdentifierType?
+  identifierValue String?
+  /// Raw shop title (Amazon titles are keyword spam — never trusted as
+  /// canonicalName without the AI cleanup in the research stage).
+  title           String
+  brand           String?
+  imageUrl        String?
+  /// Canonical product page URL — tracking/query params stripped client-side.
+  productUrl      String?
+  /// Shop host the signal came from, e.g. "www.mediamarkt.de".
+  domain          String
+  /// Page views (deduped per browser session client-side).
+  seenCount       Int                    @default(1)
+  /// Overlay interactions — a much stronger demand signal than raw views.
+  engageCount     Int                    @default(0)
+  status          SightingStatus         @default(PENDING)
+  productId       String?
+  /// Why the last pipeline step failed / was skipped (diagnostics).
+  lastError       String?
+  firstSeenAt     DateTime               @default(now())
+  lastSeenAt      DateTime               @default(now())
+  /// When the pipeline last advanced this row (stub created / researched).
+  processedAt     DateTime?
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([status, lastSeenAt])
   @@index([productId])
 }
 

@@ -597,6 +597,47 @@ export class ProductsService {
   }
 
   /**
+   * Public access to the free EAN catalog chain (Icecat → Open Food Facts →
+   * UPCitemdb) for the sightings pipeline — trusted data, zero AI spend.
+   */
+  lookupEanInCatalogs(ean: string): Promise<EanLookupHit | null> {
+    return this.lookupEanExternal(ean);
+  }
+
+  /**
+   * Find-or-create for the extension sightings pipeline. Same dedup/create
+   * chain as scan/photo/research, but the caller controls the two paid stages
+   * separately: `research` (AI web research pre-create) and — via
+   * `deferPaidEnrichment` — the post-create consensus research + question-pool
+   * generation. Stub creation passes research=false + defer=true (zero AI).
+   */
+  ensureFromSighting(params: {
+    canonicalName: string;
+    brand?: string | null;
+    description?: string | null;
+    specs?: Array<{ label: string; value: string }>;
+    imageUrl?: string | null;
+    imageSource?: string;
+    ean?: string | null;
+    research: boolean;
+    deferPaidEnrichment: boolean;
+  }): Promise<EnsuredProductDto> {
+    return this.ensureProduct({ ...params, userId: null });
+  }
+
+  /**
+   * Deferred paid enrichment for an auto-created (stub) product once it has
+   * proven demand: Netz-Konsens research + the owner/buyer question pool. Both
+   * underlying steps are idempotent (consensus freshness check /
+   * `promptsGeneratedAt` gate), so re-runs don't double-spend.
+   */
+  async researchSightingProduct(productId: string): Promise<void> {
+    const product = await this.findOrThrow(productId);
+    await this.researchAndStoreRatings(productId, product.canonicalName, product.brand);
+    this.prompts.generateInBackground(productId);
+  }
+
+  /**
    * Find-or-create a product from sparse external data (scan / photo / research).
    * Returns an existing strong match when one exists; otherwise creates it,
    * optionally enriched via live web research, and remembers the EAN.
@@ -613,6 +654,12 @@ export class ProductsService {
     ean?: string | null;
     userId?: string | null;
     research?: boolean;
+    /**
+     * Skip the post-create PAID steps (consensus research + question pool).
+     * Used by the sightings stub stage; the deferred enrichment runs later via
+     * {@link researchSightingProduct} once the sighting has proven demand.
+     */
+    deferPaidEnrichment?: boolean;
   }): Promise<EnsuredProductDto> {
     const rawName = params.canonicalName.trim();
     if (rawName.length < 2) return { product: null, created: false };
@@ -722,21 +769,23 @@ export class ProductsService {
     }
     // No trustworthy DB photo? Hunt one in the background (validated first).
     if (!dbImageUrl) huntImage(result.product.id);
-    // Generate the product-specific owner/buyer question pool (one-time, async).
-    this.prompts.generateInBackground(result.product.id);
-    // Persist the rating consensus before returning so the first product page
-    // response can't cache an empty ratings state. When combined research already
-    // fetched it in the same search, store that directly — no second paid search.
-    try {
-      if (researchedConsensus) {
-        await this.storeResearchedConsensus(result.product.id, researchedConsensus);
-      } else {
-        await this.researchAndStoreRatings(result.product.id, canonicalName, brand);
+    if (!params.deferPaidEnrichment) {
+      // Generate the product-specific owner/buyer question pool (one-time, async).
+      this.prompts.generateInBackground(result.product.id);
+      // Persist the rating consensus before returning so the first product page
+      // response can't cache an empty ratings state. When combined research already
+      // fetched it in the same search, store that directly — no second paid search.
+      try {
+        if (researchedConsensus) {
+          await this.storeResearchedConsensus(result.product.id, researchedConsensus);
+        } else {
+          await this.researchAndStoreRatings(result.product.id, canonicalName, brand);
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Initial external consensus failed for ${result.product.id}: ${err instanceof Error ? err.message : err}`,
+        );
       }
-    } catch (err) {
-      this.logger.warn(
-        `Initial external consensus failed for ${result.product.id}: ${err instanceof Error ? err.message : err}`,
-      );
     }
     const product = await this.getSummaryOrThrow(result.product.id);
     return { product, created: true };

@@ -339,6 +339,65 @@ export const fromPhotoSchema = z
 export type FromPhotoInput = z.infer<typeof fromPhotoSchema>;
 
 /* ------------------------------------------------------------------ *
+ * Browser-extension sightings
+ * ------------------------------------------------------------------ */
+
+/**
+ * A product seen by the browser extension on a shop page. Identifier-first:
+ * EAN/GTIN sightings ride the trusted free-catalog path (Icecat), ASIN and
+ * name-only sightings wait for the demand threshold before any paid research.
+ * Deliberately carries no user/install identifiers — sightings are anonymous.
+ */
+export const productSightingSchema = z
+  .object({
+    identifierType: z.enum(['EAN', 'GTIN', 'ASIN', 'MPN', 'SKU']).optional(),
+    identifierValue: z.string().trim().min(4).max(40).optional(),
+    /** Raw shop page title — server-side cleanup, never trusted as-is. */
+    title: z.string().trim().min(4).max(300),
+    brand: z.string().trim().min(1).max(80).optional(),
+    imageUrl: z.string().url().max(600).optional(),
+    /** Canonical product URL, tracking/query params stripped client-side. */
+    productUrl: z.string().url().max(600).optional(),
+    /** Shop host, e.g. "www.mediamarkt.de". */
+    domain: z
+      .string()
+      .trim()
+      .min(3)
+      .max(120)
+      .regex(/^[a-z0-9.-]+$/i, 'Erwartet einen Hostnamen.'),
+    /** "view" = page view; "engage" = overlay interaction (strong demand). */
+    event: z.enum(['view', 'engage']).default('view'),
+  })
+  .refine((d) => Boolean(d.identifierType) === Boolean(d.identifierValue), {
+    message: 'identifierType und identifierValue nur gemeinsam.',
+  })
+  .refine(
+    (d) =>
+      !d.identifierValue ||
+      d.identifierType === 'ASIN' ||
+      d.identifierType === 'MPN' ||
+      d.identifierType === 'SKU' ||
+      /^[0-9]{6,20}$/.test(d.identifierValue),
+    { message: 'EAN/GTIN besteht nur aus Ziffern.' },
+  )
+  .refine((d) => d.identifierType !== 'ASIN' || /^[A-Z0-9]{10}$/i.test(d.identifierValue ?? ''), {
+    message: 'ASIN hat 10 alphanumerische Zeichen.',
+  });
+export type ProductSightingInput = z.infer<typeof productSightingSchema>;
+
+/** Anonymous lookup (records nothing) — for users who disabled reporting. */
+export const sightingResolveQuerySchema = z
+  .object({
+    type: z.enum(['EAN', 'GTIN', 'ASIN', 'MPN', 'SKU']).optional(),
+    value: z.string().trim().min(4).max(40).optional(),
+    q: z.string().trim().min(4).max(300).optional(),
+  })
+  .refine((d) => Boolean(d.type && d.value) || Boolean(d.q), {
+    message: 'type+value oder q erforderlich.',
+  });
+export type SightingResolveQuery = z.infer<typeof sightingResolveQuerySchema>;
+
+/* ------------------------------------------------------------------ *
  * Rankings
  * ------------------------------------------------------------------ */
 

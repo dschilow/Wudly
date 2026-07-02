@@ -76,6 +76,24 @@ const envSchema = z.object({
     .min(30000)
     .max(600000)
     .default(240000),
+  // Browser-extension ingestion (product sightings). Stage costs by design:
+  // identifier/name matching and EAN stub creation are FREE (catalog quotas
+  // only); AI research (Netz-Konsens + question pool) is PAID and therefore
+  // strictly budgeted per UTC day. Caps are deliberately conservative — raise
+  // them once real sighting volume and AI spend are known.
+  EXTENSION_SIGHTINGS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  EXTENSION_WORKER_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(1440).default(10),
+  // Free stage: EAN/GTIN stubs from Icecat/EAN DBs per worker pass / per day.
+  EXTENSION_STUB_BATCH_SIZE: z.coerce.number().int().min(1).max(50).default(10),
+  EXTENSION_STUB_DAILY_CAP: z.coerce.number().int().min(0).max(500).default(40),
+  // Paid stage: AI research runs per day (0 disables paid research entirely).
+  EXTENSION_RESEARCH_DAILY_CAP: z.coerce.number().int().min(0).max(200).default(10),
+  // Demand threshold before a sighting earns paid research: seen on this many
+  // page views OR engaged with once (overlay click counts as proven interest).
+  EXTENSION_RESEARCH_MIN_SEEN: z.coerce.number().int().min(1).max(100).default(3),
   // Ollama-compatible local model service. Used when AI_PROVIDER=ollama.
   OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),
   OLLAMA_MODEL: z.string().default('gemma4:e4b'),

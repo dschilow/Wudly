@@ -1,0 +1,121 @@
+import type { DetectedProduct, ExtensionMessage, LookupResult } from './types';
+import { loadSettings } from './types';
+
+/**
+ * All network I/O lives here in the service worker: content scripts never
+ * talk to the API directly (host_permissions apply to the worker, keeping the
+ * shop page's CSP and CORS out of the picture).
+ *
+ * Privacy stance: with reporting ON the sighting POST carries product data
+ * only (identifier, title, brand, image, cleaned URL, shop host) — no user or
+ * install identifiers, no cookies. With reporting OFF it degrades to an
+ * anonymous GET lookup that records nothing server-side.
+ */
+
+/** One 'view' per product per service-worker session — repeat SPA navigations
+ *  to the same product must not inflate demand counters. */
+const sessionCache = new Map<string, LookupResult>();
+
+chrome.runtime.onMessage.addListener(
+  (message: ExtensionMessage, sender, sendResponse: (r: LookupResult) => void) => {
+    if (message?.kind === 'wudly:lookup') {
+      void handleLookup(message.payload, sender.tab?.id)
+        .then(sendResponse)
+        .catch(() => sendResponse(null));
+      return true; // async response
+    }
+    if (message?.kind === 'wudly:engage') {
+      void handleEngage(message.payload);
+    }
+    return undefined;
+  },
+);
+
+async function handleLookup(product: DetectedProduct, tabId?: number): Promise<LookupResult> {
+  const settings = await loadSettings();
+  if (!settings.enabled) return null;
+
+  const key = cacheKey(product);
+  const cached = sessionCache.get(key);
+  if (cached !== undefined) {
+    void badge(tabId, cached);
+    return cached;
+  }
+
+  let result: LookupResult = null;
+  try {
+    result = settings.reporting
+      ? await postSighting(settings.apiUrl, product, 'view')
+      : await resolveOnly(settings.apiUrl, product);
+  } catch {
+    result = null; // API down / rate limited → fail silent, never break the shop page
+  }
+  if (sessionCache.size > 500) sessionCache.clear();
+  sessionCache.set(key, result);
+  void badge(tabId, result);
+  return result;
+}
+
+/** Overlay interaction = strong demand signal; also warms the daily budgets. */
+async function handleEngage(product: DetectedProduct): Promise<void> {
+  const settings = await loadSettings();
+  if (!settings.enabled || !settings.reporting) return;
+  try {
+    await postSighting(settings.apiUrl, product, 'engage');
+  } catch {
+    // fire and forget
+  }
+}
+
+async function postSighting(
+  apiUrl: string,
+  product: DetectedProduct,
+  event: 'view' | 'engage',
+): Promise<LookupResult> {
+  const res = await fetch(`${trim(apiUrl)}/sightings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...product, event }),
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as LookupResult;
+}
+
+async function resolveOnly(apiUrl: string, product: DetectedProduct): Promise<LookupResult> {
+  const params = new URLSearchParams();
+  if (product.identifierType && product.identifierValue) {
+    params.set('type', product.identifierType);
+    params.set('value', product.identifierValue);
+  } else {
+    params.set('q', product.title);
+  }
+  const res = await fetch(`${trim(apiUrl)}/sightings/resolve?${params}`, {
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as LookupResult;
+}
+
+function cacheKey(p: DetectedProduct): string {
+  return p.identifierValue
+    ? `${p.identifierType}:${p.identifierValue}`
+    : `${p.domain}:${p.title.toLowerCase().slice(0, 80)}`;
+}
+
+/** Toolbar badge: ✓ known, + queued for ingestion. */
+async function badge(tabId: number | undefined, result: LookupResult): Promise<void> {
+  if (tabId === undefined) return;
+  const known = result?.status === 'known';
+  const queued = result?.status === 'queued';
+  try {
+    await chrome.action.setBadgeBackgroundColor({ tabId, color: known ? '#0aa06a' : '#5b5f6d' });
+    await chrome.action.setBadgeText({ tabId, text: known ? '✓' : queued ? '+' : '' });
+  } catch {
+    // tab already gone
+  }
+}
+
+function trim(url: string): string {
+  return url.replace(/\/+$/, '');
+}

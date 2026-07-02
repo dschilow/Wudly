@@ -82,8 +82,9 @@ Monorepo (**pnpm workspaces**), TypeScript überall.
 
 ```
 apps/
-  api/   NestJS 10 + Prisma 6 + PostgreSQL  (REST, Prefix /api)
-  web/   Next.js 15 (App Router) + React 19 + Tailwind v4  (mobile-first)
+  api/        NestJS 10 + Prisma 6 + PostgreSQL  (REST, Prefix /api)
+  web/        Next.js 15 (App Router) + React 19 + Tailwind v4  (mobile-first)
+  extension/  Browser-Extension "Wudly Signal" (MV3, esbuild) — Overlay auf Shopseiten
 packages/
   shared/  Enums, Zod-Schemas, DTOs, Scoring/Insights/Normalize (pure, getestet)
   config/  geteilte tsconfig + ESLint flat configs
@@ -96,8 +97,18 @@ packages/
   `apps/api/prisma/schema.prisma` synchron bleiben.
 
 ### Backend-Module
-`Auth, Users, Categories, Products, ProductMatching, Insights, Experiences, Questions, Ownership, Rankings, Admin, Health, Ai`.
+`Auth, Users, Categories, Products, ProductMatching, Insights, Experiences, Questions, Ownership, Rankings, Sightings, Admin, Health, Ai`.
 Controller = nur HTTP. Services = Use Cases. Reine Logik (Scoring/Matching/Insights) liegt in `@wudly/shared`.
+
+### Extension-Ingestion (Sightings, kostenbegrenzt)
+Die Extension meldet Produktsichtungen anonym an `POST /sightings` (Kill-Switch:
+`EXTENSION_SIGHTINGS_ENABLED`). Ein Worker verarbeitet die Queue in Stufen:
+**(1) Gratis-Stubs** für EAN/GTIN via Icecat/EAN-DBs, **(2) bezahlte KI-Recherche**
+(Netz-Konsens + Fragen-Pool) erst ab Nachfrage (`EXTENSION_RESEARCH_MIN_SEEN`
+Views oder 1 Overlay-Klick) und gedeckelt pro Tag (`EXTENSION_RESEARCH_DAILY_CAP`,
+`0` = KI aus). ASIN/Namens-Sichtungen warten immer auf die Nachfrage-Schwelle,
+weil erst die KI-Recherche die Spam-Titel in saubere Produktnamen übersetzt.
+Admin-Einblick: `GET /sightings/stats`.
 
 ### Scoring (duration-gewichtet, in `@wudly/shared`)
 Gewichte nach Nutzungsdauer: `<1 Woche=0.5`, `1–4 Wochen=0.7`, `1–6 Monate=1.0`, `6–12 Monate=1.3`, `>1 Jahr=1.5`.

@@ -19,6 +19,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { OwnershipModule } from './ownership/ownership.module';
 import { RankingsModule } from './rankings/rankings.module';
 import { ShowcaseModule } from './showcase/showcase.module';
+import { SightingsModule } from './sightings/sightings.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
 
@@ -45,6 +46,7 @@ import { HealthModule } from './health/health.module';
     OwnershipModule,
     RankingsModule,
     ShowcaseModule,
+    SightingsModule,
     AdminModule,
     HealthModule,
   ],

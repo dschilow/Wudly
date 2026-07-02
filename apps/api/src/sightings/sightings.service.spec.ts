@@ -1,0 +1,198 @@
+import { describe, expect, it, vi } from 'vitest';
+import { SightingsService } from './sightings.service';
+import { researchQuery } from './sightings-worker.service';
+import type { ProductSightingInput } from '@wudly/shared';
+
+/** Minimal collaborator fakes — the service only touches what a test arms. */
+function makeService(overrides: {
+  identifierHit?: unknown;
+  matchCandidates?: Array<{ product: unknown; similarity: number }>;
+  ingestEnabled?: boolean;
+} = {}) {
+  const prisma = {
+    productSighting: {
+      upsert: vi.fn(async (args: { create: Record<string, unknown> }) => ({
+        id: 's1',
+        status: args.create.status,
+        ...args.create,
+      })),
+      update: vi.fn(async (args: { data: Record<string, unknown> }) => ({
+        id: 's1',
+        ...args.data,
+      })),
+      count: vi.fn(async () => 0),
+      groupBy: vi.fn(async () => []),
+      findMany: vi.fn(async () => []),
+    },
+    productIdentifier: {
+      findFirst: vi.fn(async () => overrides.identifierHit ?? null),
+      upsert: vi.fn(async () => ({})),
+    },
+  };
+  const matching = {
+    findDuplicateCandidates: vi.fn(async () => overrides.matchCandidates ?? []),
+  };
+  const config = {
+    get: vi.fn((key: string) => {
+      if (key === 'EXTENSION_SIGHTINGS_ENABLED') return overrides.ingestEnabled ?? true;
+      if (key === 'WEB_APP_URL') return 'https://wudly.app';
+      return undefined;
+    }),
+  };
+  const service = new SightingsService(
+    prisma as never,
+    {} as never,
+    matching as never,
+    config as never,
+  );
+  return { service, prisma, matching };
+}
+
+const baseInput: ProductSightingInput = {
+  title: 'Sony WH-1000XM5 kabellose Noise Cancelling Kopfhörer',
+  domain: 'www.mediamarkt.de',
+  event: 'view',
+};
+
+const catalogProduct = {
+  id: 'p1',
+  canonicalName: 'Sony WH-1000XM5',
+  normalizedName: 'sony wh 1000xm5',
+  brand: 'Sony',
+  imageUrl: null,
+  status: 'ACTIVE',
+  specs: [],
+  category: null,
+  insightSnapshot: null,
+};
+
+describe('SightingsService.resolveAndRecord', () => {
+  it('rejects junk titles without touching the database', async () => {
+    const { service, prisma } = makeService();
+    const result = await service.resolveAndRecord({ ...baseInput, title: '3er Pack Batterien' });
+    expect(result.status).toBe('rejected');
+    expect(prisma.productSighting.upsert).not.toHaveBeenCalled();
+  });
+
+  it('resolves a known EAN via the identifier path and marks the row MATCHED', async () => {
+    const { service, prisma, matching } = makeService({
+      identifierHit: { product: catalogProduct },
+    });
+    const result = await service.resolveAndRecord({
+      ...baseInput,
+      identifierType: 'EAN',
+      identifierValue: '4548736141549',
+    });
+    expect(result.status).toBe('known');
+    expect(result.product?.id).toBe('p1');
+    expect(result.webUrl).toContain('/produkte/');
+    expect(result.webUrl).toContain('p1');
+    // Identifier path wins — no name matching needed.
+    expect(matching.findDuplicateCandidates).not.toHaveBeenCalled();
+    const upsert = prisma.productSighting.upsert.mock.calls[0][0] as {
+      create: Record<string, unknown>;
+    };
+    expect(upsert.create.status).toBe('MATCHED');
+    expect(upsert.create.dedupeKey).toBe('ean:4548736141549');
+  });
+
+  it('queues unknown products as PENDING sightings', async () => {
+    const { service, prisma } = makeService();
+    const result = await service.resolveAndRecord(baseInput);
+    expect(result.status).toBe('queued');
+    expect(result.product).toBeNull();
+    const upsert = prisma.productSighting.upsert.mock.calls[0][0] as {
+      create: Record<string, unknown>;
+    };
+    expect(upsert.create.status).toBe('PENDING');
+    expect(String(upsert.create.dedupeKey)).toMatch(/^name:.*@www\.mediamarkt\.de$/);
+  });
+
+  it('hides HIDDEN products from the extension', async () => {
+    const { service } = makeService({
+      identifierHit: { product: { ...catalogProduct, status: 'HIDDEN' } },
+    });
+    const result = await service.resolveAndRecord({
+      ...baseInput,
+      identifierType: 'EAN',
+      identifierValue: '4548736141549',
+    });
+    expect(result.status).toBe('rejected');
+    expect(result.product).toBeNull();
+  });
+
+  it('degrades to a pure lookup when ingestion is disabled (kill switch)', async () => {
+    const { service, prisma } = makeService({ ingestEnabled: false });
+    const result = await service.resolveAndRecord(baseInput);
+    expect(result.status).toBe('queued');
+    expect(prisma.productSighting.upsert).not.toHaveBeenCalled();
+  });
+
+  it('attaches the shop identifier to a product matched by name', async () => {
+    const { service, prisma } = makeService({
+      matchCandidates: [{ product: catalogProduct, similarity: 0.95 }],
+    });
+    const result = await service.resolveAndRecord({
+      ...baseInput,
+      identifierType: 'ASIN',
+      identifierValue: 'b0abc12345',
+    });
+    expect(result.status).toBe('known');
+    const attach = prisma.productIdentifier.upsert.mock.calls[0][0] as {
+      create: Record<string, unknown>;
+    };
+    // ASINs are normalized to upper case for the global keyspace.
+    expect(attach.create).toMatchObject({ productId: 'p1', type: 'ASIN', value: 'B0ABC12345' });
+  });
+});
+
+describe('SightingsService.dedupeKey', () => {
+  const { service } = makeService();
+
+  it('shares one keyspace for EAN and GTIN', () => {
+    const ean = service.dedupeKey({
+      identifierType: 'EAN',
+      identifierValue: '4548736141549',
+      title: 'x',
+      domain: 'a.de',
+    });
+    const gtin = service.dedupeKey({
+      identifierType: 'GTIN',
+      identifierValue: '4548736141549',
+      title: 'y',
+      domain: 'b.de',
+    });
+    expect(ean).toBe(gtin);
+  });
+
+  it('scopes name-only sightings per shop', () => {
+    const a = service.dedupeKey({ title: 'Sony WH-1000XM5', domain: 'www.otto.de' });
+    const b = service.dedupeKey({ title: 'Sony WH-1000XM5', domain: 'www.saturn.de' });
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('researchQuery', () => {
+  it('cuts marketing spam at the first hard separator', () => {
+    expect(
+      researchQuery(
+        'Sony WH-1000XM5 kabellose Kopfhörer, 30h Akku, Noise Cancelling | Schwarz',
+        null,
+      ),
+    ).toBe('Sony WH-1000XM5 kabellose Kopfhörer');
+  });
+
+  it('keeps hyphenated model names intact but cuts spaced dashes', () => {
+    expect(researchQuery('Sony WH-1000XM5 Kopfhörer - Testsieger 2026', null)).toBe(
+      'Sony WH-1000XM5 Kopfhörer',
+    );
+  });
+
+  it('prepends a missing brand', () => {
+    expect(researchQuery('Magic5 Pro 512GB', 'Honor')).toBe('Honor Magic5 Pro 512GB');
+  });
+
+  it('does not duplicate a brand already in the title', () => {
+    expect(researchQuery('Honor Magic5 Pro', 'Honor')).toBe('Honor Magic5 Pro');
+  });
+});

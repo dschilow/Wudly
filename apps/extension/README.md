@@ -1,0 +1,44 @@
+# Wudly Signal — Browser-Extension
+
+Zeigt das Wudly-Urteil (Wiederkauf-Quote, Netz-Konsens) direkt auf Produktseiten
+unterstützter Shops und meldet unbekannte Produkte anonym an die
+Sighting-Pipeline der API (`POST /sightings`), die den Katalog nachfragegetrieben
+und kostenbegrenzt aufbaut.
+
+## Entwicklung
+
+```bash
+pnpm install
+pnpm --filter @wudly/extension build     # einmalig → dist/
+pnpm --filter @wudly/extension dev       # watch-Modus
+```
+
+Laden in Chrome/Edge: `chrome://extensions` → „Entwicklermodus" →
+„Entpackte Erweiterung laden" → Ordner `apps/extension/dist` wählen.
+
+Gegen die lokale API testen: Extension-Optionen öffnen („Für Entwickler") und
+als API-URL `http://localhost:4000/api` eintragen.
+
+## Architektur
+
+- **Adapter** ([src/adapters/](src/adapters/)): JSON-LD (`schema.org/Product`)
+  ist der primäre, redesign-feste Weg — er deckt MediaMarkt, Saturn, Otto,
+  Kaufland, Cyberport, Alternate, Galaxus ab. Amazon liefert kein Produkt-JSON-LD
+  und hat als einziger Shop einen DOM-Adapter (ASIN aus der URL).
+- **Background-Worker** ([src/background.ts](src/background.ts)): einziger Ort
+  mit Netzwerkzugriff; cached Ergebnisse pro Session, setzt das Toolbar-Badge
+  (✓ bekannt, + in Aufnahme).
+- **Overlay** ([src/overlay.ts](src/overlay.ts)): Shadow-DOM-Insel unten rechts;
+  Pill → aufklappbare Verdict-Karte. Ein Klick zählt serverseitig als
+  „engage" (starkes Nachfrage-Signal, zieht bezahlte Anreicherung vor).
+
+## Privatsphäre (bewusste Entscheidungen)
+
+- Keine Nutzer-, Installations- oder Session-Kennungen — weder im Payload noch
+  als Header. Der Server speichert Nachfrage, nicht Personen.
+- URLs werden ohne Query/Fragment (Tracking-Parameter) übertragen; bei Amazon
+  nur der kanonische `/dp/<ASIN>`-Pfad.
+- Übertragen wird ausschließlich auf erkannten **Produktseiten** der im
+  Manifest gelisteten Shops — nie Browsing-Verlauf.
+- Schalter „Unbekannte Produkte melden" aus → reine anonyme GET-Lookups
+  (`/sightings/resolve`), es wird nichts aufgezeichnet.
