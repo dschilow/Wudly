@@ -5,16 +5,23 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import {
+  Activity,
   ChevronRight,
   LogOut,
   MessageCircle,
   Share2,
   ShieldCheck,
   ShoppingBag,
+  Sparkles,
   Star,
   Users,
 } from 'lucide-react';
-import { WouldBuyAgain, type ExperienceDto, type ProfileSummaryDto } from '@wudly/shared';
+import {
+  WouldBuyAgain,
+  type ExperienceDto,
+  type ProfessionalProfileDto,
+  type ProfileSummaryDto,
+} from '@wudly/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { AnimatedNumber } from '@/components/motion/AnimatedNumber';
@@ -75,6 +82,7 @@ export function ProfileClient() {
   const { user, loading, logout } = useAuth();
   const [summary, setSummary] = useState<ProfileSummaryDto | null>(null);
   const [experiences, setExperiences] = useState<ExperienceDto[]>([]);
+  const [proProfile, setProProfile] = useState<ProfessionalProfileDto | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
@@ -86,14 +94,19 @@ export function ProfileClient() {
     Promise.all([
       api.profile.summary({ cache: 'no-store' }),
       api.experiences.mine({ cache: 'no-store' }),
+      api.showcase.myProfile({ cache: 'no-store' }).catch(() => null),
     ])
-      .then(([s, e]) => {
+      .then(([s, e, p]) => {
         setSummary(s);
         setExperiences(e);
+        setProProfile(p);
       })
       .catch(() => undefined)
       .finally(() => setDataLoading(false));
   }, [user, loading, router]);
+
+  // Pulse is the B2B side — only brands/merchants get the entry point.
+  const hasPulseAccess = proProfile?.type === 'BRAND' || proProfile?.type === 'MERCHANT';
 
   const rebuyRate = useMemo(() => {
     if (experiences.length === 0) return null;
@@ -229,6 +242,30 @@ export function ProfileClient() {
             Deine Antworten helfen anderen, bessere Käufe zu machen.
           </p>
         </div>
+      </motion.section>
+
+      {/* Professional area: Studio for creators/brands, Pulse for brands/merchants. */}
+      <motion.section className="card overflow-hidden" variants={rise}>
+        {hasPulseAccess && (
+          <ListItem
+            icon={Activity}
+            label="Wudly Pulse"
+            subtitle="B2B-Dashboard: Product Health, Signale, Maßnahmen"
+            href="/pulse"
+            tone="accent"
+          />
+        )}
+        <ListItem
+          icon={Sparkles}
+          label="Creator-Studio"
+          subtitle={
+            proProfile
+              ? 'Showcases und Profi-Profil verwalten'
+              : 'Profi-Profil für Creator, Hersteller & Händler anlegen'
+          }
+          href="/studio"
+          tone="accent"
+        />
       </motion.section>
 
       {user.role === 'ADMIN' && (

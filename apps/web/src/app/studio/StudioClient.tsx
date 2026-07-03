@@ -9,6 +9,7 @@ import {
   type ShowcaseSummaryDto,
 } from '@wudly/shared';
 import {
+  Activity,
   BadgeCheck,
   ChevronRight,
   ExternalLink,
@@ -161,6 +162,31 @@ export function StudioClient() {
             </Link>
           </div>
         </section>
+      )}
+
+      {/* Wudly Pulse — the B2B dashboard, for brand/merchant profiles only. */}
+      {(profile?.type === 'BRAND' || profile?.type === 'MERCHANT') && (
+        <Link
+          href="/pulse"
+          className="press card relative flex items-center gap-3.5 overflow-hidden p-4"
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-accent-soft blur-2xl"
+          />
+          <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-[0.7rem] bg-accent-soft text-accent">
+            <Activity className="h-[1.35rem] w-[1.35rem]" strokeWidth={2.2} />
+          </span>
+          <span className="relative min-w-0 flex-1">
+            <span className="block text-[1.0625rem] font-semibold leading-tight text-label">
+              Wudly <span className="brand-text">Pulse</span>
+            </span>
+            <span className="mt-0.5 block text-[0.875rem] leading-snug text-muted-foreground">
+              Product Health, Frühwarnsignale & Maßnahmen für deine Produkte
+            </span>
+          </span>
+          <ChevronRight className="relative h-5 w-5 shrink-0 text-label-3" strokeWidth={2.3} />
+        </Link>
       )}
 
       {/* Showcases */}
