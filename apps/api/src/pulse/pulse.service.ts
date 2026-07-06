@@ -15,8 +15,10 @@ import {
   type PulseChangeDto,
   type PulseChangeImpactDto,
   type PulseIssueDto,
+  type PulseSettingsDto,
   type UpdatePulseActionInput,
   type UpdatePulseChangeInput,
+  type UpdatePulseSettingsInput,
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { toProfileDto } from '../showcase/showcase.mapper';
@@ -63,6 +65,23 @@ export class PulseService {
 
   profileDto(profile: ProfessionalProfile): ProfessionalProfileDto {
     return toProfileDto(profile);
+  }
+
+  /* ----------------------------- Settings ---------------------------- */
+
+  settings(profile: ProfessionalProfile): PulseSettingsDto {
+    return { emailsEnabled: profile.pulseEmailsEnabled };
+  }
+
+  async updateSettings(
+    profileId: string,
+    input: UpdatePulseSettingsInput,
+  ): Promise<PulseSettingsDto> {
+    const updated = await this.prisma.professionalProfile.update({
+      where: { id: profileId },
+      data: { pulseEmailsEnabled: input.emailsEnabled },
+    });
+    return this.settings(updated);
   }
 
   /* ----------------------------- Watchlist --------------------------- */

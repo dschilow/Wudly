@@ -1,9 +1,14 @@
 # Wudly Signal — Browser-Extension
 
-Zeigt das Wudly-Urteil (Wiederkauf-Quote, Netz-Konsens) direkt auf Produktseiten
-unterstützter Shops und meldet unbekannte Produkte anonym an die
-Sighting-Pipeline der API (`POST /sightings`), die den Katalog nachfragegetrieben
-und kostenbegrenzt aufbaut.
+Zeigt das Wudly-Urteil direkt auf Produktseiten unterstützter Shops und meldet
+unbekannte Produkte anonym an die Sighting-Pipeline der API (`POST /sightings`),
+die den Katalog nachfragegetrieben und kostenbegrenzt aufbaut.
+
+Die Verdict-Karte zeigt (je nach Datenlage): Wiederkauf-Quote, die Shop-Bewertung
+der Seite selbst, Netz-Konsens, die **Sterne-Lücke** (Shop-Sterne überzeichnen
+gegenüber dem Besitzer-Urteil — rein client-seitig berechnet), den häufigsten
+Kaufreue-Grund, die meistgenannte Umsteiger-Alternative sowie den
+Besitz-Shortcut in den 30-Sekunden-Urteils-Flow (`/products/<id>/own`).
 
 ## Entwicklung
 

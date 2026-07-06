@@ -16,6 +16,7 @@ import {
   pulseWatchSchema,
   updatePulseActionSchema,
   updatePulseChangeSchema,
+  updatePulseSettingsSchema,
   type CreatePulseActionInput,
   type CreatePulseChangeInput,
   type PulseAccessDto,
@@ -28,11 +29,13 @@ import {
   type PulseProduct360Dto,
   type PulseReportDto,
   type PulseReportType,
+  type PulseSettingsDto,
   type PulseSignalDto,
   type PulseWatchInput,
   type PulseWorkspaceDto,
   type UpdatePulseActionInput,
   type UpdatePulseChangeInput,
+  type UpdatePulseSettingsInput,
   type UsageDuration,
   type WouldBuyAgain,
 } from '@wudly/shared';
@@ -76,6 +79,23 @@ export class PulseController {
   @Get('access')
   access(@CurrentUser() user: AuthUser): Promise<PulseAccessDto> {
     return this.pulse.access(user.id);
+  }
+
+  /* ----------------------------- Settings ---------------------------- */
+
+  @Get('settings')
+  async settings(@CurrentUser() user: AuthUser): Promise<PulseSettingsDto> {
+    const profile = await this.pulse.requireProfile(user.id);
+    return this.pulse.settings(profile);
+  }
+
+  @Patch('settings')
+  async updateSettings(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(updatePulseSettingsSchema)) dto: UpdatePulseSettingsInput,
+  ): Promise<PulseSettingsDto> {
+    const profile = await this.pulse.requireProfile(user.id);
+    return this.pulse.updateSettings(profile.id, dto);
   }
 
   @Get('workspace')

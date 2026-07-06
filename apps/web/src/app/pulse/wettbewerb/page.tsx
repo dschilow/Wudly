@@ -94,6 +94,35 @@ export default function PulseCompetitorsPage() {
                 {set.verdict}
               </p>
             )}
+            {set.categoryBenchmark && (
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-[0.85rem] border border-separator px-4 py-3 text-[0.85rem]">
+                <span className="font-semibold text-label">
+                  Kategorie „{set.categoryBenchmark.categoryName}“
+                </span>
+                <span className="text-muted-foreground">
+                  Ø Wiederkauf{' '}
+                  <strong className="text-label tnum">{set.categoryBenchmark.avgRebuyScore}</strong>
+                </span>
+                <span className="text-muted-foreground">
+                  Bester Wert{' '}
+                  <strong className="text-label tnum">{set.categoryBenchmark.bestRebuyScore}</strong>
+                </span>
+                {set.categoryBenchmark.ownRank !== null && (
+                  <span
+                    className={cn(
+                      'rounded-full px-2.5 py-0.5 text-[0.78rem] font-semibold',
+                      set.categoryBenchmark.ownRank === 1
+                        ? 'bg-positive-soft text-positive-ink'
+                        : set.categoryBenchmark.ownRank <= Math.ceil(set.categoryBenchmark.productCount / 2)
+                          ? 'bg-fill-2 text-label'
+                          : 'bg-regret-soft text-regret-ink',
+                    )}
+                  >
+                    Platz {set.categoryBenchmark.ownRank} von {set.categoryBenchmark.productCount}
+                  </span>
+                )}
+              </div>
+            )}
 
             {set.competitors.length > 0 && (
               <div className="divide-y divide-separator">
@@ -211,12 +240,23 @@ function CompetitorRow({
         </div>
       </div>
       <div className="flex items-center gap-5">
-        <div className="text-center">
-          <div className={cn('font-display text-[1.2rem] font-bold tnum', scoreTone(metrics.rebuyScore))}>
-            {metrics.rebuyScore ?? '–'}
+        {metrics.rebuyScore === null && p.externalAvgPercent !== null ? (
+          // No owner voices yet — fall back to the clearly-labelled Netz-Konsens
+          // so a fresh rival is still comparable instead of a blank dash.
+          <div className="text-center" title="Bewertungen anderswo — nie Teil des Wudly-Signals">
+            <div className="font-display text-[1.2rem] font-bold tnum text-label-2">
+              {p.externalAvgPercent}
+            </div>
+            <div className="text-[0.65rem] uppercase tracking-wide text-label-3">Netz-Konsens</div>
           </div>
-          <div className="text-[0.65rem] uppercase tracking-wide text-label-3">Wiederkauf</div>
-        </div>
+        ) : (
+          <div className="text-center">
+            <div className={cn('font-display text-[1.2rem] font-bold tnum', scoreTone(metrics.rebuyScore))}>
+              {metrics.rebuyScore ?? '–'}
+            </div>
+            <div className="text-[0.65rem] uppercase tracking-wide text-label-3">Wiederkauf</div>
+          </div>
+        )}
         <div className="hidden text-center sm:block">
           <div className={cn('font-display text-[1.2rem] font-bold tnum', scoreTone(metrics.healthIndex))}>
             {metrics.healthIndex ?? '–'}

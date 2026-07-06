@@ -137,7 +137,9 @@ export class IcecatService {
     return clean.length > 600 ? `${clean.slice(0, 597).trimEnd()}…` : clean;
   }
 
-  /** The most useful named features as flat label/value pairs (top ~12). */
+  /** The most useful named features as flat label/value pairs (top ~30).
+      Icecat sheets are official manufacturer data and free — harvest generously;
+      the UI decides how many to show. */
   private pickSpecs(json: IcecatResponse): Array<{ label: string; value: string }> {
     const out: Array<{ label: string; value: string }> = [];
     const seen = new Set<string>();
@@ -158,7 +160,7 @@ export class IcecatService {
         if (value.length > 80) continue;
         seen.add(key);
         out.push({ label, value });
-        if (out.length >= 12) return out;
+        if (out.length >= 30) return out;
       }
     }
     return out;

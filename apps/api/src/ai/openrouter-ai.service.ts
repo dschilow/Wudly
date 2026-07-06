@@ -24,6 +24,14 @@ import { DummyAiService } from './dummy-ai.service';
 import { parseJsonObject, type ChatMessage, type JsonChatClient } from './openrouter.client';
 import { BraveSearchService } from './brave-search.service';
 
+/**
+ * Free-quota reserve for the OPTIONAL experience supplement: once fewer than
+ * this many Brave requests remain in the month, the supplement pauses so the
+ * essential uses (research fallback, curation workbench, image hunt) never run
+ * dry. The supplement resumes automatically with the next monthly reset.
+ */
+const BRAVE_SUPPLEMENT_RESERVE = 200;
+
 /* ----- Zod schemas to validate model output (never trust it raw) ----- */
 
 const candidateSchema = z.object({
@@ -97,6 +105,7 @@ const suggestProductsSchema = z.object({
 const externalThemeSchema = z.union([
   z.object({
     label: z.string().trim().min(4).max(100),
+    detail: z.string().trim().min(6).max(260).nullable().optional(),
     sourceUrls: z.array(z.string().trim().url().max(600)).min(2).max(4),
   }),
   // Some otherwise valid provider responses flatten themes to strings. Keep
@@ -104,6 +113,13 @@ const externalThemeSchema = z.union([
   // review sources; the normalization gate below attaches those sources.
   z.string().trim().min(4).max(100),
 ]);
+
+const externalVoiceSchema = z.object({
+  sourceLabel: z.string().trim().min(2).max(80),
+  url: z.string().trim().url().max(600),
+  sentiment: z.enum(['PRO', 'CONTRA', 'MIXED']),
+  text: z.string().trim().min(12).max(300),
+});
 
 const switchAlternativeSchema = z.object({
   name: z.string().trim().min(2).max(140),
@@ -125,14 +141,15 @@ const externalConsensusSchema = z.object({
         count: z.number().int().positive().nullable().optional(),
       }),
     )
-    .max(4)
+    .max(6)
     .default([]),
-  summary: z.string().trim().min(20).max(600).nullable().optional(),
+  summary: z.string().trim().min(20).max(900).nullable().optional(),
   longTermNote: z.string().trim().min(20).max(400).nullable().optional(),
-  positiveThemes: z.array(externalThemeSchema).max(6).default([]),
-  negativeThemes: z.array(externalThemeSchema).max(6).default([]),
+  positiveThemes: z.array(externalThemeSchema).max(10).default([]),
+  negativeThemes: z.array(externalThemeSchema).max(10).default([]),
+  voices: z.array(externalVoiceSchema).max(8).default([]),
   switchAlternatives: z.array(switchAlternativeSchema).max(3).default([]),
-  sourceUrls: z.array(z.string().trim().url().max(600)).min(1).max(12),
+  sourceUrls: z.array(z.string().trim().url().max(600)).min(1).max(16),
 });
 const externalRatingsSchema = z.object({ ratings: externalConsensusSchema.shape.ratings });
 
@@ -143,7 +160,7 @@ const researchProductShape = z.object({
   description: z.string().trim().max(400).nullable().optional(),
   specs: z
     .array(z.object({ label: z.string().trim().min(1).max(40), value: z.string().trim().min(1).max(80) }))
-    .max(14)
+    .max(30)
     .optional(),
   imageUrl: z.string().trim().url().max(600).nullable().optional(),
   productUrl: z.string().trim().url().max(600).nullable().optional(),
@@ -162,7 +179,7 @@ const researchSchema = researchProductShape.refine((product) => product.found, {
 /** Consensus schema without the strict sourceUrls minimum — for the combined
     add-flow search, where product data may exist without independent reviews. */
 const tolerantConsensusSchema = externalConsensusSchema.extend({
-  sourceUrls: z.array(z.string().trim().url().max(600)).max(12).default([]),
+  sourceUrls: z.array(z.string().trim().url().max(600)).max(16).default([]),
 });
 
 const combinedResearchSchema = z.object({
@@ -193,6 +210,13 @@ export class OpenRouterAiService implements AiService {
    * Cost gate for web research: try the configured primary retrieval path once,
    * validate strict JSON, and pay for the secondary path only when the first one
    * fails. This avoids the former A/B behaviour in normal production traffic.
+   *
+   * `experienceQuery` adds a FREE supplementary Brave search focused on real
+   * user experiences (forums, Reddit, long-term reports) to the SAME model call.
+   * The paid Perplexity results skew towards retailer/test pages; this second
+   * angle is where the pro/contra voices live. Strictly additive: it never
+   * replaces the primary path and is skipped once the free monthly Brave quota
+   * drops to the reserve kept for the fallback/curation/image paths.
    */
   private async completeResearch<T>(
     query: string,
@@ -200,6 +224,7 @@ export class OpenRouterAiService implements AiService {
     messages: ChatMessage[],
     schema: z.ZodType<T>,
     opts: { temperature: number; maxTokens: number },
+    experienceQuery?: string,
   ): Promise<T | null> {
     const parse = async (input: ChatMessage[], online: boolean): Promise<T | null> => {
       const raw = await this.client.completeJson(input, { ...opts, online, timeoutMs: 35_000 });
@@ -214,22 +239,44 @@ export class OpenRouterAiService implements AiService {
       return result.success ? result.data : null;
     };
 
+    const supplement = experienceQuery ? await this.experienceContext(experienceQuery) : [];
+
     if (this.researchSearchProvider === 'openrouter') {
-      const primary = await parse(messages, true);
+      const primary = await parse([...supplement, ...messages], true);
       if (primary) return primary;
       if (!this.brave.enabled) return null;
       const context = await this.brave.context(query, count);
-      return context ? parse([braveContext(context), ...messages], false) : null;
+      return context ? parse([braveContext(context), ...supplement, ...messages], false) : null;
     }
 
     if (this.brave.enabled) {
       const context = await this.brave.context(query, count);
       if (context) {
-        const primary = await parse([braveContext(context), ...messages], false);
+        const primary = await parse([braveContext(context), ...supplement, ...messages], false);
         if (primary) return primary;
       }
     }
-    return parse(messages, true);
+    return parse([...supplement, ...messages], true);
+  }
+
+  /**
+   * Free experience-focused grounding block (or nothing). Quota-gated so the
+   * essential Brave uses always keep a reserve; failures just mean "no extra
+   * context", never a failed research.
+   */
+  private async experienceContext(query: string): Promise<ChatMessage[]> {
+    if (!this.brave.enabled || !this.brave.hasMonthlyBudget(BRAVE_SUPPLEMENT_RESERVE)) return [];
+    const context = await this.brave.context(query, 8);
+    if (!context) return [];
+    return [
+      {
+        role: 'system',
+        content:
+          'Zusätzliche Websuche-Ergebnisse mit echten Nutzererfahrungen (Foren, Communities, ' +
+          'Langzeitberichte). Nutze sie ZUSÄTZLICH zu den übrigen Webquellen — auch hier gilt: ' +
+          `jede Zahl, Aussage und URL muss in den Quellen belegt sein, sonst weglassen:\n\n${context}`,
+      },
+    ];
   }
 
   /**
@@ -546,8 +593,9 @@ export class OpenRouterAiService implements AiService {
           'Findest du das Produkt nicht zweifelsfrei, setze found=false und erfinde nichts. ' +
           `categorySlug MUSS exakt einer aus dieser Liste sein oder null: ${categorySlugs.join(', ')}. ` +
           '"canonicalName" ist der saubere offizielle Produktname (mit Marke), "description" ein ' +
-          'sachlicher deutscher Satz. "specs" sind bis zu 12 zentrale technische Fakten als ' +
-          '{label,value}-Paare auf Deutsch (z. B. {"label":"Display","value":"6,8\\" OLED"}); nur ' +
+          'sachlicher deutscher Satz. "specs" sind bis zu 24 technische Fakten als ' +
+          '{label,value}-Paare auf Deutsch (z. B. {"label":"Display","value":"6,8\\" OLED"}) — ' +
+          'die kaufentscheidenden zuerst, dann weitere belegte Details; nur ' +
           'sichere Fakten, sonst leer. "productUrl" ist die URL der offiziellen Produktseite ' +
           '(Hersteller bevorzugt, sonst großer Händler) — wichtig, bitte angeben wenn bekannt. ' +
           '"imageUrl" ist die direkte URL eines offiziellen Produktfotos, nur wenn du sehr ' +
@@ -564,7 +612,7 @@ export class OpenRouterAiService implements AiService {
       5,
       messages,
       researchSchema,
-      { temperature: 0.2, maxTokens: 600 },
+      { temperature: 0.2, maxTokens: 1000 },
     );
     if (!parsed) return this.fallback.researchProduct(name, categorySlugs);
     return this.finalizeProduct(parsed, categorySlugs);
@@ -646,19 +694,26 @@ export class OpenRouterAiService implements AiService {
           'Trustpilot sind keine Produktbewertungen und MÜSSEN weggelassen werden. ' +
           'sourceUrls darf nur konkrete Produkt-Tests, Produktbewertungen oder Erfahrungsseiten ' +
           'enthalten, keine Hersteller- oder allgemeinen Kategorieseiten. ' +
-          'Fasse die belastbare Review-Lage in summary in zwei bis drei neutralen deutschen ' +
-          'Sätzen zusammen: wichtigste Stärke, wichtigster Kritikpunkt und Einordnung der ' +
+          'Fasse die belastbare Review-Lage in summary in drei bis fünf neutralen deutschen ' +
+          'Sätzen zusammen: wichtigste Stärken, wichtigste Kritikpunkte und Einordnung der ' +
           'Quellenlage. Nenne keine unbelegten Details. ' +
           'longTermNote: 1–2 deutsche Sätze NUR zu Langzeit/Haltbarkeit (Zuverlässigkeit nach ' +
           'Monaten, Verschleiß, Defekte), nur wenn Quellen das hergeben, sonst null. ' +
-          'Erfahrungsthemen müssen wiederkehrend sein und jeweils ' +
-          'mindestens zwei unterschiedliche Quellseiten nennen. Kopiere keine Rezensionstexte. ' +
+          'positiveThemes/negativeThemes: SO VIELE wiederkehrende Erfahrungsthemen wie belegt ' +
+          '(bis zu 10 je Seite), jeweils mit mindestens zwei unterschiedlichen Quellseiten und ' +
+          'einem kurzen "detail"-Satz, der konkret sagt, WAS Nutzer loben/kritisieren. ' +
+          'Kopiere keine Rezensionstexte. ' +
+          'voices: bis zu 8 Stimmen aus dem Netz — je Quelle EIN paraphrasiertes Kernurteil ' +
+          '(1–2 kurze deutsche Sätze, NIEMALS wörtlich kopieren), mit sourceLabel, konkreter URL ' +
+          'und sentiment "PRO", "CONTRA" oder "MIXED". Jede voice-URL MUSS auch in sourceUrls ' +
+          'stehen. Bevorzugt echte Nutzer-/Foren-/Langzeit-' +
+          'Stimmen und Testfazits; keine Werbetexte, im Zweifel weglassen. ' +
           'switchAlternatives: bis zu 3 KONKRETE Produkte, zu denen Nutzer laut den Quellen ' +
           'gewechselt sind oder die sie stattdessen empfehlen — NUR wenn das Produkt wörtlich in ' +
           'den Quellen genannt wird, mit kurzem Grund ("reason") und der Quellseite; niemals ' +
           'Modellnamen erfinden, im Zweifel leere Liste. ' +
           'Ignoriere automatisch verlangte Markdown-Zitate und antworte nur als JSON: ' +
-          '{"ratings":[{"source":string,"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,"maxValue":number,"count":number|null}],"summary":string|null,"longTermNote":string|null,"positiveThemes":[{"label":string,"sourceUrls":[string,string]}],"negativeThemes":[{"label":string,"sourceUrls":[string,string]}],"switchAlternatives":[{"name":string,"brand":string|null,"reason":string,"sourceUrls":[string]}],"sourceUrls":[string]}.',
+          '{"ratings":[{"source":string,"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,"maxValue":number,"count":number|null}],"summary":string|null,"longTermNote":string|null,"positiveThemes":[{"label":string,"detail":string|null,"sourceUrls":[string,string]}],"negativeThemes":[{"label":string,"detail":string|null,"sourceUrls":[string,string]}],"voices":[{"sourceLabel":string,"url":string,"sentiment":"PRO"|"CONTRA"|"MIXED","text":string}],"switchAlternatives":[{"name":string,"brand":string|null,"reason":string,"sourceUrls":[string]}],"sourceUrls":[string]}.',
       },
       { role: 'user', content: `Produkt: ${label}` },
     ];
@@ -667,7 +722,8 @@ export class OpenRouterAiService implements AiService {
       5,
       messages,
       externalConsensusSchema,
-      { temperature: 0.1, maxTokens: 1100 },
+      { temperature: 0.1, maxTokens: 2000 },
+      `${label} Erfahrungen Probleme Langzeit Forum Reddit Erfahrungsbericht`,
     );
     if (!parsed) {
       return {
@@ -676,6 +732,7 @@ export class OpenRouterAiService implements AiService {
         longTermNote: null,
         positiveThemes: [],
         negativeThemes: [],
+        voices: [],
         switchAlternatives: [],
         sourceUrls: [],
       };
@@ -707,14 +764,20 @@ export class OpenRouterAiService implements AiService {
     ])
       .filter((url) => !isBlockedReviewDomain(url))
       .filter((url) => !isBrandOwnedDomain(url, brand));
+    // Voices must point into the declared source pool (like switch
+    // alternatives) — a voice URL never legitimizes itself.
     const sourceSet = new Set(sourceUrls);
     const independentReviewUrls = sourceUrls.filter((url) => !isCommerceDomain(url));
     const cleanThemes = (themes: typeof parsed.positiveThemes) =>
       (themes ?? [])
         .map((theme) =>
           typeof theme === 'string'
-            ? { label: theme, sourceUrls: independentReviewUrls.slice(0, 4) }
-            : { label: theme.label, sourceUrls: uniqueUrls(theme.sourceUrls) },
+            ? { label: theme, detail: null, sourceUrls: independentReviewUrls.slice(0, 4) }
+            : {
+                label: theme.label,
+                detail: theme.detail ?? null,
+                sourceUrls: uniqueUrls(theme.sourceUrls),
+              },
         )
         .filter((theme) => hasIndependentSources(theme.sourceUrls, 2))
         .filter((theme) => theme.sourceUrls.every((url) => sourceSet.has(url)));
@@ -725,6 +788,7 @@ export class OpenRouterAiService implements AiService {
       longTermNote: hasSources ? (parsed.longTermNote ?? null) : null,
       positiveThemes: cleanThemes(parsed.positiveThemes),
       negativeThemes: cleanThemes(parsed.negativeThemes),
+      voices: cleanVoices(parsed.voices ?? [], sourceSet),
       switchAlternatives: cleanSwitchAlternatives(
         parsed.switchAlternatives ?? [],
         sourceSet,
@@ -784,16 +848,23 @@ export class OpenRouterAiService implements AiService {
           'ignoriere das: Die Antwort MUSS reines JSON ohne Markdown sein.\n' +
           'Block "product": canonicalName (sauberer offizieller Name mit Marke), brand, ' +
           `categorySlug (EXAKT einer aus: ${categorySlugs.join(', ')} — sonst null), description ` +
-          '(ein sachlicher deutscher Satz), specs (bis 12 sichere {label,value}-Fakten: die ' +
-          'kaufentscheidenden zuerst, sonst leer), ' +
+          '(ein sachlicher deutscher Satz), specs (bis 24 sichere {label,value}-Fakten: die ' +
+          'kaufentscheidenden zuerst, dann weitere belegte Details, sonst leer), ' +
           'productUrl (offizielle Produktseite), imageUrl (direktes offizielles Foto, nur wenn sehr ' +
           'sicher, sonst null), found (true NUR wenn zweifelsfrei erkannt, sonst false; nichts erfinden).\n' +
           'Block "consensus": ratings nur mit belegtem Durchschnitt, Anzahl und konkreter Produkt-URL ' +
-          '(Unternehmens-/Shopbewertungen wie Trustpilot weglassen). summary in 2–3 neutralen ' +
-          'deutschen Sätzen (Stärke, Kritikpunkt, Quellenlage). longTermNote: 1–2 Sätze NUR zu ' +
+          '(Unternehmens-/Shopbewertungen wie Trustpilot weglassen). summary in 3–5 neutralen ' +
+          'deutschen Sätzen (Stärken, Kritikpunkte, Quellenlage). longTermNote: 1–2 Sätze NUR zu ' +
           'Langzeit/Haltbarkeit (Zuverlässigkeit nach Monaten, Verschleiß, Defekte), nur wenn ' +
-          'belegt, sonst null. positiveThemes/negativeThemes nur ' +
-          'wiederkehrend und je mit mindestens zwei unterschiedlichen Quellseiten. ' +
+          'belegt, sonst null. positiveThemes/negativeThemes: SO VIELE wiederkehrende ' +
+          'Erfahrungsthemen wie belegt (bis zu 10 je Seite), je mit mindestens zwei ' +
+          'unterschiedlichen Quellseiten und einem kurzen "detail"-Satz, der konkret sagt, WAS ' +
+          'Nutzer loben/kritisieren. ' +
+          'voices: bis zu 8 Stimmen aus dem Netz — je Quelle EIN paraphrasiertes Kernurteil (1–2 ' +
+          'kurze deutsche Sätze, NIEMALS wörtlich kopieren) mit sourceLabel, konkreter URL und ' +
+          'sentiment "PRO", "CONTRA" oder "MIXED"; jede voice-URL MUSS auch in sourceUrls stehen; ' +
+          'bevorzugt echte Nutzer-/Foren-/Langzeit-Stimmen ' +
+          'und Testfazits, keine Werbetexte. ' +
           'switchAlternatives: bis zu 3 KONKRETE Produkte, zu denen Nutzer laut den Quellen ' +
           'gewechselt sind oder die sie stattdessen empfehlen — NUR wenn das Produkt wörtlich in ' +
           'den Quellen genannt wird, mit kurzem Grund ("reason") und der Quellseite; niemals ' +
@@ -806,8 +877,9 @@ export class OpenRouterAiService implements AiService {
           '"productUrl":string|null,"found":boolean},"consensus":{"ratings":[{"source":string,' +
           '"sourceLabel":string,"url":string,"kind":"STARS"|"PERCENT"|"GRADE_DE","value":number,' +
           '"maxValue":number,"count":number|null}],"summary":string|null,"longTermNote":string|null,' +
-          '"positiveThemes":[{"label":string,"sourceUrls":[string,string]}],' +
-          '"negativeThemes":[{"label":string,"sourceUrls":[string,string]}],' +
+          '"positiveThemes":[{"label":string,"detail":string|null,"sourceUrls":[string,string]}],' +
+          '"negativeThemes":[{"label":string,"detail":string|null,"sourceUrls":[string,string]}],' +
+          '"voices":[{"sourceLabel":string,"url":string,"sentiment":"PRO"|"CONTRA"|"MIXED","text":string}],' +
           '"switchAlternatives":[{"name":string,"brand":string|null,"reason":string,"sourceUrls":[string]}],' +
           '"sourceUrls":[string]}}.',
       },
@@ -820,7 +892,8 @@ export class OpenRouterAiService implements AiService {
       6,
       messages,
       combinedResearchSchema,
-      { temperature: 0.15, maxTokens: 1700 },
+      { temperature: 0.15, maxTokens: 3000 },
+      `${name} Erfahrungen Probleme Langzeit Forum Reddit Erfahrungsbericht`,
     );
 
     if (!parsed) {
@@ -832,6 +905,7 @@ export class OpenRouterAiService implements AiService {
           longTermNote: null,
           positiveThemes: [],
           negativeThemes: [],
+          voices: [],
           switchAlternatives: [],
           sourceUrls: [],
         },
@@ -999,6 +1073,36 @@ function cleanSwitchAlternatives(
       sourceUrls: urls.slice(0, 3),
     });
     if (out.length >= 3) break;
+  }
+  return out;
+}
+
+/**
+ * Sanitize researched "Stimmen aus dem Netz": every voice must point to a source
+ * URL that survived the global gates (no blocked review farms, no brand-owned
+ * pages), one voice per source page, no duplicate statements. Hard cap 8.
+ */
+function cleanVoices(
+  voices: Array<{ sourceLabel: string; url: string; sentiment: 'PRO' | 'CONTRA' | 'MIXED'; text: string }>,
+  allowedSources: ReadonlySet<string>,
+  maxVoices = 8,
+): Array<{ sourceLabel: string; url: string; sentiment: 'PRO' | 'CONTRA' | 'MIXED'; text: string }> {
+  const seenUrls = new Set<string>();
+  const seenTexts = new Set<string>();
+  const out: typeof voices = [];
+  for (const voice of voices) {
+    if (!allowedSources.has(voice.url)) continue;
+    const textKey = voice.text.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (seenUrls.has(voice.url) || seenTexts.has(textKey)) continue;
+    seenUrls.add(voice.url);
+    seenTexts.add(textKey);
+    out.push({
+      sourceLabel: voice.sourceLabel,
+      url: voice.url,
+      sentiment: voice.sentiment,
+      text: voice.text,
+    });
+    if (out.length >= maxVoices) break;
   }
   return out;
 }

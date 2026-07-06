@@ -95,6 +95,8 @@ import type {
   UpdatePulseActionInput,
   CreatePulseChangeInput,
   UpdatePulseChangeInput,
+  PulseSettingsDto,
+  UpdatePulseSettingsInput,
 } from '@wudly/shared';
 import { apiFetch, type RequestOptions } from './api-client';
 
@@ -451,5 +453,9 @@ export const api = {
 
     report: (type: PulseReportType, days: number, opts?: RequestOptions) =>
       apiFetch<PulseReportDto>(`/pulse/reports/${type}${qs({ days })}`, opts),
+
+    settings: (opts?: RequestOptions) => apiFetch<PulseSettingsDto>('/pulse/settings', opts),
+    updateSettings: (input: UpdatePulseSettingsInput) =>
+      apiFetch<PulseSettingsDto>('/pulse/settings', { method: 'PATCH', json: input }),
   },
 };

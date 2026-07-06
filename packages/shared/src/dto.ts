@@ -161,7 +161,21 @@ export interface ExternalRatingDto {
 
 export interface ExternalConsensusThemeDto {
   label: string;
+  /** Optional short sentence with the concrete substance behind the label. */
+  detail?: string | null;
   sourceUrls: string[];
+}
+
+/**
+ * One paraphrased takeaway from a single public source ("Stimme aus dem Netz"),
+ * tagged pro/contra/mixed. Paraphrased only, always source-linked; orientation
+ * only and never part of the Wudly Signal.
+ */
+export interface ExternalConsensusVoiceDto {
+  sourceLabel: string;
+  url: string;
+  sentiment: 'PRO' | 'CONTRA' | 'MIXED';
+  text: string;
 }
 
 /**
@@ -184,6 +198,8 @@ export interface ExternalConsensusDto {
   longTermNote: string | null;
   positiveThemes: ExternalConsensusThemeDto[];
   negativeThemes: ExternalConsensusThemeDto[];
+  /** Per-source paraphrased takeaways with pro/contra tags (may be empty). */
+  voices: ExternalConsensusVoiceDto[];
   switchAlternatives: SwitchAlternativeDto[];
   sourceUrls: string[];
   fetchedAt: string;
@@ -644,6 +660,15 @@ export interface SightingResolutionDto {
   product: ProductSummaryDto | null;
   /** Absolute Wudly product page URL, when known. */
   webUrl: string | null;
+  /**
+   * Most frequent reason owners would NOT buy again (top negative aspect
+   * label) — the one line that matters most right before a purchase.
+   */
+  topRegretReason: string | null;
+  /** Most-named "would rather have bought" alternative, when owners named one. */
+  topAlternative: string | null;
+  /** Absolute URL of the 30-second owner verdict flow ("Ich besitze es"). */
+  ownUrl: string | null;
 }
 
 /** Admin observability for the extension ingestion pipeline. */
@@ -881,6 +906,36 @@ export interface PulseIssueDto {
   trend: 'new' | 'rising' | 'stable' | 'falling';
 }
 
+/**
+ * Point-of-sale visibility of one product in ONE shop, aggregated from the
+ * anonymous browser-extension sightings (demand, never people).
+ */
+export interface PulseShopVisibilityDto {
+  /** Shop host, e.g. "www.mediamarkt.de". */
+  domain: string;
+  /** Pretty shop label, e.g. "MediaMarkt". */
+  label: string;
+  /** Product page views seen by the extension (deduped per browser session). */
+  seenCount: number;
+  /** Overlay interactions — a much stronger interest signal than raw views. */
+  engageCount: number;
+  /** Shop rating normalized to 0–100 (null when the shop page has none). */
+  ratingPercent: number | null;
+  /** How many shop reviews back {@link ratingPercent}. */
+  ratingCount: number | null;
+  lastSeenAt: string;
+}
+
+/**
+ * Where the product is being looked at right now — data only Wudly has,
+ * because it owns both ends: demand at the shelf + the owner verdict.
+ */
+export interface PulseMarketVisibilityDto {
+  totalSeen: number;
+  totalEngaged: number;
+  shops: PulseShopVisibilityDto[];
+}
+
 export interface PulseProduct360Dto {
   metrics: PulseProductMetricsDto;
   variantNames: string[];
@@ -902,6 +957,8 @@ export interface PulseProduct360Dto {
   recentVoices: PulseFeedbackItemDto[];
   externalAvgPercent: number | null;
   externalSourceCount: number;
+  /** Point-of-sale demand per shop (null until the extension saw the product). */
+  marketVisibility: PulseMarketVisibilityDto | null;
 }
 
 export interface PulseCompetitorEntryDto {
@@ -910,6 +967,23 @@ export interface PulseCompetitorEntryDto {
   metrics: PulseProductMetricsDto;
   strengths: AspectStatDto[];
   regretReasons: AspectStatDto[];
+}
+
+/**
+ * Honest category context: how the own product ranks among ALL catalog
+ * products of its category with real owner signal — meaningful even before
+ * a single competitor is mapped.
+ */
+export interface PulseCategoryBenchmarkDto {
+  categoryName: string;
+  /** Category products with a rebuy score (including the own product). */
+  productCount: number;
+  /** Average rebuy score across those products. */
+  avgRebuyScore: number;
+  /** Best rebuy score in the category. */
+  bestRebuyScore: number;
+  /** 1-based rank of the own product (null when it has no score yet). */
+  ownRank: number | null;
 }
 
 export interface PulseCompetitorSetDto {
@@ -922,6 +996,8 @@ export interface PulseCompetitorSetDto {
   verdict: string | null;
   /** Same-category candidates not yet mapped as competitors. */
   suggestions: ProductSummaryDto[];
+  /** Category-wide rebuy benchmark (null below 3 scored category products). */
+  categoryBenchmark: PulseCategoryBenchmarkDto | null;
 }
 
 export interface PulseActionDto {
@@ -1049,4 +1125,10 @@ export interface PulseWorkspaceDto {
   profile: ProfessionalProfileDto;
   periodDays: number;
   products: PulseProductMetricsDto[];
+}
+
+/** Per-profile Pulse notification preferences. */
+export interface PulseSettingsDto {
+  /** Critical-signal alert emails + the weekly digest. */
+  emailsEnabled: boolean;
 }

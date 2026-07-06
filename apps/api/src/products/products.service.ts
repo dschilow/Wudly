@@ -154,7 +154,9 @@ function isAccessory(title: string, brand: string | undefined): boolean {
   return false;
 }
 
-/** Clean + cap a spec list: trim, drop blanks, dedupe labels, max 14. */
+/** Clean + cap a spec list: trim, drop blanks, dedupe labels, max 30.
+    The cap is generous on purpose: catalog sources (Icecat) and the research
+    are already paid for/free — richer stored specs cost nothing extra. */
 function normalizeSpecs(
   specs: Array<{ label: string; value: string }> | undefined,
 ): Array<{ label: string; value: string }> {
@@ -169,7 +171,7 @@ function normalizeSpecs(
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({ label, value });
-    if (out.length >= 14) break;
+    if (out.length >= 30) break;
   }
   return out;
 }
@@ -1042,6 +1044,7 @@ export class ProductsService {
       longTermNote: null,
       positiveThemes: [],
       negativeThemes: [],
+      voices: [],
       switchAlternatives: [],
       sourceUrls: [],
     };
@@ -1709,6 +1712,7 @@ export class ProductsService {
         longTermNote: null,
         positiveThemes: input.positiveThemes,
         negativeThemes: input.negativeThemes,
+        voices: [],
         switchAlternatives: [],
         sourceUrls,
       });

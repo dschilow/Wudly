@@ -72,7 +72,7 @@ export class SightingsService {
    * pure lookup — the signal keeps working, ingestion stops.
    */
   async resolveAndRecord(input: ProductSightingInput): Promise<SightingResolutionDto> {
-    if (!this.qualityGate(input)) return { status: 'rejected', product: null, webUrl: null };
+    if (!this.qualityGate(input)) return this.emptyResolution('rejected');
     if (!this.ingestEnabled) return this.resolveOnly(this.toResolveQuery(input));
 
     const resolved = await this.resolveProduct(
@@ -93,13 +93,9 @@ export class SightingsService {
     const productId = resolved?.id ?? row.productId;
     if (productId) await this.applyShopRating(productId, row);
 
-    if (!resolved) return { status: 'queued', product: null, webUrl: null };
-    if (resolved.status === 'HIDDEN') return { status: 'rejected', product: null, webUrl: null };
-    return {
-      status: 'known',
-      product: toProductSummaryDto(resolved),
-      webUrl: this.webUrl(resolved),
-    };
+    if (!resolved) return this.emptyResolution('queued');
+    if (resolved.status === 'HIDDEN') return this.emptyResolution('rejected');
+    return this.knownResolution(resolved);
   }
 
   /** Pure lookup that records nothing — for users who disabled reporting. */
@@ -110,12 +106,39 @@ export class SightingsService {
       query.q ?? '',
     );
     if (!resolved || resolved.status === 'HIDDEN') {
-      return { status: 'queued', product: null, webUrl: null };
+      return this.emptyResolution('queued');
     }
+    return this.knownResolution(resolved);
+  }
+
+  private emptyResolution(status: 'queued' | 'rejected'): SightingResolutionDto {
+    return {
+      status,
+      product: null,
+      webUrl: null,
+      topRegretReason: null,
+      topAlternative: null,
+      ownUrl: null,
+    };
+  }
+
+  /**
+   * Full resolution for a catalog product, including the two lines that matter
+   * most at the point of sale: the top regret reason and the most-named
+   * "would rather have bought" alternative — straight from the cached insight
+   * snapshot, no extra query or AI spend.
+   */
+  private knownResolution(product: ProductWithRelations): SightingResolutionDto {
+    const snap = product.insightSnapshot;
+    const topNegative = firstAspectLabel(snap?.topNegativeAspects);
+    const topAlternative = firstString(snap?.insteadOfHighlights);
     return {
       status: 'known',
-      product: toProductSummaryDto(resolved),
-      webUrl: this.webUrl(resolved),
+      product: toProductSummaryDto(product),
+      webUrl: this.webUrl(product),
+      topRegretReason: topNegative,
+      topAlternative,
+      ownUrl: `${this.webBase()}/products/${product.id}/own`,
     };
   }
 
@@ -304,9 +327,12 @@ export class SightingsService {
    * slightly different slug spelling here is harmless.
    */
   private webUrl(product: { id: string; canonicalName: string }): string {
-    const base = this.config.get('WEB_APP_URL', { infer: true }).replace(/\/$/, '');
     const slug = normalizeProductName(product.canonicalName).replace(/\s+/g, '-');
-    return `${base}/produkte/${slug}-${product.id}`;
+    return `${this.webBase()}/produkte/${slug}-${product.id}`;
+  }
+
+  private webBase(): string {
+    return this.config.get('WEB_APP_URL', { infer: true }).replace(/\/$/, '');
   }
 
   private toResolveQuery(input: ProductSightingInput): SightingResolveQuery {
@@ -338,6 +364,22 @@ export function researchQuery(title: string, brand: string | null): string {
     core = `${brand} ${core}`;
   }
   return core.slice(0, 160);
+}
+
+/** First aspect label from a snapshot's Json aspect list ([{key,label,count}]). */
+function firstAspectLabel(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  const first = value[0];
+  if (first && typeof first === 'object' && typeof (first as { label?: unknown }).label === 'string') {
+    return (first as { label: string }).label;
+  }
+  return null;
+}
+
+/** First entry of a snapshot's Json string list. */
+function firstString(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  return typeof value[0] === 'string' && value[0].length > 0 ? value[0] : null;
 }
 
 /**

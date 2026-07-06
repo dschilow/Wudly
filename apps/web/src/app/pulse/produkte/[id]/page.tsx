@@ -235,6 +235,70 @@ export default function PulseProduct360Page() {
         </SectionCard>
       </div>
 
+      {/* Market visibility — data only Wudly has: demand at the shelf */}
+      <SectionCard
+        title="Marktsichtbarkeit"
+        subtitle="Anonyme Sichtungen über die Wudly-Signal-Extension: wo dein Produkt gerade angeschaut wird — und wie die Shop-Bewertung dort vom Besitzer-Urteil abweicht."
+      >
+        {!data.marketVisibility || data.marketVisibility.shops.length === 0 ? (
+          <p className="text-[0.85rem] text-muted-foreground">
+            Noch keine Sichtungen. Sobald Nutzer der Wudly-Signal-Extension dein Produkt in
+            einem unterstützten Shop ansehen, erscheinen hier Nachfrage und Shop-Bewertungen
+            pro Händler.
+          </p>
+        ) : (
+          <>
+            <p className="mb-3 text-[0.85rem] text-muted-foreground">
+              {data.marketVisibility.totalSeen} Produktseiten-Aufrufe ·{' '}
+              {data.marketVisibility.totalEngaged} aktive Interaktionen mit dem Wudly-Signal.
+            </p>
+            <ul className="divide-y divide-separator">
+              {data.marketVisibility.shops.map((shop) => {
+                const gap =
+                  shop.ratingPercent !== null && m.rebuyScore !== null
+                    ? shop.ratingPercent - m.rebuyScore
+                    : null;
+                return (
+                  <li key={shop.label} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <div className="font-medium text-label">{shop.label}</div>
+                      <div className="text-[0.78rem] text-muted-foreground">
+                        {shop.seenCount} Aufrufe · {shop.engageCount} Interaktionen
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {shop.ratingPercent !== null ? (
+                        <>
+                          <div className="font-display text-[1.05rem] font-bold tnum text-label">
+                            {shop.ratingPercent} %
+                          </div>
+                          <div
+                            className={cn(
+                              'text-[0.72rem]',
+                              gap !== null && gap >= 15
+                                ? 'font-semibold text-regret-ink'
+                                : 'text-label-3',
+                            )}
+                          >
+                            {gap !== null && gap >= 15
+                              ? `+${gap} über Wiederkauf`
+                              : shop.ratingCount
+                                ? `Shop-Bewertung · ${shop.ratingCount} Stimmen`
+                                : 'Shop-Bewertung'}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-[0.78rem] text-label-3">keine Shop-Bewertung</div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </SectionCard>
+
       {/* Audience fit */}
       <div className="grid gap-4 lg:grid-cols-2">
         <SectionCard title="Geeignet für">

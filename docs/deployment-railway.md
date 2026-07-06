@@ -82,9 +82,13 @@ railway variables --service wudly-api --set "BRAVE_SEARCH_KEY=..."
 # Neuer Pfad: Perplexity Search API als OpenRouter-Web-Plugin
 railway variables --service wudly-api --set "PRODUCT_RESEARCH_SEARCH_PROVIDER=openrouter"
 railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_ENGINE=perplexity"
-railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_MAX_RESULTS=5"
+railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_MAX_RESULTS=10"
 railway variables --service wudly-api --set "OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS=youtube.com,ebay.com,ebay.de,allegro.pl,trustpilot.com"
 ```
+
+Perplexity rechnet pro ANFRAGE ab ($0.005), nicht pro Ergebnis — 10 Ergebnisse
+liefern doppelt so viel Grounding wie 5 zum identischen Preis. Deshalb steht
+`OPENROUTER_WEB_SEARCH_MAX_RESULTS` auf dem Maximum.
 
 Lokaler A/B-Benchmark mit identischem Modell und Prompt:
 
@@ -106,11 +110,22 @@ Produktfakten und der externe Netz-Konsens verwenden dieselbe gestufte Strategie
 3. Perplexity Search + Gemini Flash Lite als primaerer Web-Research-Pfad,
 4. Brave Search + Gemini nur bei ungueltigem oder unvollstaendigem Primaerergebnis.
 
-Der Netz-Konsens kombiniert Bewertungszahlen und wiederkehrende positive/negative
-Erfahrungsthemen in einem einzigen Research-Aufruf. Themen werden nur gespeichert,
-wenn mindestens zwei konkrete Quellseiten sie belegen. Leere Ergebnisse werden
-ebenfalls 90 Tage gecacht, damit schwer auffindbare Produkte keine wiederholten
-Kosten verursachen. Externe Daten bleiben vollstaendig vom Wudly Signal getrennt.
+Der Netz-Konsens kombiniert Bewertungszahlen, wiederkehrende positive/negative
+Erfahrungsthemen (mit kurzem Detail-Satz), paraphrasierte "Stimmen aus dem Netz"
+(pro Quelle ein Pro/Contra/Gemischt-Urteil mit Link) und Umsteiger-Alternativen
+in einem einzigen Research-Aufruf. Themen werden nur gespeichert, wenn mindestens
+zwei konkrete Quellseiten sie belegen; Stimmen nur, wenn ihre URL im deklarierten
+Quellen-Pool steht. Leere Ergebnisse werden ebenfalls 90 Tage gecacht, damit
+schwer auffindbare Produkte keine wiederholten Kosten verursachen. Externe Daten
+bleiben vollstaendig vom Wudly Signal getrennt.
+
+Zusaetzlich zieht der Konsens-Pfad EINE kostenlose Brave-Zusatzsuche nur nach
+echten Nutzererfahrungen (Foren, Reddit, Langzeitberichte) in denselben
+Gemini-Aufruf. Brave bleibt dabei strikt Ergaenzung/Fallback (der Benchmark ging
+klar an Perplexity) und pausiert automatisch, sobald vom freien Monatskontingent
+weniger als 200 Anfragen uebrig sind — der Rest bleibt fuer Fallback, Workbench
+und Bildersuche reserviert. Das Restkontingent ist unter `GET /api/health/ai`
+als `braveSearch.remainingMonth` sichtbar (live aus den Brave-Response-Headern).
 
 ### Gemma-Hintergrundrecherche fuer Produktbewertungen
 

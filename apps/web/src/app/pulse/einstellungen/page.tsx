@@ -1,17 +1,41 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PROFESSIONAL_PROFILE_TYPE_LABEL } from '@wudly/shared';
-import { BadgeCheck, ExternalLink } from 'lucide-react';
+import { BadgeCheck, ExternalLink, Loader2 } from 'lucide-react';
+import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { usePulse } from '@/components/pulse/PulseShell';
 import { SectionCard } from '@/components/pulse/atoms';
 
 /**
- * Einstellungen — profile summary, methodology transparency and data honesty.
- * Profile editing lives in the Studio; Pulse links there instead of duplicating.
+ * Einstellungen — profile summary, notification preferences, methodology
+ * transparency and data honesty. Profile editing lives in the Studio; Pulse
+ * links there instead of duplicating.
  */
 export default function PulseSettingsPage() {
   const { profile, periodDays } = usePulse();
+  const [emailsEnabled, setEmailsEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.pulse
+      .settings({ cache: 'no-store' })
+      .then((s) => setEmailsEnabled(s.emailsEnabled))
+      .catch(() => setEmailsEnabled(null));
+  }, []);
+
+  const toggleEmails = async () => {
+    if (emailsEnabled === null || saving) return;
+    setSaving(true);
+    try {
+      const next = await api.pulse.updateSettings({ emailsEnabled: !emailsEnabled });
+      setEmailsEnabled(next.emailsEnabled);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="animate-fade max-w-3xl space-y-5">
@@ -67,6 +91,42 @@ export default function PulseSettingsPage() {
       </SectionCard>
 
       <SectionCard
+        title="Benachrichtigungen"
+        subtitle="Kritische Signale sofort per E-Mail, dazu ein Wochenreport mit den wichtigsten Kennzahlen."
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="font-medium text-label">Pulse-E-Mails</div>
+            <p className="text-[0.83rem] text-muted-foreground">
+              Sofort-Alert bei kritischen Signalen (max. einmal je Signal alle 14 Tage) und der
+              wöchentliche Digest an die E-Mail-Adresse deines Kontos.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void toggleEmails()}
+            disabled={emailsEnabled === null || saving}
+            aria-pressed={emailsEnabled === true}
+            className={cn(
+              'relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50',
+              emailsEnabled ? 'bg-positive' : 'bg-fill-2',
+            )}
+          >
+            {saving ? (
+              <Loader2 className="absolute inset-0 m-auto h-4 w-4 animate-spin text-label-3" />
+            ) : (
+              <span
+                className={cn(
+                  'absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all',
+                  emailsEnabled ? 'left-6' : 'left-1',
+                )}
+              />
+            )}
+          </button>
+        </div>
+      </SectionCard>
+
+      <SectionCard
         title="So rechnet Pulse"
         subtitle="Transparenz ist Teil des Produkts — jede Zahl ist erklärbar."
       >
@@ -94,6 +154,16 @@ export default function PulseSettingsPage() {
             <strong className="text-label">Kundengruppen:</strong> Nur Kohorten, die Wudly
             wirklich kennt (Verifizierung, Besitzdauer, Produktvariante) — keine erfundenen
             Demografien.
+          </li>
+          <li>
+            <strong className="text-label">Sterne-Lücke:</strong> Externe Bewertungen
+            (Netz-Konsens) im Vergleich zur Wiederkaufquote. Sterne messen den Kaufmoment,
+            der Wiederkauf die Langzeit-Wahrheit — eine große Lücke ist ein Frühwarnsignal.
+          </li>
+          <li>
+            <strong className="text-label">Marktsichtbarkeit:</strong> Anonyme Sichtungen der
+            Wudly-Signal-Extension (Aufrufe und Interaktionen pro Shop). Es werden nie Personen
+            erfasst — nur Nachfrage.
           </li>
         </ul>
       </SectionCard>

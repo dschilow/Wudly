@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Wudly Signal",
-  "version": "0.1.0",
-  "description": "Das ehrliche Besitzer-Urteil direkt beim Shoppen — Wiederkauf-Quote und Netz-Konsens auf der Produktseite.",
+  "version": "0.2.0",
+  "description": "Das ehrliche Besitzer-Urteil direkt beim Shoppen — Wiederkauf-Quote, Sterne-Lücke und Kaufreue-Gründe auf der Produktseite.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://wudly-api-production.up.railway.app/*",

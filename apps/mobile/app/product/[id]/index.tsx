@@ -822,11 +822,49 @@ function ExternalConsensusSection({ consensus }: { consensus: ProductDetailDto['
 
       {hasThemes && (
         <View style={{ marginTop: 12, gap: 6 }}>
-          {consensus.positiveThemes.slice(0, 3).map((theme) => (
+          {consensus.positiveThemes.slice(0, 4).map((theme) => (
             <ThemeRow key={theme.label} label={theme.label} tone="positive" />
           ))}
-          {consensus.negativeThemes.slice(0, 3).map((theme) => (
+          {consensus.negativeThemes.slice(0, 4).map((theme) => (
             <ThemeRow key={theme.label} label={theme.label} tone="negative" />
+          ))}
+        </View>
+      )}
+
+      {consensus.voices.length > 0 && (
+        <View style={{ marginTop: 12, gap: 8 }}>
+          <Text style={{ color: colors.faint, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
+            Stimmen aus dem Netz
+          </Text>
+          {consensus.voices.slice(0, 4).map((voice) => (
+            <View
+              key={voice.url + voice.text.slice(0, 24)}
+              style={{ backgroundColor: colors.fill2, borderRadius: radius.md, padding: 10 }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <Text
+                  style={{
+                    color:
+                      voice.sentiment === 'PRO'
+                        ? colors.positiveInk
+                        : voice.sentiment === 'CONTRA'
+                          ? colors.regretInk
+                          : colors.mutedForeground,
+                    fontSize: 11,
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {voice.sentiment === 'PRO' ? 'Pro' : voice.sentiment === 'CONTRA' ? 'Contra' : 'Gemischt'}
+                </Text>
+                <Text style={{ color: colors.faint, fontSize: 11, flexShrink: 1 }} numberOfLines={1}>
+                  {voice.sourceLabel}
+                </Text>
+              </View>
+              <Text style={{ color: colors.label, fontSize: 13, lineHeight: 19, marginTop: 3 }}>
+                {voice.text}
+              </Text>
+            </View>
           ))}
         </View>
       )}

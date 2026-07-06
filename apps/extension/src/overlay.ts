@@ -57,8 +57,8 @@ function buildPill(result: SightingResolutionDto): HTMLButtonElement {
 
   const dot = `<span class="dot ${known ? 'known' : 'queued'}"></span>`;
   let label = 'Wudly';
-  if (known && rebuy != null) label = `Wiederkauf ${Math.round(rebuy)} %`;
-  else if (known && consensus != null) label = `Netz-Konsens ${Math.round(consensus)} %`;
+  if (known && rebuy != null) label = `Wiederkauf ${Math.round(rebuy)} %`;
+  else if (known && consensus != null) label = `Netz-Konsens ${Math.round(consensus)} %`;
   pill.innerHTML = `${dot}<span class="label">${escapeHtml(label)}</span>`;
   return pill;
 }
@@ -73,22 +73,59 @@ function buildCard(
   const p = result.product;
   const name = p?.canonicalName ?? product.title;
 
+  // Shop rating from the page's own structured data, normalized to 0–100 —
+  // the raw material for the "Sterne-Lücke" (star gap) comparison.
+  const rating = product.rating;
+  const shopPercent =
+    rating && rating.maxValue > 0 ? Math.round((rating.value / rating.maxValue) * 100) : null;
+
   const rows: string[] = [];
+  let hasSignal = false;
   if (p) {
     if (p.wudlySeal) rows.push(`<div class="seal">Wudly-empfohlen</div>`);
-    if (p.rebuyScore != null) {
-      rows.push(stat('Wiederkauf', `${Math.round(p.rebuyScore)} %`, `${p.ownerCount} Besitzer`));
+    const rebuy = p.rebuyScore != null ? Math.round(p.rebuyScore) : null;
+    if (rebuy != null) {
+      hasSignal = true;
+      rows.push(stat('Wiederkauf', `${rebuy} %`, `${p.ownerCount} Besitzer`));
+    }
+    if (rating && shopPercent != null) {
+      rows.push(
+        stat(
+          'Shop-Bewertung',
+          `${formatStars(rating.value)} ★`,
+          rating.count ? `${rating.count} Stimmen · ~${shopPercent} %` : `~${shopPercent} %`,
+        ),
+      );
     }
     if (p.externalAvgPercent != null) {
+      hasSignal = true;
       rows.push(
         stat(
           'Netz-Konsens',
-          `${Math.round(p.externalAvgPercent)} %`,
+          `${Math.round(p.externalAvgPercent)} %`,
           `${p.externalSourceCount} ${p.externalSourceCount === 1 ? 'Quelle' : 'Quellen'}`,
         ),
       );
     }
-    if (rows.length === 0) {
+    // The one line no star rating can give: stars measure the purchase moment,
+    // the rebuy score measures whether owners STAY happy. Called out when the
+    // shop's stars clearly oversell the product.
+    if (rebuy != null && shopPercent != null && shopPercent - rebuy >= 15) {
+      rows.push(
+        `<p class="gap"><strong>Sterne-Lücke:</strong> Der Shop zeigt ${shopPercent} % — aber nur ${rebuy} % der Besitzer würden wieder kaufen.</p>`,
+      );
+    }
+    if (result.topRegretReason) {
+      rows.push(
+        `<p class="line"><span class="line-label">Häufigste Kaufreue:</span> ${escapeHtml(result.topRegretReason)}</p>`,
+      );
+    }
+    if (result.topAlternative) {
+      rows.push(
+        `<p class="line"><span class="line-label">Besitzer wechselten zu:</span> ${escapeHtml(result.topAlternative)}</p>`,
+      );
+    }
+    if (!hasSignal) {
       rows.push(
         `<p class="note">Schon im Wudly-Katalog — noch kein Besitzer-Urteil. Sei die erste Stimme.</p>`,
       );
@@ -102,6 +139,11 @@ function buildCard(
   const cta = result.webUrl
     ? `<a class="cta" href="${escapeAttr(result.webUrl)}" target="_blank" rel="noopener">Bei Wudly ansehen</a>`
     : '';
+  // Owner shortcut: the extension is not just a consumer of the owner truth,
+  // it recruits the next voice — straight into the 30-second verdict flow.
+  const ownCta = result.ownUrl
+    ? `<a class="own" href="${escapeAttr(result.ownUrl)}" target="_blank" rel="noopener">Besitzt du es? 30-Sekunden-Urteil abgeben →</a>`
+    : '';
 
   card.innerHTML = `
     <div class="head">
@@ -111,6 +153,7 @@ function buildCard(
     <div class="name">${escapeHtml(name.slice(0, 90))}</div>
     ${rows.join('')}
     ${cta}
+    ${ownCta}
   `;
 
   card.querySelector('.close')?.addEventListener('click', () => {
@@ -118,6 +161,7 @@ function buildCard(
     removeOverlay();
   });
   card.querySelector('.cta')?.addEventListener('click', () => onEngage(product));
+  card.querySelector('.own')?.addEventListener('click', () => onEngage(product));
   return card;
 }
 
@@ -128,6 +172,11 @@ function stat(label: string, value: string, hint: string): string {
       <span class="stat-value">${escapeHtml(value)}</span>
       <span class="stat-hint">${escapeHtml(hint)}</span>
     </div>`;
+}
+
+/** German decimal comma, one digit ("4.6" → "4,6"). */
+function formatStars(value: number): string {
+  return (Math.round(value * 10) / 10).toFixed(1).replace('.', ',');
 }
 
 function dismissKey(product: DetectedProduct): string {
@@ -179,6 +228,12 @@ function styles(): HTMLStyleElement {
     .stat-label { color: #5b5f6d; flex: 1; }
     .stat-value { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
     .stat-hint { color: #9aa0ae; font-size: 11px; }
+    .gap {
+      margin: 8px 0 0; padding: 8px 10px; border-radius: 10px;
+      background: #c6282812; color: #8f1d1d; font-size: 12px; line-height: 1.45;
+    }
+    .line { margin: 0; padding: 7px 0 2px; border-top: 1px solid #0c0d1216; color: #3a3d49; font-size: 12px; }
+    .line-label { color: #5b5f6d; font-weight: 600; }
     .note { margin: 0; padding: 7px 0 2px; border-top: 1px solid #0c0d1216; color: #3a3d49; }
     .cta {
       display: block; margin-top: 12px; padding: 9px 12px; border-radius: 10px;
@@ -186,6 +241,11 @@ function styles(): HTMLStyleElement {
       font-weight: 700; font-size: 13px;
     }
     .cta:hover { background: #24262f; }
+    .own {
+      display: block; margin-top: 8px; text-align: center; text-decoration: none;
+      color: #077951; font-weight: 600; font-size: 12px;
+    }
+    .own:hover { text-decoration: underline; }
   `;
   return style;
 }

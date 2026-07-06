@@ -472,6 +472,9 @@ model ExternalConsensus {
   longTermNote   String?
   positiveThemes Json     @default("[]")
   negativeThemes Json     @default("[]")
+  /// Paraphrased per-source takeaways ("Stimmen aus dem Netz"): sourceLabel,
+  /// url, sentiment PRO/CONTRA/MIXED, text. Orientation only, never the Signal.
+  voices         Json     @default("[]")
   /// Source-backed "Umsteiger" suggestions: products reviewers switched to
   /// (name, brand, reason, sourceUrls, matched productId). Orientation only.
   switchAlternatives Json @default("[]")
@@ -866,6 +869,8 @@ model ProfessionalProfile {
   verificationStatus VerificationStatus      @default(SELF_DECLARED)
   /// Self-declared: this profile may publish paid cooperations.
   paidPartnerships   Boolean                 @default(false)
+  /// Pulse notification emails (critical-signal alerts + weekly digest).
+  pulseEmailsEnabled Boolean                 @default(true)
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
 
@@ -874,6 +879,7 @@ model ProfessionalProfile {
   pulseWatches PulseWatch[]
   pulseActions PulseAction[]
   pulseChanges PulseChange[]
+  pulseEmailLogs PulseEmailLog[]
 
   @@index([type])
 }
@@ -1056,6 +1062,24 @@ model PulseAction {
 
   @@index([profileId, status])
   @@index([productId])
+}
+
+/// Dedupe ledger for Pulse notification emails. One row per sent email
+/// purpose: `critical:<signalId>` (re-alert allowed after a cool-down) or
+/// `digest:<isoWeek>` (one weekly digest). Content is never stored — signals
+/// stay derived-only; this table only remembers WHAT was already sent.
+model PulseEmailLog {
+  id        String   @id @default(cuid())
+  profileId String
+  /// "critical" | "digest" — coarse kind for observability queries.
+  kind      String
+  dedupeKey String
+  sentAt    DateTime @default(now())
+
+  profile ProfessionalProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, dedupeKey])
+  @@index([profileId, kind, sentAt])
 }
 
 /// A company-documented change (firmware, batch, packaging, …). Impact is

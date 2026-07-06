@@ -4,6 +4,7 @@ import {
   PulseConfidence,
   PulseSignalSeverity,
   type ExperienceMood,
+  type PulseCategoryBenchmarkDto,
   type PulseCompetitorSetDto,
   type PulseFeedbackItemDto,
   type PulseFeedbackPageDto,
@@ -84,7 +85,9 @@ export class PulseViewsService {
     const trend = this.metrics.trendFor(dataset.experiences, dataset.invitedVotes, days);
     const healthNow = this.metrics.healthIndex(allTime.rebuy, allTime.regret);
 
-    const signals = this.collectSignals(productIds, dataset, days);
+    const derived = this.collectSignals(productIds, dataset, days);
+    const changeEffects = await this.changeEffectSignals(profile.id, days);
+    const signals = [...derived, ...changeEffects];
     const actionEffects = await this.actionEffectSignals(profile.id, dataset, days);
     const critical = signals.filter((s) => s.severity === PulseSignalSeverity.CRITICAL);
     const relevant = signals.filter((s) => s.severity === PulseSignalSeverity.RELEVANT);
@@ -154,8 +157,9 @@ export class PulseViewsService {
     const dataset = await this.metrics.loadDataset(productIds);
     const derived = this.collectSignals(productIds, dataset, days);
     const actionEffects = await this.actionEffectSignals(profile.id, dataset, days);
+    const changeEffects = await this.changeEffectSignals(profile.id, days);
     const order: Record<string, number> = { CRITICAL: 0, RELEVANT: 1, WATCH: 2, POSITIVE: 3 };
-    return [...derived, ...actionEffects].sort(
+    return [...derived, ...actionEffects, ...changeEffects].sort(
       (a, b) => (order[a.severity] ?? 9) - (order[b.severity] ?? 9),
     );
   }
@@ -209,6 +213,60 @@ export class PulseViewsService {
     return signals;
   }
 
+  /**
+   * Signals from the change log: a documented change (firmware, batch, …)
+   * whose before/after comparison shows a clear effect. The warning direction
+   * is the point — "your change may have HURT" is exactly what a PM must see
+   * without opening the change log.
+   */
+  private async changeEffectSignals(
+    profileId: string,
+    days: number,
+  ): Promise<PulseSignalDto[]> {
+    const changes = await this.pulse.listChanges(profileId);
+    const signals: PulseSignalDto[] = [];
+    for (const change of changes) {
+      const impact = change.impact;
+      if (!impact || impact.rebuyDelta === null || impact.after.count < 3) continue;
+      const base = {
+        productId: change.productId,
+        productName: change.productName,
+        metricLabel: 'Wiederkaufquote (vor/nach Änderung)',
+        deltaPoints: impact.rebuyDelta,
+        segment: null,
+        confidence: impact.confidence,
+        periodDays: days,
+      };
+      if (impact.rebuyDelta <= -4) {
+        signals.push({
+          ...base,
+          id: `change-regression:${change.id}`,
+          kind: 'change-regression',
+          severity:
+            impact.rebuyDelta <= -8 ? PulseSignalSeverity.CRITICAL : PulseSignalSeverity.RELEVANT,
+          title: `Änderung „${change.title}“ könnte geschadet haben`,
+          description: `Seit „${change.title}“ (${new Date(change.effectiveAt).toLocaleDateString('de-DE')}) ist die Wiederkaufquote von ${change.productName} um ${Math.abs(impact.rebuyDelta)} Punkte gefallen (${impact.before.rebuyScore} → ${impact.after.rebuyScore}, je ${impact.windowDays} Tage vor/nach). ${impact.newIssues.length > 0 ? `Neu aufgetreten: ${impact.newIssues.map((i) => `„${i.label}“`).join(', ')}.` : ''}`,
+          cause: impact.newIssues[0]?.label ?? null,
+          recommendation:
+            'Die Änderung im Änderungs-Log prüfen und ggf. zurücknehmen oder eine Gegenmaßnahme anlegen.',
+        });
+      } else if (impact.rebuyDelta >= 4) {
+        signals.push({
+          ...base,
+          id: `change-effect:${change.id}`,
+          kind: 'change-effect',
+          severity: PulseSignalSeverity.POSITIVE,
+          title: `Änderung „${change.title}“ zeigt Wirkung`,
+          description: `Seit „${change.title}“ ist die Wiederkaufquote von ${change.productName} um ${impact.rebuyDelta} Punkte gestiegen (${impact.before.rebuyScore} → ${impact.after.rebuyScore}, je ${impact.windowDays} Tage vor/nach).${impact.improvedIssues.length > 0 ? ` Zurückgegangen: ${impact.improvedIssues.map((i) => `„${i.label}“`).join(', ')}.` : ''}`,
+          cause: null,
+          recommendation:
+            'Den Effekt im Änderungs-Log dokumentieren — dieses Muster lohnt sich für weitere Produkte.',
+        });
+      }
+    }
+    return signals;
+  }
+
   /* ---------------------------- Product 360 -------------------------- */
 
   async product360(
@@ -252,6 +310,7 @@ export class PulseViewsService {
       recentVoices: experiences.slice(0, 5).map((e) => this.toFeedbackItem(e, product.canonicalName)),
       externalAvgPercent: snap?.externalAvgPercent ?? null,
       externalSourceCount: snap?.externalSourceCount ?? 0,
+      marketVisibility: this.metrics.marketVisibilityFor(productId, dataset),
     };
   }
 
@@ -313,9 +372,44 @@ export class PulseViewsService {
         suggestions: await this.competitorSuggestions(watch.productId, [
           ...watch.competitors.map((c) => c.competitorProductId),
         ]),
+        categoryBenchmark: await this.categoryBenchmark(watch.productId),
       });
     }
     return sets;
+  }
+
+  /**
+   * Category-wide rebuy benchmark from the cached insight snapshots — gives
+   * the Wettbewerb view substance even before a single competitor is mapped.
+   * Honest gate: needs at least 3 scored products (own included) to say
+   * anything about "the category".
+   */
+  private async categoryBenchmark(productId: string): Promise<PulseCategoryBenchmarkDto | null> {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { categoryId: true, category: { select: { name: true } } },
+    });
+    if (!product?.categoryId || !product.category) return null;
+
+    const rows = await this.prisma.productInsightSnapshot.findMany({
+      where: {
+        rebuyScore: { not: null },
+        product: { categoryId: product.categoryId, status: 'ACTIVE' },
+      },
+      select: { productId: true, rebuyScore: true },
+      orderBy: { rebuyScore: 'desc' },
+    });
+    if (rows.length < 3) return null;
+
+    const scores = rows.map((r) => r.rebuyScore as number);
+    const ownIndex = rows.findIndex((r) => r.productId === productId);
+    return {
+      categoryName: product.category.name,
+      productCount: rows.length,
+      avgRebuyScore: Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length),
+      bestRebuyScore: scores[0]!,
+      ownRank: ownIndex >= 0 ? ownIndex + 1 : null,
+    };
   }
 
   /** Plain-language verdict against the strongest mapped competitor. */
@@ -358,7 +452,12 @@ export class PulseViewsService {
     return parts.join(' ');
   }
 
-  /** Same-category products with real signal, not yet mapped. */
+  /**
+   * Same-category products with real signal, not yet mapped. Owner
+   * experiences count as signal, but so does a Netz-Konsens: young categories
+   * rarely have owner data on rival products, external ratings still allow an
+   * honest (clearly labeled) comparison.
+   */
   private async competitorSuggestions(productId: string, excludeIds: string[]) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
@@ -370,10 +469,15 @@ export class PulseViewsService {
         categoryId: product.categoryId,
         status: 'ACTIVE',
         id: { notIn: [productId, ...excludeIds] },
-        insightSnapshot: { experienceCount: { gt: 0 } },
+        insightSnapshot: {
+          OR: [{ experienceCount: { gt: 0 } }, { externalSourceCount: { gt: 0 } }],
+        },
       },
       include: { category: true, insightSnapshot: true },
-      orderBy: { insightSnapshot: { experienceCount: 'desc' } },
+      orderBy: [
+        { insightSnapshot: { experienceCount: 'desc' } },
+        { insightSnapshot: { externalSourceCount: 'desc' } },
+      ],
       take: 5,
     });
     return rows.map(toProductSummaryDto);

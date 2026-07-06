@@ -603,9 +603,24 @@ export default async function ProductPage({ params }: PageProps) {
             )}
             {product.specs.length > 0 && (
               <div className="space-y-2 px-4 py-4">
-                {product.specs.map((spec) => (
+                {product.specs.slice(0, 8).map((spec) => (
                   <LedgerRow key={spec.label} label={spec.label} value={spec.value} />
                 ))}
+                {product.specs.length > 8 && (
+                  <details className="group">
+                    <summary className="tap-dim cursor-pointer list-none py-1.5 text-[0.8125rem] font-semibold text-accent-ink [&::-webkit-details-marker]:hidden">
+                      <span className="group-open:hidden">
+                        Alle {product.specs.length} technischen Daten anzeigen
+                      </span>
+                      <span className="hidden group-open:inline">Weniger anzeigen</span>
+                    </summary>
+                    <div className="space-y-2 pt-1">
+                      {product.specs.slice(8).map((spec) => (
+                        <LedgerRow key={spec.label} label={spec.label} value={spec.value} />
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
             )}
           </div>

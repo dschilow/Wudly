@@ -124,6 +124,7 @@ export class DummyAiService implements AiService {
       longTermNote: null,
       positiveThemes: [],
       negativeThemes: [],
+      voices: [],
       switchAlternatives: [],
       sourceUrls: [],
     };

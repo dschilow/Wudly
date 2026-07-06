@@ -199,8 +199,25 @@ export interface ResearchedExternalRating {
 
 export interface ResearchedExternalTheme {
   label: string;
+  /** Optional short German sentence with the concrete substance behind the label
+      (e.g. what exactly reviewers praise/criticize). Null when sources are thin. */
+  detail?: string | null;
   /** At least two independent pages that support this recurring theme. */
   sourceUrls: string[];
+}
+
+/**
+ * One paraphrased takeaway from a single public source ("Stimme aus dem Netz"):
+ * what this test/community says about the product, tagged pro/contra/mixed.
+ * Always paraphrased (never copied review text) and always source-linked.
+ */
+export interface ResearchedExternalVoice {
+  /** Display name of the source, e.g. "Computer Bild" or "Reddit r/mechmarket". */
+  sourceLabel: string;
+  url: string;
+  sentiment: 'PRO' | 'CONTRA' | 'MIXED';
+  /** 1–2 short German sentences paraphrasing the source's core judgement. */
+  text: string;
 }
 
 /**
@@ -223,6 +240,8 @@ export interface ResearchedExternalConsensus {
   longTermNote: string | null;
   positiveThemes: ResearchedExternalTheme[];
   negativeThemes: ResearchedExternalTheme[];
+  /** Per-source paraphrased takeaways with pro/contra tags (may be empty). */
+  voices: ResearchedExternalVoice[];
   switchAlternatives: ResearchedSwitchAlternative[];
   sourceUrls: string[];
 }

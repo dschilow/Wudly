@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OpenRouterClient } from './openrouter.client';
 import { OllamaClient } from './ollama.client';
+import { getBraveQuotaSnapshot, type BraveQuotaSnapshot } from './brave-search.service';
 import { resolveAiProvider, type AppConfig } from '../config/configuration';
 
 export interface AiStatus {
@@ -12,6 +13,8 @@ export interface AiStatus {
   model: string;
   keyConfigured: boolean;
   modelChain: string[];
+  /** Free Brave quota (from the API's rate-limit headers) + key state. */
+  braveSearch: { keyConfigured: boolean } & BraveQuotaSnapshot;
   /** Live probe result — only populated when `runLive` is requested. */
   live?: { ok: boolean; model?: string; error?: string; checkedAt: string };
   hint?: string;
@@ -78,6 +81,12 @@ export class AiHealthService {
       model: provider === 'ollama' ? this.ollamaModel : this.model,
       keyConfigured: provider === 'openrouter' ? keyConfigured : false,
       modelChain: client ? [...client.modelChain] : [],
+      braveSearch: {
+        keyConfigured: Boolean(
+          (this.config.get('BRAVE_SEARCH_KEY', { infer: true }) as string | undefined)?.trim(),
+        ),
+        ...getBraveQuotaSnapshot(),
+      },
     };
 
     if (provider === 'ollama') {

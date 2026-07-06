@@ -34,10 +34,11 @@ export class ExternalRatingsService {
       longTermNote: string | null;
       positiveThemes: unknown;
       negativeThemes: unknown;
+      voices: unknown;
       switchAlternatives: unknown;
       sourceUrls: unknown;
       fetchedAt: Date;
-    }>>`SELECT "summary", "longTermNote", "positiveThemes", "negativeThemes", "switchAlternatives", "sourceUrls", "fetchedAt"
+    }>>`SELECT "summary", "longTermNote", "positiveThemes", "negativeThemes", "voices", "switchAlternatives", "sourceUrls", "fetchedAt"
        FROM "ExternalConsensus" WHERE "productId" = ${productId} LIMIT 1`;
     if (!row) return null;
     return {
@@ -45,6 +46,7 @@ export class ExternalRatingsService {
       longTermNote: row.longTermNote,
       positiveThemes: asThemes(row.positiveThemes),
       negativeThemes: asThemes(row.negativeThemes),
+      voices: asVoices(row.voices),
       switchAlternatives: asSwitchAlternatives(row.switchAlternatives),
       sourceUrls: asUrls(row.sourceUrls),
       fetchedAt: row.fetchedAt.toISOString(),
@@ -75,9 +77,10 @@ export class ExternalRatingsService {
     research: ResearchedExternalConsensus,
     matchedAlternatives?: SwitchAlternativeDto[],
   ): Promise<void> {
-    const sourceUrls = [...new Set(research.sourceUrls)].slice(0, 12);
+    const sourceUrls = [...new Set(research.sourceUrls)].slice(0, 16);
     const positives = JSON.stringify(research.positiveThemes);
     const negatives = JSON.stringify(research.negativeThemes);
+    const voices = JSON.stringify(research.voices);
     const alternatives = JSON.stringify(
       matchedAlternatives ??
         research.switchAlternatives.map((alt) => ({ ...alt, productId: null })),
@@ -85,14 +88,15 @@ export class ExternalRatingsService {
     const sources = JSON.stringify(sourceUrls);
     await this.prisma.$executeRaw`
       INSERT INTO "ExternalConsensus"
-        ("id", "productId", "summary", "longTermNote", "positiveThemes", "negativeThemes", "switchAlternatives", "sourceUrls", "fetchedAt", "createdAt", "updatedAt")
+        ("id", "productId", "summary", "longTermNote", "positiveThemes", "negativeThemes", "voices", "switchAlternatives", "sourceUrls", "fetchedAt", "createdAt", "updatedAt")
       VALUES
-        (${crypto.randomUUID()}, ${productId}, ${research.summary}, ${research.longTermNote}, ${positives}::jsonb, ${negatives}::jsonb, ${alternatives}::jsonb, ${sources}::jsonb, NOW(), NOW(), NOW())
+        (${crypto.randomUUID()}, ${productId}, ${research.summary}, ${research.longTermNote}, ${positives}::jsonb, ${negatives}::jsonb, ${voices}::jsonb, ${alternatives}::jsonb, ${sources}::jsonb, NOW(), NOW(), NOW())
       ON CONFLICT ("productId") DO UPDATE SET
         "summary" = EXCLUDED."summary",
         "longTermNote" = EXCLUDED."longTermNote",
         "positiveThemes" = EXCLUDED."positiveThemes",
         "negativeThemes" = EXCLUDED."negativeThemes",
+        "voices" = EXCLUDED."voices",
         "switchAlternatives" = EXCLUDED."switchAlternatives",
         "sourceUrls" = EXCLUDED."sourceUrls",
         "fetchedAt" = NOW(),
@@ -185,6 +189,25 @@ function asThemes(value: unknown): ExternalConsensusDto['positiveThemes'] {
 
 function asUrls(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((url): url is string => typeof url === 'string') : [];
+}
+
+function asVoices(value: unknown): ExternalConsensusDto['voices'] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .filter(
+      (row) =>
+        typeof row.sourceLabel === 'string' &&
+        typeof row.url === 'string' &&
+        typeof row.text === 'string' &&
+        (row.sentiment === 'PRO' || row.sentiment === 'CONTRA' || row.sentiment === 'MIXED'),
+    )
+    .map((row) => ({
+      sourceLabel: row.sourceLabel as string,
+      url: row.url as string,
+      sentiment: row.sentiment as 'PRO' | 'CONTRA' | 'MIXED',
+      text: row.text as string,
+    }));
 }
 
 function asSwitchAlternatives(value: unknown): SwitchAlternativeDto[] {

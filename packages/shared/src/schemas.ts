@@ -585,3 +585,8 @@ export const updatePulseChangeSchema = z.object({
   effectiveAt: isoDateSchema.optional(),
 });
 export type UpdatePulseChangeInput = z.infer<typeof updatePulseChangeSchema>;
+
+export const updatePulseSettingsSchema = z.object({
+  emailsEnabled: z.boolean(),
+});
+export type UpdatePulseSettingsInput = z.infer<typeof updatePulseSettingsSchema>;

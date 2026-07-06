@@ -10,8 +10,10 @@ import {
   type ExperienceMood,
   type PulseCurvePointDto,
   type PulseIssueDto,
+  type PulseMarketVisibilityDto,
   type PulseProductMetricsDto,
   type PulseSegmentStatDto,
+  type PulseShopVisibilityDto,
   type PulseSignalDto,
   type PulseTrendDto,
   type ScorableExperience,
@@ -22,6 +24,7 @@ import {
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { toProductSummaryDto } from '../products/product.mapper';
+import { shopSource } from '../sightings/sightings.service';
 
 /* ------------------------------------------------------------------ *
  * Internal shapes
@@ -51,11 +54,24 @@ export interface LoadedInvitedVote {
   createdAt: Date;
 }
 
+/** One anonymous extension sighting row (point-of-sale demand, never people). */
+export interface LoadedSighting {
+  productId: string;
+  domain: string;
+  seenCount: number;
+  engageCount: number;
+  ratingValue: number | null;
+  ratingMax: number | null;
+  ratingCount: number | null;
+  lastSeenAt: Date;
+}
+
 /** Everything the aggregations need for a set of products, loaded once. */
 export interface PulseDataset {
   products: Map<string, ProductRow>;
   experiences: LoadedExperience[];
   invitedVotes: LoadedInvitedVote[];
+  sightings: LoadedSighting[];
 }
 
 export type ProductRow = Prisma.ProductGetPayload<{
@@ -103,14 +119,15 @@ export class PulseMetricsService {
 
   async loadDataset(productIds: string[]): Promise<PulseDataset> {
     if (productIds.length === 0) {
-      return { products: new Map(), experiences: [], invitedVotes: [] };
+      return { products: new Map(), experiences: [], invitedVotes: [], sightings: [] };
     }
-    const [products, experiences, invitedVotes] = await Promise.all([
+    const [products, experiences, invitedVotes, sightings] = await Promise.all([
       this.loadProducts(productIds),
       this.loadExperiences(productIds),
       this.loadInvitedVotes(productIds),
+      this.loadSightings(productIds),
     ]);
-    return { products, experiences, invitedVotes };
+    return { products, experiences, invitedVotes, sightings };
   }
 
   private async loadProducts(productIds: string[]) {
@@ -165,6 +182,24 @@ export class PulseMetricsService {
       select: { productId: true, wouldBuyAgain: true, weight: true, createdAt: true },
     });
     return rows;
+  }
+
+  /** Anonymous extension sightings already matched to the products. */
+  private async loadSightings(productIds: string[]): Promise<LoadedSighting[]> {
+    const rows = await this.prisma.productSighting.findMany({
+      where: { productId: { in: productIds } },
+      select: {
+        productId: true,
+        domain: true,
+        seenCount: true,
+        engageCount: true,
+        ratingValue: true,
+        ratingMax: true,
+        ratingCount: true,
+        lastSeenAt: true,
+      },
+    });
+    return rows.filter((r): r is LoadedSighting & { productId: string } => r.productId !== null);
   }
 
   /** Aspect labels across all categories of the involved products. */
@@ -313,6 +348,57 @@ export class PulseMetricsService {
       }
     }
     return best ? `meist ${USAGE_DURATION_LABEL[best]}` : null;
+  }
+
+  /* ------------------------ Market visibility ----------------------- */
+
+  /**
+   * Point-of-sale demand per shop, aggregated from the anonymous extension
+   * sightings. Data only Wudly has: where the product is being LOOKED AT
+   * right now, plus the shop's own rating next to the owner truth.
+   */
+  marketVisibilityFor(productId: string, dataset: PulseDataset): PulseMarketVisibilityDto | null {
+    const rows = dataset.sightings.filter((s) => s.productId === productId);
+    if (rows.length === 0) return null;
+
+    // One entry per shop; a shop can have several listing rows (variants,
+    // name-deduped listings) — counts add up, the best-backed rating wins.
+    const byShop = new Map<string, PulseShopVisibilityDto & { ratingBacking: number }>();
+    for (const row of rows) {
+      const { source, label } = shopSource(row.domain);
+      const entry = byShop.get(source) ?? {
+        domain: row.domain,
+        label,
+        seenCount: 0,
+        engageCount: 0,
+        ratingPercent: null,
+        ratingCount: null,
+        lastSeenAt: row.lastSeenAt.toISOString(),
+        ratingBacking: -1,
+      };
+      entry.seenCount += row.seenCount;
+      entry.engageCount += row.engageCount;
+      if (row.lastSeenAt.toISOString() > entry.lastSeenAt) {
+        entry.lastSeenAt = row.lastSeenAt.toISOString();
+      }
+      const backing = row.ratingCount ?? 0;
+      if (row.ratingValue !== null && row.ratingMax !== null && row.ratingMax > 0 && backing > entry.ratingBacking) {
+        entry.ratingPercent = Math.round((row.ratingValue / row.ratingMax) * 100);
+        entry.ratingCount = row.ratingCount;
+        entry.ratingBacking = backing;
+      }
+      byShop.set(source, entry);
+    }
+
+    const shops = [...byShop.values()]
+      .map(({ ratingBacking: _b, ...shop }) => shop)
+      .sort((a, b) => b.engageCount * 5 + b.seenCount - (a.engageCount * 5 + a.seenCount));
+
+    return {
+      totalSeen: shops.reduce((sum, s) => sum + s.seenCount, 0),
+      totalEngaged: shops.reduce((sum, s) => sum + s.engageCount, 0),
+      shops,
+    };
   }
 
   /* ----------------------------- Curve ------------------------------ */
@@ -514,7 +600,52 @@ export class PulseMetricsService {
       });
     }
 
-    // 3) Rising / new problem themes.
+    // 3) Perception gap — the "Sterne-Lücke": external ratings (star averages
+    // at the purchase moment) vs. the owner rebuy truth. Both directions are
+    // signals: overrated is a churn risk, underrated is a marketing asset.
+    const snap = product.insightSnapshot;
+    if (
+      snap?.externalAvgPercent != null &&
+      snap.externalSourceCount >= 1 &&
+      allTime.rebuy !== null &&
+      experiences.length >= 5
+    ) {
+      const gap = snap.externalAvgPercent - allTime.rebuy;
+      const sources = `${snap.externalSourceCount} ${snap.externalSourceCount === 1 ? 'Quelle' : 'Quellen'}`;
+      if (gap >= 20) {
+        signals.push({
+          ...base,
+          id: `perception-gap:${productId}`,
+          kind: 'perception-gap',
+          severity: gap >= 35 ? PulseSignalSeverity.CRITICAL : PulseSignalSeverity.RELEVANT,
+          title: `Sterne-Lücke bei ${name}: Bewertungen überzeichnen`,
+          description: `Online-Bewertungen (${sources}) zeigen ${snap.externalAvgPercent} % — aber nur ${allTime.rebuy} % der Besitzer würden ${name} wieder kaufen. Die Sterne messen den Kaufmoment, der Wiederkauf die Langzeit-Wahrheit: Käufer werden enttäuscht.${topIssue ? ` Häufigster Grund: ${topIssue.label}.` : ''}`,
+          metricLabel: 'Sterne-Lücke',
+          deltaPoints: gap,
+          cause: topIssue?.label ?? null,
+          segment: null,
+          recommendation:
+            'Die Kaufreue-Gründe im Product 360 prüfen — die Lücke schließt sich nur über das Produkt, nicht über mehr Sterne.',
+        });
+      } else if (gap <= -15) {
+        signals.push({
+          ...base,
+          id: `underrated:${productId}`,
+          kind: 'underrated',
+          severity: PulseSignalSeverity.POSITIVE,
+          title: `${name} ist besser als sein Ruf`,
+          description: `Besitzer würden ${name} zu ${allTime.rebuy} % wieder kaufen — Online-Bewertungen (${sources}) zeigen nur ${snap.externalAvgPercent} %. Die Langzeit-Zufriedenheit ist deutlich höher als der erste Eindruck im Netz.`,
+          metricLabel: 'Sterne-Lücke',
+          deltaPoints: gap,
+          cause: null,
+          segment: null,
+          recommendation:
+            'Die Besitzer-Wahrheit aktiv vermarkten (z. B. Wudly-Signal auf der Produktseite einbinden) — hier liegt ungenutztes Vertrauen.',
+        });
+      }
+    }
+
+    // 4) Rising / new problem themes.
     for (const issue of issues) {
       if (issue.trend === 'rising' && issue.count >= 3) {
         signals.push({
@@ -549,7 +680,7 @@ export class PulseMetricsService {
       }
     }
 
-    // 4) Segment risk — one cohort clearly unhappier than the rest.
+    // 5) Segment risk — one cohort clearly unhappier than the rest.
     const worst = segments.find((s) => s.tone === 'negative' && s.count >= 3);
     if (
       worst &&
@@ -572,7 +703,7 @@ export class PulseMetricsService {
       });
     }
 
-    // 5) Thin data — an honest signal, not a hidden weakness.
+    // 6) Thin data — an honest signal, not a hidden weakness.
     if (experiences.length > 0 && experiences.length < 5) {
       signals.push({
         ...base,

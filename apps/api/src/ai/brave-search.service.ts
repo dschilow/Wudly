@@ -9,6 +9,35 @@ export interface BraveWebResult {
   snippets: string[];
 }
 
+/** Live free-plan quota, read from Brave's X-RateLimit-* response headers. */
+export interface BraveQuotaSnapshot {
+  /** Requests left in the current month (null until the first response). */
+  remainingMonth: number | null;
+  /** Monthly plan size as reported by the API (null until the first response). */
+  limitMonth: number | null;
+  updatedAt: string | null;
+}
+
+// Quota is account-wide (one key), so all service instances share one snapshot.
+const quotaSnapshot: BraveQuotaSnapshot = {
+  remainingMonth: null,
+  limitMonth: null,
+  updatedAt: null,
+};
+
+/** Latest known Brave quota — for the AI health endpoint. */
+export function getBraveQuotaSnapshot(): BraveQuotaSnapshot {
+  return { ...quotaSnapshot };
+}
+
+/** Brave sends "per-second, per-month" pairs, e.g. "1, 1985" → 1985. */
+function parseMonthlyValue(header: string | null): number | null {
+  const monthly = header?.split(',')[1]?.trim();
+  if (!monthly) return null;
+  const value = Number(monthly);
+  return Number.isFinite(value) ? value : null;
+}
+
 /**
  * Thin wrapper around Brave's Web Search API. We use it to GROUND the AI: instead
  * of letting the model search the web blind (OpenRouter's `:online` plugin), we
@@ -28,6 +57,24 @@ export class BraveSearchService {
   /** True when a key is configured — callers branch on this to keep `:online` as fallback. */
   get enabled(): boolean {
     return Boolean(this.apiKey);
+  }
+
+  /** Latest known monthly quota (see {@link getBraveQuotaSnapshot}). */
+  get quota(): BraveQuotaSnapshot {
+    return getBraveQuotaSnapshot();
+  }
+
+  /**
+   * True while the free monthly quota still has more than `reserve` requests
+   * left. Gates OPTIONAL supplementary searches so they can never starve the
+   * essential ones (research fallback, curation workbench, image hunt).
+   * Unknown quota (no response seen yet) counts as available — a wrong "yes"
+   * only costs one free request and refreshes the snapshot.
+   */
+  hasMonthlyBudget(reserve: number): boolean {
+    if (!this.enabled) return false;
+    const remaining = quotaSnapshot.remainingMonth;
+    return remaining === null || remaining > reserve;
   }
 
   /**
@@ -54,6 +101,7 @@ export class BraveSearchService {
         },
         signal: AbortSignal.timeout(8_000),
       });
+      this.captureQuota(res);
       if (!res.ok) {
         const body = await res.text().catch(() => '');
         this.logger.warn(`Brave web search HTTP ${res.status}: ${body.slice(0, 200)}`);
@@ -80,6 +128,19 @@ export class BraveSearchService {
     } catch (err) {
       this.logger.warn(`Brave web search failed: ${err instanceof Error ? err.message : err}`);
       return [];
+    }
+  }
+
+  /** Refresh the shared quota snapshot from a response (429s carry headers too). */
+  private captureQuota(res: Response): void {
+    const remaining = parseMonthlyValue(res.headers.get('x-ratelimit-remaining'));
+    const limit = parseMonthlyValue(res.headers.get('x-ratelimit-limit'));
+    if (remaining === null && limit === null) return;
+    quotaSnapshot.remainingMonth = remaining ?? quotaSnapshot.remainingMonth;
+    quotaSnapshot.limitMonth = limit ?? quotaSnapshot.limitMonth;
+    quotaSnapshot.updatedAt = new Date().toISOString();
+    if (remaining !== null && remaining <= 100) {
+      this.logger.warn(`Brave monthly quota low: ${remaining} requests left`);
     }
   }
 

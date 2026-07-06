@@ -5,6 +5,7 @@ import {
   GitCompareArrows,
   Globe2,
   Hourglass,
+  MessageSquareQuote,
   ShieldCheck,
   Sparkles,
   Star,
@@ -90,6 +91,55 @@ export function ExternalConsensusCard({
             />
           </div>
         )}
+
+      {consensus && consensus.voices.length > 0 && (
+        <div className="border-t border-border p-4 sm:p-5">
+          <h4 className="flex items-center gap-2 text-[0.75rem] font-semibold uppercase tracking-[0.1em] text-label-3">
+            <MessageSquareQuote className="h-4 w-4 text-accent-ink" strokeWidth={2.2} aria-hidden />
+            Stimmen aus dem Netz
+          </h4>
+          <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+            {consensus.voices.map((voice) => (
+              <div
+                key={voice.url + voice.text.slice(0, 24)}
+                className="flex flex-col rounded-xl border border-border bg-fill px-3 py-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`mono-data inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.12em] ${
+                      voice.sentiment === 'PRO'
+                        ? 'bg-positive/10 text-positive-ink'
+                        : voice.sentiment === 'CONTRA'
+                          ? 'bg-regret/10 text-regret-ink'
+                          : 'bg-fill-2 text-muted-foreground'
+                    }`}
+                  >
+                    {voice.sentiment === 'PRO'
+                      ? 'Pro'
+                      : voice.sentiment === 'CONTRA'
+                        ? 'Contra'
+                        : 'Gemischt'}
+                  </span>
+                  <a
+                    href={voice.url}
+                    target="_blank"
+                    rel="noopener nofollow"
+                    className="tap-dim inline-flex min-w-0 items-center gap-1 truncate text-[0.6875rem] text-muted-foreground hover:text-label"
+                  >
+                    <span className="truncate">{voice.sourceLabel}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                  </a>
+                </div>
+                <p className="mt-1.5 text-[0.875rem] leading-snug text-label">{voice.text}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[0.6875rem] leading-snug text-muted-foreground">
+            Sinngemäß zusammengefasst, nie wörtlich übernommen — das Original steht hinter dem
+            Quellen-Link.
+          </p>
+        </div>
+      )}
 
       {consensus && consensus.switchAlternatives.length > 0 && (
         <div className="border-t border-border p-4 sm:p-5">
@@ -206,7 +256,12 @@ function ThemeList({ title, items, icon, tone }: { title: string; items: Externa
       <ul className="space-y-2.5">
         {items.map((item) => (
           <li key={item.label} className={`rounded-xl border px-3 py-2.5 text-[0.875rem] leading-snug text-label ${tone === 'positive' ? 'border-positive/20 bg-positive/5' : 'border-regret/20 bg-regret/5'}`}>
-            <span>{item.label}</span>
+            <span className="font-medium">{item.label}</span>
+            {item.detail && (
+              <span className="mt-0.5 block text-[0.8125rem] leading-snug text-muted-foreground">
+                {item.detail}
+              </span>
+            )}
             <span className="mt-1 block text-[0.6875rem] text-muted-foreground">
               bestätigt durch {new Set(item.sourceUrls.map(domain)).size} unabhängige Quellen
             </span>

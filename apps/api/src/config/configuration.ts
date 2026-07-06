@@ -28,7 +28,9 @@ const envSchema = z.object({
   OPENROUTER_WEB_SEARCH_ENGINE: z
     .enum(['auto', 'exa', 'parallel', 'perplexity'])
     .default('perplexity'),
-  OPENROUTER_WEB_SEARCH_MAX_RESULTS: z.coerce.number().int().min(1).max(10).default(5),
+  // Perplexity (and Exa/Parallel up to 10) bill PER REQUEST, not per result —
+  // 10 results cost the same $0.005 as 5, so default to the maximum grounding.
+  OPENROUTER_WEB_SEARCH_MAX_RESULTS: z.coerce.number().int().min(1).max(10).default(10),
   OPENROUTER_WEB_SEARCH_EXCLUDE_DOMAINS: z
     .string()
     .default('youtube.com,ebay.com,ebay.de,allegro.pl,trustpilot.com')
@@ -126,6 +128,14 @@ const envSchema = z.object({
   // Get a key at api-dashboard.search.brave.com (free "Data for Search" plan).
   // Optional: without it the image hunt falls back to DuckDuckGo.
   BRAVE_SEARCH_KEY: z.string().optional(),
+  // Pulse notification emails (critical-signal alerts + weekly digest) for
+  // B2B profiles. Independent kill switch; actual sending still requires
+  // RESEND_API_KEY (EmailService degrades to logging without it).
+  PULSE_EMAILS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  PULSE_DIGEST_INTERVAL_MINUTES: z.coerce.number().int().min(5).max(1440).default(60),
   // Transactional email (password reset, "question answered" notification) via
   // Resend (resend.com — free tier 3,000 emails/month, no card required).
   // Optional: without a key the EmailService logs instead of sending, so the app
