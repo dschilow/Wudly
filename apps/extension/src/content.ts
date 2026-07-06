@@ -6,39 +6,28 @@ import type { DetectedProduct, LookupResponse, ShowMessage } from './types';
  * Orchestration only: detect the product on the page, ask the background
  * worker to resolve it, render the overlay.
  *
- * Shops are SPAs (MediaMarkt/Otto render client-side, JSON-LD arrives with
- * hydration, sometimes seconds after document_idle) and navigate via
- * pushState, which content scripts get no event for. Instead of fixed-backoff
- * polling, a debounced MutationObserver re-runs detection whenever the DOM
- * changes — so a product is recognized within ~250 ms of its JSON-LD
- * appearing, and a product SWITCH is recognized as soon as the new page
- * renders. A short URL poll keeps checking briefly after navigation as a safety net.
- *
- * Two latency traps this deliberately handles:
- *  - STALE JSON-LD: right after an SPA navigation the DOM often still carries
- *    the PREVIOUS product's data. Detections that equal the pre-navigation
- *    product are distrusted for a short grace window (URL-derived identities
- *    like Amazon ASINs are always fresh and exempt).
- *  - API cold start: a "Wudly prüft…" pill appears the moment a product is
- *    DETECTED, so the user sees a reaction even while the resolution is on a
- *    slow first round trip.
+ * Shop product pages often navigate as SPAs. The important invariant is: as
+ * soon as URL or visible product heading changes, the old Wudly card must go
+ * away. JSON-LD can lag behind the visible page on MediaMarkt/Saturn, so the
+ * detector also validates structured data against the current heading.
  */
 
-const DEBOUNCE_MS = 250;
-const URL_POLL_MS = 250;
+const DEBOUNCE_MS = 150;
+const URL_POLL_MS = 150;
 /** Keep checking after SPA navigation even when the DOM goes quiet. */
-const NAV_RECHECK_MS = 8_000;
+const NAV_RECHECK_MS = 12_000;
 /** Distrust window for detections equal to the pre-navigation product. */
-const STALE_GRACE_MS = 8_000;
+const STALE_GRACE_MS = 12_000;
 
 let lastHref = location.href;
+let lastPageFingerprint = pageFingerprint(document, location.href);
 /** Identity currently rendered in the overlay (null = nothing shown). */
 let renderedKey: string | null = null;
 /** Identity currently being resolved against the API. */
 let resolvingKey: string | null = null;
 /** Last product identity detected, even if no overlay was rendered yet. */
 let lastDetectedKey: string | null = null;
-/** Set on every URL change: when it happened and what was shown before. */
+/** Set on every page change: when it happened and what was shown before. */
 let navAt = 0;
 let keyBeforeNav: string | null = null;
 let navRecheckUntil = 0;
@@ -62,8 +51,10 @@ function scheduleCheck(): void {
 
 function check(): void {
   const now = Date.now();
-  if (location.href !== lastHref) {
+  const fingerprint = pageFingerprint(document, location.href);
+  if (location.href !== lastHref || fingerprint !== lastPageFingerprint) {
     lastHref = location.href;
+    lastPageFingerprint = fingerprint;
     navAt = now;
     navRecheckUntil = now + NAV_RECHECK_MS;
     keyBeforeNav = renderedKey ?? resolvingKey ?? lastDetectedKey;
@@ -71,20 +62,20 @@ function check(): void {
     resolvingKey = null;
     runToken++; // cancel any in-flight resolution for the old page
     removeOverlay();
-    debug('navigation →', lastHref);
+    debug('page change →', lastHref, fingerprint);
   }
 
   const product = detectProduct(document, location.href);
-  if (!product) return; // JSON-LD may still be loading — the observer will re-fire
+  if (!product) return; // Product data may still be loading; observer/poll will re-fire.
 
   const key = identityOf(product);
   lastDetectedKey = key;
   // Stale-DOM guard: same product as before the navigation, detected right
-  // after it → almost certainly the old page's leftover JSON-LD. Skip; the
-  // observer re-checks when the real data arrives (or the grace window ends).
-  const urlBacked = product.identifierType === 'ASIN';
+  // after it -> almost certainly old page data. URL-derived identities like
+  // ASIN/SKU are considered fresh because they come from the current URL.
+  const urlBacked = product.identifierType === 'ASIN' || product.identifierType === 'SKU';
   if (!urlBacked && key === keyBeforeNav && now - navAt < STALE_GRACE_MS) {
-    debug('ignoring stale detection after navigation:', key);
+    debug('ignoring stale detection after page change:', key);
     return;
   }
   if (key === renderedKey || key === resolvingKey) return;
@@ -125,6 +116,35 @@ function engage(product: DetectedProduct): void {
   void chrome.runtime.sendMessage({ kind: 'wudly:engage', payload: product }).catch(() => null);
 }
 
+function pageFingerprint(doc: Document, href: string): string {
+  return `${cleanPageUrl(href)}|${normalizeForFingerprint(visibleHeading(doc)).slice(0, 140)}`;
+}
+
+function cleanPageUrl(href: string): string {
+  try {
+    const url = new URL(href);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return href;
+  }
+}
+
+function visibleHeading(doc: Document): string {
+  return Array.from(doc.querySelectorAll('h1'))
+    .map((el) => el.textContent?.trim() ?? '')
+    .filter((text) => text.length >= 4)
+    .sort((a, b) => b.length - a.length)[0] ?? '';
+}
+
+function normalizeForFingerprint(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 /** Diagnosis for "why is nothing showing?". console.info, deliberately not
  *  console.debug — DevTools hides the Verbose level by default and these lines
  *  exist precisely for users staring at a silent overlay. */
@@ -144,14 +164,26 @@ chrome.runtime.onMessage.addListener((message: ShowMessage) => {
 });
 
 // Observer FIRST, then the initial check — anything inserted in between still
-// fires the observer, so no arrival of JSON-LD can fall through the gap.
+// fires the observer, so no arrival of product data can fall through the gap.
 new MutationObserver(scheduleCheck).observe(document.documentElement, {
   childList: true,
   subtree: true,
-  characterData: true, // frameworks often swap the TEXT of an existing ld+json node
+  characterData: true,
 });
+
+window.addEventListener('pageshow', scheduleCheck, true);
+window.addEventListener('popstate', scheduleCheck, true);
+window.addEventListener('hashchange', scheduleCheck, true);
+window.addEventListener('focus', scheduleCheck, true);
+
 check();
-// Safety net: URL changes without any DOM mutation (rare, but cheap to poll).
+// Safety net: URL/heading changes without a useful DOM mutation are rare, but cheap to poll.
 setInterval(() => {
-  if (location.href !== lastHref || Date.now() < navRecheckUntil) check();
+  if (
+    location.href !== lastHref ||
+    pageFingerprint(document, location.href) !== lastPageFingerprint ||
+    Date.now() < navRecheckUntil
+  ) {
+    check();
+  }
 }, URL_POLL_MS);

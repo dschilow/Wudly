@@ -1,28 +1,21 @@
 import type { DetectedProduct } from '../types';
 
 /**
- * Generic schema.org adapter: most German shops (MediaMarkt, Saturn, Otto,
- * Kaufland, Cyberport, …) embed JSON-LD with the product's gtin/brand/name.
- * Parsing structured data instead of the DOM survives shop redesigns — DOM
- * selectors are only ever a per-shop fallback, never the primary path.
- *
- * Shops wrap the product node differently: a bare `Product`, an `@graph`
- * array, or an Action wrapper (MediaMarkt ships `BuyAction` → `object` →
- * `ProductGroup`). `ProductGroup` counts as a product node; its `hasVariant`
- * children are deliberately NOT searched — they are the OTHER size/color
- * variants, not the product this page shows.
+ * Generic schema.org adapter. Structured product data is reliable only when it
+ * matches the visible page. Some SPA shops leave the previous page's JSON-LD in
+ * the DOM for a while, so candidates are checked against URL and h1 first.
  */
-export function detectFromJsonLd(doc: Document): DetectedProduct | null {
+export function detectFromJsonLd(doc: Document, href = location.href): DetectedProduct | null {
   for (const script of doc.querySelectorAll('script[type="application/ld+json"]')) {
     let parsed: unknown;
     try {
       parsed = JSON.parse(script.textContent ?? '');
     } catch {
-      continue; // shops ship broken JSON-LD all the time — skip, don't die
+      continue; // shops ship broken JSON-LD all the time; skip, don't die
     }
     const product = findProductNode(parsed, 0);
-    if (!product) continue;
-    const detected = toDetected(product);
+    if (!product || !isCurrentPageProduct(product, doc, href)) continue;
+    const detected = toDetected(product, href);
     if (detected) return detected;
   }
   return null;
@@ -32,6 +25,36 @@ const PRODUCT_TYPES = new Set(['product', 'productgroup']);
 /** Wrapper keys whose value can hold THE page's product node. Never variant
  *  or list keys (`hasVariant`, `itemListElement`) — those are other products. */
 const CONTAINER_KEYS = ['@graph', 'object', 'mainEntity', 'itemOffered'] as const;
+
+const GENERIC_PRODUCT_TOKENS = new Set([
+  'and',
+  'der',
+  'die',
+  'das',
+  'ein',
+  'eine',
+  'for',
+  'fur',
+  'fuer',
+  'mit',
+  'oder',
+  'und',
+  'cm',
+  'flat',
+  'hd',
+  'led',
+  'neu',
+  'oled',
+  'produkt',
+  'qled',
+  'smart',
+  'tv',
+  'uhd',
+  'ultra',
+  'wlan',
+  'zoll',
+  'fernseher',
+]);
 
 /** Depth-first search through arrays and known wrapper keys for a product node. */
 function findProductNode(node: unknown, depth: number): Record<string, unknown> | null {
@@ -56,7 +79,81 @@ function findProductNode(node: unknown, depth: number): Record<string, unknown> 
   return null;
 }
 
-function toDetected(product: Record<string, unknown>): DetectedProduct | null {
+function isCurrentPageProduct(product: Record<string, unknown>, doc: Document, href: string): boolean {
+  const title = asString(product.name)?.trim();
+  if (!title) return false;
+  if (!candidateUrlMatches(product, href)) return false;
+
+  const heading = visibleProductHeading(doc);
+  if (!heading) return true;
+  return looksLikeSameProduct(title, heading);
+}
+
+function candidateUrlMatches(product: Record<string, unknown>, href: string): boolean {
+  const candidate = productUrl(product);
+  if (!candidate) return true;
+  try {
+    const current = new URL(href);
+    const candidateUrl = new URL(candidate, current.origin);
+    if (!/^https?:$/.test(candidateUrl.protocol)) return true;
+    return normalizePath(candidateUrl.pathname) === normalizePath(current.pathname);
+  } catch {
+    return true;
+  }
+}
+
+function productUrl(product: Record<string, unknown>): string | undefined {
+  const direct = asUrlCandidate(product.url) ?? asUrlCandidate(product['@id']);
+  if (direct) return direct;
+  const offers = product.offers;
+  if (offers && typeof offers === 'object' && !Array.isArray(offers)) {
+    return asUrlCandidate((offers as Record<string, unknown>).url);
+  }
+  return undefined;
+}
+
+function asUrlCandidate(value: unknown): string | undefined {
+  const text = asString(value)?.trim();
+  if (!text) return undefined;
+  return /^(https?:)?\/\//i.test(text) || text.startsWith('/') ? text : undefined;
+}
+
+function normalizePath(pathname: string): string {
+  return pathname.replace(/\/+$/, '').toLowerCase();
+}
+
+function looksLikeSameProduct(candidateTitle: string, pageHeading: string): boolean {
+  const candidateTokens = significantTokens(candidateTitle);
+  const pageTokens = new Set(significantTokens(pageHeading));
+  if (candidateTokens.length === 0 || pageTokens.size === 0) return true;
+  return candidateTokens.some((token) => pageTokens.has(token));
+}
+
+function significantTokens(value: string): string[] {
+  const normalized = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  return normalized
+    .split(/\s+/)
+    .filter((token) => {
+      if (token.length < 3) return false;
+      if (GENERIC_PRODUCT_TOKENS.has(token)) return false;
+      if (/^\d+$/.test(token)) return false;
+      return true;
+    });
+}
+
+export function visibleProductHeading(doc: Document): string {
+  return Array.from(doc.querySelectorAll('h1'))
+    .map((el) => el.textContent?.trim() ?? '')
+    .filter((text) => text.length >= 4)
+    .sort((a, b) => b.length - a.length)[0] ?? '';
+}
+
+function toDetected(product: Record<string, unknown>, href: string): DetectedProduct | null {
   const title = asString(product.name);
   if (!title || title.trim().length < 4) return null;
 
@@ -75,16 +172,15 @@ function toDetected(product: Record<string, unknown>): DetectedProduct | null {
     title: title.trim().slice(0, 300),
     brand: brandName(product.brand),
     imageUrl: imageUrl(product.image),
-    productUrl: cleanUrl(location.href),
-    domain: location.hostname,
+    productUrl: cleanUrl(href),
+    domain: new URL(href).hostname,
     rating: ratingFrom(product.aggregateRating),
   };
 }
 
 /**
  * Shop rating facts from schema.org `aggregateRating` — average, scale and
- * review count. These become an attributed "Bewertungen anderswo" entry
- * server-side, giving fresh products an instant Netz-Konsens for free.
+ * review count. These become an attributed shop-rating entry server-side.
  */
 export function ratingFrom(agg: unknown): DetectedProduct['rating'] {
   if (!agg || typeof agg !== 'object' || Array.isArray(agg)) return undefined;

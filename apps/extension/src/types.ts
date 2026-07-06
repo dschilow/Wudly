@@ -2,7 +2,7 @@ import type { SightingResolutionDto } from '@wudly/shared';
 
 /** What an adapter extracts from a shop product page. */
 export interface DetectedProduct {
-  identifierType?: 'EAN' | 'GTIN' | 'ASIN';
+  identifierType?: 'EAN' | 'GTIN' | 'ASIN' | 'MPN' | 'SKU';
   identifierValue?: string;
   /** Raw page title — the server cleans it up, never trust it client-side either. */
   title: string;
