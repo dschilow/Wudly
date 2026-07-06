@@ -12,7 +12,7 @@ import type { DetectedProduct, LookupResponse, ShowMessage } from './types';
  * polling, a debounced MutationObserver re-runs detection whenever the DOM
  * changes — so a product is recognized within ~250 ms of its JSON-LD
  * appearing, and a product SWITCH is recognized as soon as the new page
- * renders. A 1 s interval only watches the URL as a safety net.
+ * renders. A short URL poll keeps checking briefly after navigation as a safety net.
  *
  * Two latency traps this deliberately handles:
  *  - STALE JSON-LD: right after an SPA navigation the DOM often still carries
@@ -25,18 +25,23 @@ import type { DetectedProduct, LookupResponse, ShowMessage } from './types';
  */
 
 const DEBOUNCE_MS = 250;
-const URL_POLL_MS = 1_000;
+const URL_POLL_MS = 250;
+/** Keep checking after SPA navigation even when the DOM goes quiet. */
+const NAV_RECHECK_MS = 8_000;
 /** Distrust window for detections equal to the pre-navigation product. */
-const STALE_GRACE_MS = 3_000;
+const STALE_GRACE_MS = 8_000;
 
 let lastHref = location.href;
 /** Identity currently rendered in the overlay (null = nothing shown). */
 let renderedKey: string | null = null;
 /** Identity currently being resolved against the API. */
 let resolvingKey: string | null = null;
+/** Last product identity detected, even if no overlay was rendered yet. */
+let lastDetectedKey: string | null = null;
 /** Set on every URL change: when it happened and what was shown before. */
 let navAt = 0;
 let keyBeforeNav: string | null = null;
+let navRecheckUntil = 0;
 let runToken = 0;
 let debounceTimer: number | undefined;
 
@@ -56,10 +61,12 @@ function scheduleCheck(): void {
 }
 
 function check(): void {
+  const now = Date.now();
   if (location.href !== lastHref) {
     lastHref = location.href;
-    navAt = Date.now();
-    keyBeforeNav = renderedKey ?? resolvingKey;
+    navAt = now;
+    navRecheckUntil = now + NAV_RECHECK_MS;
+    keyBeforeNav = renderedKey ?? resolvingKey ?? lastDetectedKey;
     renderedKey = null;
     resolvingKey = null;
     runToken++; // cancel any in-flight resolution for the old page
@@ -71,16 +78,18 @@ function check(): void {
   if (!product) return; // JSON-LD may still be loading — the observer will re-fire
 
   const key = identityOf(product);
+  lastDetectedKey = key;
   // Stale-DOM guard: same product as before the navigation, detected right
   // after it → almost certainly the old page's leftover JSON-LD. Skip; the
   // observer re-checks when the real data arrives (or the grace window ends).
   const urlBacked = product.identifierType === 'ASIN';
-  if (!urlBacked && key === keyBeforeNav && Date.now() - navAt < STALE_GRACE_MS) {
+  if (!urlBacked && key === keyBeforeNav && now - navAt < STALE_GRACE_MS) {
     debug('ignoring stale detection after navigation:', key);
     return;
   }
   if (key === renderedKey || key === resolvingKey) return;
 
+  navRecheckUntil = 0;
   debug('detected', product);
   void resolveAndRender(product, key, ++runToken);
 }
@@ -128,7 +137,9 @@ chrome.runtime.onMessage.addListener((message: ShowMessage) => {
   if (message?.kind !== 'wudly:show') return;
   clearDismissals();
   renderedKey = null;
+  lastDetectedKey = null;
   keyBeforeNav = null; // an explicit user request overrides the stale guard
+  navRecheckUntil = Date.now() + NAV_RECHECK_MS;
   check();
 });
 
@@ -142,5 +153,5 @@ new MutationObserver(scheduleCheck).observe(document.documentElement, {
 check();
 // Safety net: URL changes without any DOM mutation (rare, but cheap to poll).
 setInterval(() => {
-  if (location.href !== lastHref) check();
+  if (location.href !== lastHref || Date.now() < navRecheckUntil) check();
 }, URL_POLL_MS);

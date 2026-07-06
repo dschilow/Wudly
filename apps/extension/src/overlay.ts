@@ -13,6 +13,27 @@ export function removeOverlay(): void {
   document.getElementById(HOST_ID)?.remove();
 }
 
+export function mountLoadingPill(product: DetectedProduct): void {
+  removeOverlay();
+  if (sessionStorage.getItem(dismissKey(product))) return;
+
+  const host = document.createElement('div');
+  host.id = HOST_ID;
+  const root = host.attachShadow({ mode: 'closed' });
+  root.appendChild(styles());
+
+  const pill = document.createElement('button');
+  pill.className = 'pill loading';
+  pill.type = 'button';
+  pill.disabled = true;
+  pill.title = 'Wudly prüft dieses Produkt';
+  pill.setAttribute('aria-busy', 'true');
+  pill.innerHTML = '<span class="dot queued pulse"></span><span class="label">Wudly prüft...</span>';
+
+  root.append(pill);
+  document.documentElement.appendChild(host);
+}
+
 export function mountOverlay(
   product: DetectedProduct,
   result: SightingResolutionDto,
@@ -206,10 +227,16 @@ function styles(): HTMLStyleElement {
       box-shadow: 0 4px 16px #0c0d1224; transition: transform 120ms ease;
     }
     .pill:hover { transform: translateY(-1px); }
+    .pill:disabled { cursor: wait; }
     .pill.open { box-shadow: 0 2px 8px #0c0d121a; }
     .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
     .dot.known { background: #0aa06a; }
     .dot.queued { background: #9aa0ae; }
+    .dot.pulse { animation: wudly-pulse 900ms ease-in-out infinite; }
+    @keyframes wudly-pulse {
+      0%, 100% { opacity: 0.45; transform: scale(0.86); }
+      50% { opacity: 1; transform: scale(1); }
+    }
     .card {
       position: fixed; right: 16px; bottom: 64px; z-index: 2147483646;
       width: 300px; padding: 14px 16px 16px;
