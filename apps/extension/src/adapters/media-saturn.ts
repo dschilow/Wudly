@@ -13,7 +13,15 @@ export function detectFromMediaSaturn(doc: Document, href: string): DetectedProd
   const title = visibleProductHeading(doc);
   if (!title || title.length < 4) return null;
 
-  const sku = skuFromUrl(url.pathname) ?? skuFromText(doc.body?.innerText ?? '');
+  // SPA navigation flips the URL to the new product BEFORE the DOM re-renders,
+  // so heading/rating can still belong to the previous product while the URL
+  // already carries the new article number. The visible "Art.-Nr." is the only
+  // proof that the DOM matches this URL — until both agree, report nothing and
+  // let the observer/poll re-check once the page has settled.
+  const urlSku = skuFromUrl(url.pathname);
+  const textSku = skuFromText(doc.body?.innerText ?? '');
+  if (urlSku && textSku !== urlSku) return null;
+  const sku = urlSku ?? textSku;
 
   return {
     ...(sku ? { identifierType: 'SKU' as const, identifierValue: sku } : {}),
@@ -36,7 +44,8 @@ function skuFromUrl(pathname: string): string | undefined {
 }
 
 function skuFromText(text: string): string | undefined {
-  return text.match(/Art\.-?Nr\.\s*(\d{5,})/i)?.[1];
+  // Page renders it as "Art.-Nr. 2982243" or "Art.-Nr.: 2982243".
+  return text.match(/Art\.\s*-?\s*Nr\.?\s*:?\s*(\d{5,})/i)?.[1];
 }
 
 function brandFromTitle(title: string): string | undefined {

@@ -27,9 +27,11 @@ let renderedKey: string | null = null;
 let resolvingKey: string | null = null;
 /** Last product identity detected, even if no overlay was rendered yet. */
 let lastDetectedKey: string | null = null;
+let lastDetectedTitle: string | null = null;
 /** Set on every page change: when it happened and what was shown before. */
 let navAt = 0;
 let keyBeforeNav: string | null = null;
+let titleBeforeNav: string | null = null;
 let navRecheckUntil = 0;
 let runToken = 0;
 let debounceTimer: number | undefined;
@@ -58,6 +60,7 @@ function check(): void {
     navAt = now;
     navRecheckUntil = now + NAV_RECHECK_MS;
     keyBeforeNav = renderedKey ?? resolvingKey ?? lastDetectedKey;
+    titleBeforeNav = lastDetectedTitle;
     renderedKey = null;
     resolvingKey = null;
     runToken++; // cancel any in-flight resolution for the old page
@@ -70,12 +73,22 @@ function check(): void {
 
   const key = identityOf(product);
   lastDetectedKey = key;
+  lastDetectedTitle = product.title;
   // Stale-DOM guard: same product as before the navigation, detected right
   // after it -> almost certainly old page data. URL-derived identities like
   // ASIN/SKU are considered fresh because they come from the current URL.
+  const staleWindow = now - navAt < STALE_GRACE_MS;
   const urlBacked = product.identifierType === 'ASIN' || product.identifierType === 'SKU';
-  if (!urlBacked && key === keyBeforeNav && now - navAt < STALE_GRACE_MS) {
+  if (!urlBacked && key === keyBeforeNav && staleWindow) {
     debug('ignoring stale detection after page change:', key);
+    return;
+  }
+  // Mixed-detection guard (any shop): the identifier already comes from the
+  // NEW URL while the DOM still shows the OLD product's title. Such a hybrid
+  // must never reach the API — the server would resolve the old title and
+  // bind the new identifier to the wrong product. Wait until the DOM catches up.
+  if (staleWindow && titleBeforeNav !== null && product.title === titleBeforeNav && key !== keyBeforeNav) {
+    debug('ignoring mixed detection (new URL, old DOM title):', key);
     return;
   }
   if (key === renderedKey || key === resolvingKey) return;
@@ -159,6 +172,7 @@ chrome.runtime.onMessage.addListener((message: ShowMessage) => {
   renderedKey = null;
   lastDetectedKey = null;
   keyBeforeNav = null; // an explicit user request overrides the stale guard
+  titleBeforeNav = null;
   navRecheckUntil = Date.now() + NAV_RECHECK_MS;
   check();
 });

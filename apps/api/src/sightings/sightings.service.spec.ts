@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SightingsService, researchQuery, shopSource } from './sightings.service';
+import { SightingsService, researchQuery, shopSource, titleMatchesProductUrl } from './sightings.service';
 import type { ProductSightingInput } from '@wudly/shared';
 
 /** Minimal collaborator fakes — the service only touches what a test arms. */
@@ -129,6 +129,23 @@ describe('SightingsService.resolveAndRecord', () => {
     expect(prisma.productSighting.upsert).not.toHaveBeenCalled();
   });
 
+  it('rejects SPA-race hybrids (title from the old page, URL from the new one)', async () => {
+    const { service, prisma } = makeService({
+      matchCandidates: [{ product: catalogProduct, similarity: 0.95 }],
+    });
+    const result = await service.resolveAndRecord({
+      ...baseInput,
+      title: 'TCL 75C7K Fernseher 190,5 cm (75") 4K Ultra HD Smart-TV',
+      identifierType: 'SKU',
+      identifierValue: '2982243',
+      productUrl: 'https://www.mediamarkt.de/de/product/_philips-65oled810-oled-ambilight-tv-2982243.html',
+    });
+    expect(result.status).toBe('rejected');
+    // Nothing recorded, and above all: no identifier binding to the wrong product.
+    expect(prisma.productSighting.upsert).not.toHaveBeenCalled();
+    expect(prisma.productIdentifier.upsert).not.toHaveBeenCalled();
+  });
+
   it('attaches the shop identifier to a product matched by name', async () => {
     const { service, prisma } = makeService({
       matchCandidates: [{ product: catalogProduct, similarity: 0.95 }],
@@ -144,6 +161,32 @@ describe('SightingsService.resolveAndRecord', () => {
     };
     // ASINs are normalized to upper case for the global keyspace.
     expect(attach.create).toMatchObject({ productId: 'p1', type: 'ASIN', value: 'B0ABC12345' });
+  });
+});
+
+describe('titleMatchesProductUrl', () => {
+  it('accepts when slug and title share product words', () => {
+    expect(
+      titleMatchesProductUrl(
+        'PHILIPS 65OLED810/12 OLED Ambilight TV (Flat, 65 Zoll / 164 cm, UHD 4K, SMART TV)',
+        'https://www.mediamarkt.de/de/product/_philips-65oled810-oled-ambilight-tv-flat-65-zoll-164-cm-uhd-4k-smart-tv-ambilight-2982243.html',
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a slug full of product words that never appear in the title', () => {
+    expect(
+      titleMatchesProductUrl(
+        'TCL 75C7K Fernseher 190,5 cm (75") 4K Ultra HD Smart-TV WLAN',
+        'https://www.mediamarkt.de/de/product/_philips-65oled810-oled-ambilight-tv-flat-65-zoll-2982243.html',
+      ),
+    ).toBe(false);
+  });
+
+  it('passes URLs whose path carries no product words', () => {
+    expect(titleMatchesProductUrl('Sony WH-1000XM5', 'https://www.amazon.de/dp/B09XS7JWHH')).toBe(true);
+    expect(titleMatchesProductUrl('Sony WH-1000XM5', undefined)).toBe(true);
+    expect(titleMatchesProductUrl('Sony WH-1000XM5', 'not a url')).toBe(true);
   });
 });
 

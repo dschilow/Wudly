@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+﻿import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ProductIdentifierType, ProductSighting } from '@prisma/client';
 import {
@@ -187,10 +187,16 @@ export class SightingsService {
    * Junk that must not enter the queue at all. Deliberately conservative: a
    * false reject only delays a product until someone adds it another way.
    */
-  qualityGate(input: Pick<ProductSightingInput, 'title'>): boolean {
+  qualityGate(input: Pick<ProductSightingInput, 'title' | 'productUrl'>): boolean {
     const loose = normalizeProductNameLoose(input.title);
     if (loose.length < 4) return false;
     if (BUNDLE_PATTERN.test(input.title)) return false;
+    // SPA-race hybrids: on shops that navigate client-side, the extension can
+    // briefly see the NEW page's URL/identifier with the OLD page's title
+    // still in the DOM. Accepting such a mix would name-match the old product
+    // and permanently attach the new shop identifier to it (attachIdentifier)
+    // — every future lookup of the new product would then show the old one.
+    if (!titleMatchesProductUrl(input.title, input.productUrl)) return false;
     return true;
   }
 
@@ -364,6 +370,47 @@ export function researchQuery(title: string, brand: string | null): string {
     core = `${brand} ${core}`;
   }
   return core.slice(0, 160);
+}
+
+/** Slug/title words too generic to identify a product across shops. */
+const GENERIC_SLUG_TOKENS = new Set([
+  'and', 'der', 'die', 'das', 'ein', 'eine', 'for', 'fur', 'fuer', 'mit', 'oder', 'und', 'von',
+  'cm', 'flat', 'curved', 'hd', 'fhd', 'uhd', 'led', 'oled', 'qled', 'lcd', 'neu', 'produkt', 'product',
+  'smart', 'tv', 'ultra', 'wlan', 'wifi', 'zoll', 'inch', 'fernseher', 'ambilight', 'hdr',
+  'html', 'www', 'schwarz', 'weiss', 'silber', 'grau', 'black', 'white', 'silver',
+]);
+
+/**
+ * Does the shop URL's slug describe the same product as the title? Shop slugs
+ * are derived from the product name, so a slug with product words but ZERO
+ * overlap with the title means the two came from different pages (SPA-race
+ * hybrid). URLs whose path carries no product words (e.g. amazon.de/dp/ASIN,
+ * shop.tld/p/12345) cannot be judged and pass. Exported for tests.
+ */
+export function titleMatchesProductUrl(title: string, productUrl: string | null | undefined): boolean {
+  if (!productUrl) return true;
+  let slugTokens: string[];
+  try {
+    slugTokens = significantTokens(new URL(productUrl).pathname);
+  } catch {
+    return true;
+  }
+  if (slugTokens.length < 2) return true;
+  const titleTokens = new Set(significantTokens(title));
+  return slugTokens.some((token) => titleTokens.has(token));
+}
+
+function significantTokens(value: string): string[] {
+  return value
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(
+      (token) => token.length >= 3 && !GENERIC_SLUG_TOKENS.has(token) && !/^\d+$/.test(token),
+    );
 }
 
 /** First aspect label from a snapshot's Json aspect list ([{key,label,count}]). */
