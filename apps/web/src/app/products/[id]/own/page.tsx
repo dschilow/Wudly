@@ -41,6 +41,7 @@ export default async function OwnPage({ params }: PageProps) {
       productId={product.id}
       productName={product.canonicalName}
       aspects={aspects}
+      variants={product.variants}
     />
   );
 }

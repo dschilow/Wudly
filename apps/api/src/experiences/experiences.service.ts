@@ -16,6 +16,7 @@ const EXPERIENCE_INCLUDE = {
   user: { select: { id: true, displayName: true } },
   ownership: { select: { verificationStatus: true } },
   product: { select: { id: true, canonicalName: true } },
+  variant: { select: { id: true, name: true } },
 } as const;
 
 @Injectable()
@@ -45,15 +46,27 @@ export class ExperiencesService {
     });
     if (!product) throw new NotFoundException('Produkt nicht gefunden.');
 
+    // Accept a variant only when it actually belongs to this product — a stale
+    // or foreign id silently degrades to "keine Angabe".
+    const variantId = input.variantId
+      ? ((
+          await this.prisma.productVariant.findFirst({
+            where: { id: input.variantId, productId },
+            select: { id: true },
+          })
+        )?.id ?? null)
+      : null;
+
     const ownership = await this.prisma.ownership.upsert({
       where: { userId_productId: { userId, productId } },
       create: {
         userId,
         productId,
-        variantId: input.variantId ?? null,
+        variantId,
         verificationStatus: 'SELF_DECLARED',
       },
-      update: {},
+      // Owners can refine which configuration they have when reporting.
+      update: variantId ? { variantId } : {},
     });
 
     const positiveKeys = new Map<string, string>();
@@ -96,7 +109,7 @@ export class ExperiencesService {
         userId,
         productId,
         ownershipId: ownership.id,
-        variantId: input.variantId ?? null,
+        variantId,
         wouldBuyAgain: input.wouldBuyAgain,
         usageDuration: input.usageDuration,
         experienceMood: input.experienceMood,

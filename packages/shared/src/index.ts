@@ -8,6 +8,7 @@ export * from './scoring';
 export * from './external-ratings';
 export * from './insights';
 export * from './normalize';
+export * from './variants';
 export * from './labels';
 export * from './moderation';
 export * from './schemas';

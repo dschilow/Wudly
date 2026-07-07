@@ -6,6 +6,10 @@ import type { ProductSightingInput } from '@wudly/shared';
 function makeService(overrides: {
   identifierHit?: unknown;
   matchCandidates?: Array<{ product: unknown; similarity: number }>;
+  /** Family (variant sibling) hit returned by ProductVariantsService. */
+  familyProduct?: unknown;
+  /** What ensureVariantFromTitle reports (null = no variant attributes). */
+  ensuredVariant?: { id: string } | null;
   ingestEnabled?: boolean;
 } = {}) {
   const prisma = {
@@ -25,11 +29,21 @@ function makeService(overrides: {
     },
     productIdentifier: {
       findFirst: vi.fn(async () => overrides.identifierHit ?? null),
-      upsert: vi.fn(async (_args: { create: Record<string, unknown> }) => ({})),
+      findUnique: vi.fn(async () => null),
+      create: vi.fn(async (_args: { data: Record<string, unknown> }) => ({})),
+      update: vi.fn(async (_args: { data: Record<string, unknown> }) => ({})),
     },
   };
   const matching = {
     findDuplicateCandidates: vi.fn(async () => overrides.matchCandidates ?? []),
+  };
+  const variants = {
+    findFamilyProduct: vi.fn(async () =>
+      overrides.familyProduct
+        ? { product: overrides.familyProduct, verdict: { kind: 'sibling', confidence: 0.95 } }
+        : null,
+    ),
+    ensureVariantFromTitle: vi.fn(async () => overrides.ensuredVariant ?? null),
   };
   const externalRatings = { upsert: vi.fn(async () => ({})) };
   const config = {
@@ -43,10 +57,11 @@ function makeService(overrides: {
     prisma as never,
     {} as never,
     matching as never,
+    variants as never,
     externalRatings as never,
     config as never,
   );
-  return { service, prisma, matching, externalRatings };
+  return { service, prisma, matching, variants, externalRatings };
 }
 
 const baseInput: ProductSightingInput = {
@@ -143,7 +158,7 @@ describe('SightingsService.resolveAndRecord', () => {
     expect(result.status).toBe('rejected');
     // Nothing recorded, and above all: no identifier binding to the wrong product.
     expect(prisma.productSighting.upsert).not.toHaveBeenCalled();
-    expect(prisma.productIdentifier.upsert).not.toHaveBeenCalled();
+    expect(prisma.productIdentifier.create).not.toHaveBeenCalled();
   });
 
   it('attaches the shop identifier to a product matched by name', async () => {
@@ -156,11 +171,47 @@ describe('SightingsService.resolveAndRecord', () => {
       identifierValue: 'b0abc12345',
     });
     expect(result.status).toBe('known');
-    const attach = prisma.productIdentifier.upsert.mock.calls[0]![0] as {
-      create: Record<string, unknown>;
+    const attach = prisma.productIdentifier.create.mock.calls[0]![0] as {
+      data: Record<string, unknown>;
     };
     // ASINs are normalized to upper case for the global keyspace.
-    expect(attach.create).toMatchObject({ productId: 'p1', type: 'ASIN', value: 'B0ABC12345' });
+    expect(attach.data).toMatchObject({ productId: 'p1', type: 'ASIN', value: 'B0ABC12345' });
+  });
+
+  it('resolves another configuration of a known family to the SAME product', async () => {
+    // Catalog has the 65" model; the page shows the 75" — no identifier hit, no
+    // strong name match, but the family matcher recognizes the sibling.
+    const { service, prisma, variants } = makeService({
+      familyProduct: catalogProduct,
+      ensuredVariant: { id: 'v75' },
+    });
+    const result = await service.resolveAndRecord({
+      ...baseInput,
+      title: 'SAMSUNG GQ75S95DAT OLED TV (Flat, 75 Zoll / 189 cm)',
+      identifierType: 'EAN',
+      identifierValue: '8806095999999',
+    });
+    expect(result.status).toBe('known');
+    expect(result.product?.id).toBe('p1');
+    // The sighting row is MATCHED — the pipeline will never create a duplicate.
+    const upsert = prisma.productSighting.upsert.mock.calls[0]![0] as {
+      create: Record<string, unknown>;
+    };
+    expect(upsert.create.status).toBe('MATCHED');
+    // The configuration is recorded and the EAN attaches variant-scoped.
+    expect(variants.ensureVariantFromTitle).toHaveBeenCalledWith(
+      'p1',
+      'SAMSUNG GQ75S95DAT OLED TV (Flat, 75 Zoll / 189 cm)',
+    );
+    const attach = prisma.productIdentifier.create.mock.calls[0]![0] as {
+      data: Record<string, unknown>;
+    };
+    expect(attach.data).toMatchObject({
+      productId: 'p1',
+      type: 'EAN',
+      value: '8806095999999',
+      variantId: 'v75',
+    });
   });
 });
 

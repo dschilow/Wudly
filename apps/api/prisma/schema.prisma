@@ -302,6 +302,10 @@ model Product {
   id             String        @id @default(cuid())
   canonicalName  String
   normalizedName String
+  /// De-variantized family key (variant phrases stripped, model codes de-sized)
+  /// — the prefilter for "is this a size/color/storage sibling of an existing
+  /// product?". Computed from canonicalName via @wudly/shared variantBaseName().
+  variantBaseName String?
   brand          String?
   categoryId     String?
   description    String?
@@ -348,6 +352,7 @@ model Product {
   pulseChanges      PulseChange[]
 
   @@index([normalizedName])
+  @@index([variantBaseName])
   @@index([categoryId])
   @@index([status])
   @@index([brand])
@@ -367,6 +372,8 @@ model ProductVariant {
   ownerships        Ownership[]
   experienceReports ExperienceReport[]
 
+  // One variant per configuration label ("65 Zoll · Schwarz") and product.
+  @@unique([productId, name])
   @@index([productId])
 }
 

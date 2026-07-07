@@ -28,6 +28,7 @@ import {
 import type {
   CategoryAspectDto,
   ProductPromptDto,
+  ProductVariantDto,
   WouldBuyAgain,
   UsageDuration,
   ExperienceMood,
@@ -180,6 +181,8 @@ interface FlowProps {
   productId: string;
   productName: string;
   aspects: CategoryAspectDto[];
+  /** Known configurations of the family — offers the "Welche Ausführung?" card. */
+  variants: ProductVariantDto[];
 }
 
 /** One owner answer to a product prompt (a tapped quick answer or own text). */
@@ -200,14 +203,23 @@ interface ExperienceDraft {
   customAspects: string[];
   promptAnswers: Record<string, PromptAnswer>;
   isPublic: boolean;
+  variantId?: string | null;
 }
 
 /** A wizard card. Prompt cards carry the prompt id (`prompt:<id>`). */
-type StepKey = 'buyAgain' | 'duration' | 'mood' | 'aspects' | 'wish' | 'share' | `prompt:${string}`;
+type StepKey =
+  | 'variant'
+  | 'buyAgain'
+  | 'duration'
+  | 'mood'
+  | 'aspects'
+  | 'wish'
+  | 'share'
+  | `prompt:${string}`;
 
 const draftKey = (productId: string) => `wudly:own-draft:${productId}`;
 
-export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps) {
+export function OwnExperienceFlow({ productId, productName, aspects, variants }: FlowProps) {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
@@ -223,6 +235,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   const [buyAgain, setBuyAgain] = useState<WouldBuyAgain | null>(null);
   const [duration, setDuration] = useState<UsageDuration | null>(null);
   const [mood, setMood] = useState<ExperienceMood | null>(null);
+  const [variantId, setVariantId] = useState<string | null>(null);
   const [wish, setWish] = useState('');
   const [insteadOf, setInsteadOf] = useState('');
   const [positives, setPositives] = useState<string[]>([]);
@@ -270,13 +283,16 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
    * loaded — always before the core cards are exhausted, so the index is stable.
    */
   const hasAspects = positiveAspects.length > 0 || negativeAspects.length > 0;
+  const hasVariants = variants.length > 0;
   const steps = useMemo<StepKey[]>(() => {
-    const s: StepKey[] = ['buyAgain', 'duration', 'mood'];
+    // Which configuration first — it frames every following answer.
+    const s: StepKey[] = hasVariants ? ['variant'] : [];
+    s.push('buyAgain', 'duration', 'mood');
     if (hasAspects) s.push('aspects');
     for (const p of prompts) s.push(`prompt:${p.id}`);
     s.push('wish', 'share');
     return s;
-  }, [hasAspects, prompts]);
+  }, [hasVariants, hasAspects, prompts]);
 
   const total = steps.length;
   const current = steps[Math.min(step, total - 1)]!;
@@ -333,6 +349,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
           wouldBuyAgain: draft.buyAgain,
           usageDuration: draft.duration,
           experienceMood: draft.mood,
+          variantId: draft.variantId ?? undefined,
           wishKnownText: draft.wish.trim() || undefined,
           insteadOfText: draft.insteadOf.trim() || undefined,
           positiveAspects: [...draft.positives, ...draft.customAspects].length
@@ -373,9 +390,10 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
             customAspects,
             promptAnswers,
             isPublic,
+            variantId,
           }
         : null,
-    [buyAgain, duration, mood, wish, insteadOf, positives, negatives, customAspects, promptAnswers, isPublic],
+    [buyAgain, duration, mood, wish, insteadOf, positives, negatives, customAspects, promptAnswers, isPublic, variantId],
   );
 
   const submit = async () => {
@@ -476,23 +494,25 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
   const leadNegative = buyAgain === 'NO';
 
   const heading =
-    current === 'buyAgain'
-      ? 'Würdest du es wieder kaufen?'
-      : current === 'duration'
-        ? 'Wie lange nutzt du es?'
-        : current === 'mood'
-          ? 'Was trifft am besten zu?'
-          : current === 'aspects'
-            ? leadNegative
-              ? 'Was stört am meisten?'
-              : 'Was überzeugt dich?'
-            : current === 'wish'
-              ? 'Was hättest du gern vorher gewusst?'
-              : current === 'share'
-                ? 'Dein Urteil teilen?'
-                : (activePrompt?.questionText ?? '');
+    current === 'variant'
+      ? 'Welche Ausführung hast du?'
+      : current === 'buyAgain'
+        ? 'Würdest du es wieder kaufen?'
+        : current === 'duration'
+          ? 'Wie lange nutzt du es?'
+          : current === 'mood'
+            ? 'Was trifft am besten zu?'
+            : current === 'aspects'
+              ? leadNegative
+                ? 'Was stört am meisten?'
+                : 'Was überzeugt dich?'
+              : current === 'wish'
+                ? 'Was hättest du gern vorher gewusst?'
+                : current === 'share'
+                  ? 'Dein Urteil teilen?'
+                  : (activePrompt?.questionText ?? '');
 
-  const optional = current === 'wish' || isPromptStep;
+  const optional = current === 'wish' || current === 'variant' || isPromptStep;
 
   return (
     <div className="mx-auto max-w-md pb-36 pt-2">
@@ -530,6 +550,17 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
             </p>
             <h1 className="font-display mt-2 text-[1.9rem] leading-[1.08] text-label">{heading}</h1>
           </div>
+
+          {current === 'variant' && (
+            <VariantCard
+              variants={variants}
+              value={variantId}
+              onPick={(id) => {
+                setVariantId(id);
+                advanceSoon();
+              }}
+            />
+          )}
 
           {current === 'buyAgain' && (
             <ChoiceCards
@@ -673,7 +704,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
             >
               Urteil abschicken
             </Button>
-          ) : isPromptStep ? (
+          ) : isPromptStep || current === 'variant' ? (
             <Button
               variant="gray"
               onClick={goNext}
@@ -681,7 +712,7 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
               className="flex-1 rounded-full bg-surface/95 shadow-[0_0_0_1px_var(--color-border-strong),var(--shadow-card)] backdrop-blur-xl"
             >
               <SkipForward className="h-[1.05rem] w-[1.05rem]" strokeWidth={2.3} aria-hidden />
-              Überspringen
+              {current === 'variant' ? 'Weiß ich nicht' : 'Überspringen'}
             </Button>
           ) : current === 'aspects' || current === 'wish' ? (
             <Button
@@ -694,6 +725,72 @@ export function OwnExperienceFlow({ productId, productName, aspects }: FlowProps
           ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Variant card — which configuration (size/storage/color) the owner has.
+ * Optional: "Weiß ich nicht" in the bottom bar skips it; the experience
+ * then counts for the family without a configuration label.
+ * ------------------------------------------------------------------ */
+
+function VariantCard({
+  variants,
+  value,
+  onPick,
+}: {
+  variants: ProductVariantDto[];
+  value: string | null;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2.5">
+        {variants.map((variant) => {
+          const selected = value === variant.id;
+          return (
+            <motion.button
+              key={variant.id}
+              type="button"
+              whileTap={{ scale: 0.985 }}
+              onClick={() => onPick(variant.id)}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-[var(--radius-lg)] bg-surface px-4 py-3.5 text-left transition-shadow duration-200',
+                selected
+                  ? 'shadow-[0_0_0_2px_var(--color-accent),var(--shadow-card)]'
+                  : 'shadow-[0_0_0_1.5px_var(--color-border)]',
+              )}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-[1.0625rem] font-semibold text-label">
+                  {variant.name}
+                </span>
+                {variant.experienceCount > 0 && (
+                  <span className="mt-0.5 block text-[0.8125rem] leading-snug text-muted-foreground">
+                    {variant.experienceCount} Erfahrung{variant.experienceCount === 1 ? '' : 'en'} zu
+                    dieser Ausführung
+                  </span>
+                )}
+              </span>
+              <span
+                className={cn(
+                  'grid h-[1.5rem] w-[1.5rem] shrink-0 place-items-center rounded-full transition-all duration-200',
+                  selected ? 'bg-accent' : 'bg-fill-2',
+                )}
+              >
+                {selected && (
+                  <Check className="h-[0.9rem] w-[0.9rem] text-white" strokeWidth={3.2} aria-hidden />
+                )}
+              </span>
+            </motion.button>
+          );
+        })}
+      </div>
+      <p className="px-1 text-[0.8125rem] leading-snug text-muted-foreground">
+        Dein Urteil zählt für das Produkt insgesamt — die Ausführung hilft anderen Käufern beim
+        Einordnen.
+      </p>
     </div>
   );
 }

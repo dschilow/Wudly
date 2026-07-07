@@ -3,6 +3,7 @@ import {
   type ProductSummaryDto,
   type ProductDetailDto,
   type ProductInsightsDto,
+  type ProductVariantDto,
   type ExternalRatingDto,
   type ExternalConsensusDto,
   type CategoryDto,
@@ -120,11 +121,13 @@ export function toProductDetailDto(
   insights: ProductInsightsDto,
   externalRatings: ExternalRatingDto[],
   externalConsensus: ExternalConsensusDto | null,
+  variants: ProductVariantDto[] = [],
 ): ProductDetailDto {
   return {
     ...toProductSummaryDto(product),
     description: product.description,
     specs: asSpecDtos(product.specs),
+    variants,
     insights,
     externalRatings,
     externalConsensus,

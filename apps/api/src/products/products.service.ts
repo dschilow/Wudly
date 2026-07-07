@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '@prisma/client';
 import {
   normalizeProductName,
+  variantBaseName,
   guessBrand,
   isExcludedFromRankings,
   AI_SERVICE,
@@ -41,6 +42,7 @@ import {
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from './product-matching.service';
+import { ProductVariantsService } from './product-variants.service';
 import { ProductInsightsService } from './product-insights.service';
 import { ProductPromptsService } from './product-prompts.service';
 import { IcecatService, type EanLookupHit } from './icecat.service';
@@ -276,6 +278,7 @@ export class ProductsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ProductMatchingService) private readonly matching: ProductMatchingService,
+    @Inject(ProductVariantsService) private readonly variants: ProductVariantsService,
     @Inject(ProductInsightsService) private readonly insights: ProductInsightsService,
     @Inject(ProductPromptsService) private readonly prompts: ProductPromptsService,
     @Inject(IcecatService) private readonly icecat: IcecatService,
@@ -475,10 +478,11 @@ export class ProductsService {
     // findOrThrow may have resolved a merged/old id to the canonical product, so
     // every follow-up read uses the surviving product's id.
     const resolvedId = product.id;
-    const [insights, externalRatings, externalConsensus] = await Promise.all([
+    const [insights, externalRatings, externalConsensus, variants] = await Promise.all([
       this.insights.getInsights(resolvedId),
       this.externalRatings.listForProduct(resolvedId),
       this.externalRatings.getConsensus(resolvedId),
+      this.variants.listWithStats(resolvedId),
     ]);
 
     // No cached photo yet → trigger a background hunt so the next page load has it.
@@ -490,7 +494,7 @@ export class ProductsService {
       })
       .catch(() => undefined);
 
-    return toProductDetailDto(product, insights, externalRatings, externalConsensus);
+    return toProductDetailDto(product, insights, externalRatings, externalConsensus, variants);
   }
 
   /**
@@ -621,6 +625,12 @@ export class ProductsService {
     imageUrl?: string | null;
     imageSource?: string;
     ean?: string | null;
+    /**
+     * The UNCUT shop title. Variant attributes often live in the part that
+     * researchQuery cuts away ("(Flat, 65 Zoll / 163 cm)"), so family/variant
+     * detection reads this instead of the cleaned canonicalName.
+     */
+    rawTitle?: string | null;
     research: boolean;
     deferPaidEnrichment: boolean;
   }): Promise<EnsuredProductDto> {
@@ -654,6 +664,8 @@ export class ProductsService {
     /** Provider key of the image origin (for the cache attribution). */
     imageSource?: string;
     ean?: string | null;
+    /** Uncut source title for variant detection (falls back to canonicalName). */
+    rawTitle?: string | null;
     userId?: string | null;
     research?: boolean;
     /**
@@ -722,31 +734,46 @@ export class ProductsService {
         pageUrl: aiPageUrl,
       });
 
+    // The uncut source title carries the variant phrases ("(…, 65 Zoll / 163 cm)")
+    // that researchQuery/AI cleanup strip from canonicalName.
+    const variantTitle = params.rawTitle?.trim() || rawName;
+
     // Strong duplicate? Return the existing product, topping up missing data.
     const candidates = await this.matching.findDuplicateCandidates(canonicalName, 3);
     const strong = candidates.find((c) => c.similarity >= DEFAULT_SIMILARITY_THRESHOLDS.duplicate);
-    if (strong) {
-      if (params.ean) await this.attachIdentifier(strong.product.id, params.ean);
+    // Not the same listing — but possibly another CONFIGURATION of a known
+    // family (65" vs 75", 256 GB vs 512 GB, colors). Those become a variant of
+    // the existing product instead of a near-duplicate catalog entry.
+    const family = strong ? null : await this.variants.findFamilyProduct(variantTitle, brand);
+    const existing = strong?.product ?? family?.product ?? null;
+    if (existing) {
+      // Record which configuration this source described (idempotent; no-op
+      // for titles without variant phrases). The identifier belongs to that
+      // configuration, so it is attached variant-scoped when possible.
+      const variant = await this.variants.ensureVariantFromTitle(existing.id, variantTitle);
+      if (params.ean) {
+        await this.attachIdentifier(existing.id, params.ean, 'scan', variant?.id ?? null);
+      }
       const data: Record<string, unknown> = {};
-      if (dbImageUrl && !strong.product.imageUrl) data.imageUrl = dbImageUrl;
-      if (description && !strong.product.description) data.description = description;
-      if (specs.length > 0 && asSpecArray(strong.product.specs).length === 0) data.specs = specs;
+      if (dbImageUrl && !existing.imageUrl) data.imageUrl = dbImageUrl;
+      if (description && !existing.description) data.description = description;
+      if (specs.length > 0 && asSpecArray(existing.specs).length === 0) data.specs = specs;
 
       // Backfill: an existing product without any photo gets the image hunt.
-      if (!strong.product.imageUrl && !dbImageUrl) huntImage(strong.product.id);
+      if (!existing.imageUrl && !dbImageUrl) huntImage(existing.id);
 
       if (Object.keys(data).length > 0) {
         const updated = await this.prisma.product.update({
-          where: { id: strong.product.id },
+          where: { id: existing.id },
           data,
           include: PRODUCT_INCLUDE,
         });
         if (data.imageUrl) {
-          this.images.cacheInBackground(strong.product.id, dbImageUrl!, dbImageSource);
+          this.images.cacheInBackground(existing.id, dbImageUrl!, dbImageSource);
         }
         return { product: toProductSummaryDto(updated), created: false };
       }
-      return { product: toProductSummaryDto(strong.product), created: false };
+      return { product: toProductSummaryDto(existing), created: false };
     }
 
     const result = await this.create(
@@ -762,7 +789,16 @@ export class ProductsService {
       dbImageSource,
     );
     if (!result.created || !result.product) return { product: null, created: false };
-    if (params.ean) await this.attachIdentifier(result.product.id, params.ean);
+    // Family hygiene from day one: a source title like "… 65 Zoll, Titan
+    // Schwarz" creates the product as its FAMILY (graduated name) plus one
+    // variant for the configuration the title described.
+    const createdVariant = await this.variants.ensureVariantFromTitle(
+      result.product.id,
+      variantTitle,
+    );
+    if (params.ean) {
+      await this.attachIdentifier(result.product.id, params.ean, 'scan', createdVariant?.id ?? null);
+    }
     if (specs.length > 0) {
       await this.prisma.product.update({
         where: { id: result.product.id },
@@ -1112,13 +1148,32 @@ export class ProductsService {
     };
   }
 
-  private async attachIdentifier(productId: string, ean: string, source = 'scan'): Promise<void> {
+  private async attachIdentifier(
+    productId: string,
+    ean: string,
+    source = 'scan',
+    variantId: string | null = null,
+  ): Promise<void> {
     try {
-      await this.prisma.productIdentifier.upsert({
+      const existing = await this.prisma.productIdentifier.findUnique({
         where: { type_value: { type: 'EAN', value: ean } },
-        create: { productId, type: 'EAN', value: ean, source },
-        update: {},
+        select: { id: true, productId: true, variantId: true },
       });
+      if (!existing) {
+        await this.prisma.productIdentifier.create({
+          data: { productId, type: 'EAN', value: ean, source, variantId },
+        });
+        return;
+      }
+      // An EAN identifies exactly one configuration — backfill the variant when
+      // it became known later, but never re-point an identifier owned by
+      // another product (that would be a silent catalog corruption).
+      if (variantId && existing.productId === productId && !existing.variantId) {
+        await this.prisma.productIdentifier.update({
+          where: { id: existing.id },
+          data: { variantId },
+        });
+      }
     } catch (err) {
       this.logger.warn(`Attach identifier failed: ${err instanceof Error ? err.message : err}`);
     }
@@ -1657,6 +1712,7 @@ export class ProductsService {
       data: {
         canonicalName,
         normalizedName,
+        variantBaseName: variantBaseName(canonicalName) || null,
         brand,
         categoryId,
         description: input.description?.trim() || null,
@@ -1745,6 +1801,13 @@ export class ProductsService {
 
     if (!input.forceCreate) {
       const candidates = await this.matching.findDuplicateCandidates(canonicalName, 5);
+      // A size/storage/color sibling of an existing family is the most relevant
+      // "did you mean" hit of all — surface it first even when raw name
+      // similarity is low (different model-code digits drag the score down).
+      const family = await this.variants.findFamilyProduct(canonicalName, input.brand ?? null);
+      if (family && !candidates.some((c) => c.product.id === family.product.id)) {
+        candidates.unshift({ product: family.product, similarity: family.verdict.confidence });
+      }
       const strong = candidates.find(
         (c) => c.similarity >= DEFAULT_SIMILARITY_THRESHOLDS.duplicate,
       );
@@ -1774,6 +1837,7 @@ export class ProductsService {
       data: {
         canonicalName,
         normalizedName,
+        variantBaseName: variantBaseName(canonicalName) || null,
         brand: brand ?? null,
         categoryId,
         description: input.description ?? null,
@@ -1838,6 +1902,7 @@ export class ProductsService {
     if (input.canonicalName !== undefined) {
       data.canonicalName = input.canonicalName.trim();
       data.normalizedName = normalizeProductName(input.canonicalName);
+      data.variantBaseName = variantBaseName(input.canonicalName) || null;
     }
     if (input.brand !== undefined) data.brand = input.brand;
     if (input.description !== undefined) data.description = input.description;

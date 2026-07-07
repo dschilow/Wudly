@@ -21,6 +21,7 @@
     "seed:pulse-demo": "tsx prisma/seed-pulse-demo.ts",
     "cleanup:seed": "tsx prisma/cleanup-seed.ts",
     "cleanup:extension-mixups": "tsx prisma/cleanup-extension-mixups.ts",
+    "merge:variant-duplicates": "tsx prisma/merge-variant-duplicates.ts",
     "resync:snapshots": "tsx prisma/resync-snapshots.ts",
     "benchmark:product-search": "tsx scripts/benchmark-product-search.ts",
     "benchmark:sonar": "tsx scripts/benchmark-sonar-vs-search-gemini.ts",

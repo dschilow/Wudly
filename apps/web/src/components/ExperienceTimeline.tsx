@@ -128,6 +128,11 @@ function TimelineNode({ exp, newest }: { exp: ExperienceDto; newest: boolean }) 
                 aria-label="Echter Käufer"
               />
             )}
+            {exp.variantName && (
+              <span className="mono-data ml-1 shrink-0 rounded-full bg-fill-2 px-2 py-0.5 text-[0.6875rem] font-semibold text-muted-foreground">
+                {exp.variantName}
+              </span>
+            )}
           </span>
           {buy && (
             <Pill tone={toneToPill[buy.tone ?? 'neutral']} className="shrink-0">

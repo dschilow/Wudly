@@ -12,6 +12,7 @@ import {
 } from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductMatchingService } from '../products/product-matching.service';
+import { ProductVariantsService } from '../products/product-variants.service';
 import { ProductsService } from '../products/products.service';
 import { ExternalRatingsService } from '../products/external-ratings.service';
 import {
@@ -62,6 +63,7 @@ export class SightingsService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ProductsService) private readonly products: ProductsService,
     @Inject(ProductMatchingService) private readonly matching: ProductMatchingService,
+    @Inject(ProductVariantsService) private readonly variants: ProductVariantsService,
     @Inject(ExternalRatingsService) private readonly externalRatings: ExternalRatingsService,
     @Inject(ConfigService) private readonly config: ConfigService<AppConfig, true>,
   ) {}
@@ -83,10 +85,22 @@ export class SightingsService {
     );
     const row = await this.upsertSighting(input, resolved?.id ?? null);
 
-    // Remember the shop identifier on the matched product so every future
-    // sighting of it resolves via the O(1) identifier path, not name matching.
-    if (resolved && input.identifierType && input.identifierValue) {
-      await this.attachIdentifier(resolved.id, input.identifierType, input.identifierValue);
+    if (resolved) {
+      // The page may show one CONFIGURATION of the family (65", 256 GB, a
+      // color). Record it as a variant — never as a separate product. Shop
+      // identifiers then attach variant-scoped, so the catalog knows which
+      // EAN/SKU belongs to which configuration.
+      const variant = await this.variants.ensureVariantFromTitle(resolved.id, input.title);
+      // Remember the shop identifier on the matched product so every future
+      // sighting of it resolves via the O(1) identifier path, not name matching.
+      if (input.identifierType && input.identifierValue) {
+        await this.attachIdentifier(
+          resolved.id,
+          input.identifierType,
+          input.identifierValue,
+          variant?.id ?? null,
+        );
+      }
     }
     // A product exists (matched now or created by an earlier pipeline run)?
     // Apply the shop rating right away — free, attributed Netz-Konsens.
@@ -226,7 +240,12 @@ export class SightingsService {
       );
       if (strong) return strong.product;
     }
-    return null;
+    // No same-name product — but the page may show another CONFIGURATION of a
+    // known family ("75 Zoll" while the catalog has the 65" model). Resolving
+    // to the family keeps the overlay signal alive and stops the pipeline from
+    // creating one catalog product per size/color/storage.
+    const family = await this.variants.findFamilyProduct(title, brand);
+    return family?.product ?? null;
   }
 
   private async upsertSighting(
@@ -314,14 +333,28 @@ export class SightingsService {
     productId: string,
     type: ProductIdentifierType,
     value: string,
+    variantId: string | null = null,
   ): Promise<void> {
     const normalized = type === 'ASIN' ? value.toUpperCase() : value.trim();
     try {
-      await this.prisma.productIdentifier.upsert({
+      const existing = await this.prisma.productIdentifier.findUnique({
         where: { type_value: { type, value: normalized } },
-        create: { productId, type, value: normalized, source: 'extension' },
-        update: {},
+        select: { id: true, productId: true, variantId: true },
       });
+      if (!existing) {
+        await this.prisma.productIdentifier.create({
+          data: { productId, type, value: normalized, source: 'extension', variantId },
+        });
+        return;
+      }
+      // Backfill the variant on an identifier we own; never re-point one that
+      // belongs to another product.
+      if (variantId && existing.productId === productId && !existing.variantId) {
+        await this.prisma.productIdentifier.update({
+          where: { id: existing.id },
+          data: { variantId },
+        });
+      }
     } catch (err) {
       this.logger.warn(`Attach identifier failed: ${err instanceof Error ? err.message : err}`);
     }

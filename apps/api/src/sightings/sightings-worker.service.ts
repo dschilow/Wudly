@@ -148,6 +148,9 @@ export class SightingsWorkerService implements OnModuleInit, OnModuleDestroy {
       imageUrl: hit.image,
       imageSource: hit.source,
       ean,
+      // The uncut shop title carries the variant phrases ("65 Zoll", colors)
+      // that decide family membership; catalog titles often omit them.
+      rawTitle: row.title,
       research: false,
       deferPaidEnrichment: true,
     });
@@ -248,6 +251,7 @@ export class SightingsWorkerService implements OnModuleInit, OnModuleDestroy {
       // Shop images are never stored as trusted product photos (hotlink rot +
       // rights); the validated background hunt finds an official one instead.
       ean: isEan ? row.identifierValue : null,
+      rawTitle: row.title,
       research: true,
       deferPaidEnrichment: false,
     });

@@ -21,15 +21,26 @@ export class OwnershipService {
     });
     if (!product) throw new NotFoundException('Produkt nicht gefunden.');
 
+    // Accept a variant only when it belongs to this product.
+    const variantId = input.variantId
+      ? ((
+          await this.prisma.productVariant.findFirst({
+            where: { id: input.variantId, productId: input.productId },
+            select: { id: true },
+          })
+        )?.id ?? null)
+      : null;
+
     const ownership = await this.prisma.ownership.upsert({
       where: { userId_productId: { userId, productId: input.productId } },
       create: {
         userId,
         productId: input.productId,
-        variantId: input.variantId ?? null,
+        variantId,
         verificationStatus: 'SELF_DECLARED',
       },
-      update: {},
+      // Re-declaring with a configuration refines the earlier "keine Angabe".
+      update: variantId ? { variantId } : {},
     });
 
     // Owner counts feed the snapshot.

@@ -211,10 +211,29 @@ export interface ProductSpecDto {
   value: string;
 }
 
+/**
+ * One configuration of a product family (size, storage, color, …). Experiences
+ * and the Wudly Signal always aggregate on the FAMILY product; variants label
+ * which configuration an owner has, they never split the score.
+ */
+export interface ProductVariantDto {
+  id: string;
+  /** Display label, e.g. "65 Zoll" or "256 GB · Titan Natur". */
+  name: string;
+  /** The parsed attributes behind the label (e.g. "Größe" → "65 Zoll"). */
+  attributes: ProductSpecDto[];
+  /** Public experiences explicitly tied to this configuration. */
+  experienceCount: number;
+  /** Owners who declared this configuration. */
+  ownerCount: number;
+}
+
 export interface ProductDetailDto extends ProductSummaryDto {
   description: string | null;
   /** Technical facts from external catalogs (Icecat/UPCitemdb). May be empty. */
   specs: ProductSpecDto[];
+  /** Known configurations of this family (empty for single-config products). */
+  variants: ProductVariantDto[];
   insights: ProductInsightsDto;
   /** Aggregated rating facts from other platforms (may be empty). */
   externalRatings: ExternalRatingDto[];
@@ -246,6 +265,8 @@ export interface ExperienceDto {
   /** Comparative regret: what they'd have bought instead. */
   insteadOfText: string | null;
   isPublic: boolean;
+  /** Which configuration the owner has ("65 Zoll"); null = not specified. */
+  variantName: string | null;
   aspects: ExperienceAspectDto[];
   createdAt: string;
 }

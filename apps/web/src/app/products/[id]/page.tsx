@@ -587,6 +587,33 @@ export default async function ProductPage({ params }: PageProps) {
         <QuickSignalPanel insights={ins} />
       </div>
 
+      {product.variants.length > 0 && (
+        <section>
+          <SectionTitle>Ausführungen</SectionTitle>
+          <div className="card p-4">
+            <div className="flex flex-wrap gap-2">
+              {product.variants.map((variant) => (
+                <span
+                  key={variant.id}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-fill-2 px-3.5 py-2 text-[0.9375rem] font-semibold text-label shadow-[inset_0_0_0_1px_var(--color-border)]"
+                >
+                  {variant.name}
+                  {variant.experienceCount > 0 && (
+                    <span className="mono-data rounded-full bg-accent-soft px-1.5 py-0.5 text-[0.6875rem] font-semibold text-accent-ink">
+                      {variant.experienceCount}
+                    </span>
+                  )}
+                </span>
+              ))}
+            </div>
+            <p className="mt-3 text-[0.8125rem] leading-snug text-muted-foreground">
+              Das Wudly Signal gilt für alle Ausführungen zusammen — Erfahrungen zu einer bestimmten
+              Ausführung sind bei den Stimmen markiert.
+            </p>
+          </div>
+        </section>
+      )}
+
       {(product.description || product.specs.length > 0) && (
         <section>
           <SectionTitle>Das Produkt</SectionTitle>
