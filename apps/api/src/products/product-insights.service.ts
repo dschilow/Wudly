@@ -61,20 +61,9 @@ export class ProductInsightsService {
 
     const ownerCount = await this.prisma.ownership.count({ where: { productId } });
 
-    // Invited (guest) ratings fold into the score at their own weight (0.4 guest /
-    // 1 once claimed) — marked, never counted as owner experiences.
-    const invited = await this.prisma.invitedVote.findMany({
-      where: { productId },
-      select: { wouldBuyAgain: true, weight: true },
-    });
-    const invitedVotes = invited.map((v) => ({
-      wouldBuyAgain: v.wouldBuyAgain,
-      usageDuration: 'ONE_TO_SIX_MONTHS' as const,
-      experienceMood: 'OKAY' as const,
-      scoreWeight: v.weight,
-    }));
-
-    const snapshot = buildInsightSnapshot(inputs, ownerCount, invitedVotes);
+    // Guest invite votes remain a separate pulse. Only published owner
+    // experiences are allowed to influence the Wudly Signal.
+    const snapshot = buildInsightSnapshot(inputs, ownerCount);
 
     // "Netz-Konsens": precompute the external-rating aggregate so cards don't have
     // to join ExternalRating per render. External facts only — never the Signal.

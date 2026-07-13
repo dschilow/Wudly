@@ -51,6 +51,7 @@ import { ProductInsightsService } from './product-insights.service';
 import { ProductImageService } from './product-image.service';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles, RolesGuard } from '../auth/roles.guard';
 import { OptionalAuthGuard } from '../auth/optional-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthUser } from '../auth/auth.types';
@@ -216,7 +217,8 @@ export class ProductsController {
    * tool for products that ended up without a photo.
    */
   @Post(':id/rehunt-image')
-  @UseGuards(JwtAuthGuard, RateLimitGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RateLimitGuard)
+  @Roles('ADMIN')
   @RateLimit({ limit: 20, windowMs: 60_000 })
   rehuntImage(@Param('id') id: string): Promise<unknown> {
     return this.products.rehuntImage(id);
@@ -281,7 +283,8 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateProductSchema)) dto: UpdateProductInput,

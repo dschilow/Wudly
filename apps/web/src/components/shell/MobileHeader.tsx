@@ -15,6 +15,7 @@ const ROOT_ROUTES = new Set([
   '/compare',
   '/rankings',
   '/me/products',
+  '/me/inbox',
   '/me',
   '/ki-test',
 ]);
@@ -26,26 +27,26 @@ interface DesktopItem {
 const BASE_DESKTOP_ITEMS: DesktopItem[] = [
   {
     href: '/check',
-    label: 'Prüfen',
+    label: 'Suchen',
     match: (p: string) =>
       p === '/' || p.startsWith('/check') || p.startsWith('/products') || p.startsWith('/produkte'),
   },
   { href: '/compare', label: 'Vergleichen', match: (p: string) => p.startsWith('/compare') },
   { href: '/rankings', label: 'Entdecken', match: (p: string) => p.startsWith('/rankings') },
-  { href: '/me/products', label: 'Besitzen', match: (p: string) => p.startsWith('/me/products') },
+  { href: '/me/inbox', label: 'Fragen', match: (p: string) => p.startsWith('/me/inbox') },
+  {
+    href: '/me/products',
+    label: 'Meine Produkte',
+    match: (p: string) => p.startsWith('/me/products'),
+  },
   {
     href: '/me',
-    label: 'Ich',
-    match: (p: string) => p === '/me' || (p.startsWith('/me/') && !p.startsWith('/me/products')),
+    label: 'Profil',
+    match: (p: string) =>
+      p === '/me' ||
+      (p.startsWith('/me/') && !p.startsWith('/me/products') && !p.startsWith('/me/inbox')),
   },
 ];
-/** Admin-only model benchmarking entry. */
-const KI_DESKTOP_ITEM: DesktopItem = {
-  href: '/ki-test',
-  label: 'KI-Test',
-  match: (p: string) => p.startsWith('/ki-test'),
-};
-
 function DesktopNav({ pathname, items }: { pathname: string; items: DesktopItem[] }) {
   return (
     <nav className="hidden items-center gap-1 md:flex" aria-label="Hauptnavigation">
@@ -111,8 +112,7 @@ export function MobileHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
-  const desktopItems =
-    user?.role === 'ADMIN' ? [...BASE_DESKTOP_ITEMS, KI_DESKTOP_ITEM] : BASE_DESKTOP_ITEMS;
+  const desktopItems = BASE_DESKTOP_ITEMS;
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = useState(false);
 

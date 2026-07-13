@@ -385,7 +385,7 @@ function trimOrNull(value: string | null | undefined): string | null {
 
 function cleanProductName(value: string): string {
   return value
-    .replace(/\s+[|–-]\s+(Amazon|MediaMarkt|Saturn|idealo|Test|Review|Bewertung).*$/i, '')
+    .replace(/\s+[|â€“-]\s+(Amazon|MediaMarkt|Saturn|idealo|Test|Review|Bewertung).*$/i, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 160);
@@ -677,7 +677,7 @@ function extractThemesFromHtml(
 
 function cleanThemeLabel(value: string): string | null {
   const label = cleanText(value)
-    .replace(/^[-+•*\s]+/, '')
+    .replace(/^[-+â€¢*\s]+/, '')
     .replace(/\s+/g, ' ')
     .trim();
   if (label.length < 3 || label.length > 140) return null;
@@ -919,6 +919,7 @@ function guessCategoryByText(text: string): string | null {
   const rules: Array<{ slug: string; terms: string[] }> = [
     { slug: 'smartphone', terms: ['smartphone', 'iphone', 'galaxy', 'pixel', 'phone'] },
     { slug: 'laptop', terms: ['laptop', 'notebook', 'macbook', 'thinkpad', 'xps'] },
+    { slug: 'fernseher', terms: ['fernseher', 'smart tv', 'oled', 'qled', 'bravia', 'ambilight', '4k tv'] },
     { slug: 'waschmaschine', terms: ['waschmaschine', 'washer', 'wgg', 'iq700'] },
     { slug: 'saugroboter', terms: ['saugroboter', 'roborock', 'roomba', 'dreame'] },
     { slug: 'akku-staubsauger', terms: ['akkustaubsauger', 'staubsauger', 'dyson v', 'unlimited'] },

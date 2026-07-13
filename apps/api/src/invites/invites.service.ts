@@ -42,13 +42,21 @@ export class InvitesService {
     });
     if (!product) throw new NotFoundException('Produkt nicht gefunden.');
 
+    const ownership = await this.prisma.ownership.findUnique({
+      where: { userId_productId: { userId, productId } },
+      select: { id: true },
+    });
+    if (!ownership) {
+      throw new BadRequestException('Nur Besitzer können andere Besitzer einladen.');
+    }
+
     const token = randomBytes(9).toString('base64url');
     const invite = await this.prisma.ratingInvite.create({
       data: {
         token,
         productId,
         inviterUserId: userId,
-        maxUses: 50,
+        maxUses: 1,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
@@ -133,11 +141,19 @@ export class InvitesService {
       select: { id: true, productId: true },
     });
     if (!invite) return { claimed: 0 };
-    const res = await this.prisma.invitedVote.updateMany({
+
+    const vote = await this.prisma.invitedVote.findFirst({
       where: { inviteId: invite.id, claimedByUserId: null },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (!vote) return { claimed: 0 };
+
+    const result = await this.prisma.invitedVote.updateMany({
+      where: { id: vote.id, claimedByUserId: null },
       data: { claimedByUserId: userId, weight: 1 },
     });
-    if (res.count > 0) {
+    if (result.count === 1) {
       await this.prisma.ownership.upsert({
         where: { userId_productId: { userId, productId: invite.productId } },
         create: { userId, productId: invite.productId },
@@ -145,7 +161,7 @@ export class InvitesService {
       });
       void this.insights.regenerate(invite.productId).catch(() => {});
     }
-    return { claimed: res.count };
+    return { claimed: result.count };
   }
 
   private isActive(expiresAt: Date | null, uses: number, maxUses: number): boolean {

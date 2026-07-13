@@ -719,8 +719,8 @@ function HelpfulEmpty() {
   return (
     <EmptyState
       icon={<Sparkles className="h-7 w-7" strokeWidth={1.8} />}
-      title="Noch kein Signal"
-      description="Der Katalog wächst gerade. Starte mit einem konkreten Produkt oder einer Kategorie."
+      title="Noch kein belastbares Signal"
+      description="Rankings starten ab fünf öffentlichen Besitzererfahrungen. Einzelne frühe Stimmen bleiben auf der Produktseite sichtbar."
       action={
         <div className="flex flex-wrap justify-center gap-2">
           <PrimaryLink href="/check" icon={<Search className="h-4 w-4" />}>
@@ -737,8 +737,8 @@ function NoRisk() {
   return (
     <EmptyState
       icon={<CircleAlert className="h-7 w-7" strokeWidth={1.8} />}
-      title="Noch kein Warnsignal"
-      description="Aktuell gibt es keine Produkte mit klarem Bereuen-Signal."
+      title="Noch kein belastbares Warnsignal"
+      description="Aktuell erreicht kein Produkt die Mindestbasis von fünf Erfahrungen für ein öffentliches Risiko-Ranking."
       action={
         <PrimaryLink href="/check" icon={<Search className="h-4 w-4" />}>
           Produkt prüfen

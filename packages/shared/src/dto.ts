@@ -276,6 +276,10 @@ export interface AnswerDto {
   questionId: string;
   answeredByUserId: string;
   authorName: string | null;
+  /** Public provenance for this answer. Never infer owner status from login. */
+  authorType: 'OWNER' | 'WUDLY_TEAM' | 'COMMUNITY';
+  verificationStatus: string | null;
+  ownerSince: string | null;
   answerText: string;
   quickAnswer: QuickAnswer | null;
   helpfulCount: number;

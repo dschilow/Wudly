@@ -137,6 +137,7 @@ function ChoiceCards<T extends string>({
           <motion.button
             key={opt.value}
             type="button"
+            aria-pressed={selected}
             whileTap={{ scale: 0.985 }}
             onClick={() => onChange(opt.value)}
             className={cn(
@@ -168,7 +169,13 @@ function ChoiceCards<T extends string>({
                 selected ? t.radio : 'bg-fill-2',
               )}
             >
-              {selected && <Check className="h-[0.95rem] w-[0.95rem] text-white" strokeWidth={3.2} aria-hidden />}
+              {selected && (
+                <Check
+                  className="h-[0.95rem] w-[0.95rem] text-white"
+                  strokeWidth={3.2}
+                  aria-hidden
+                />
+              )}
             </span>
           </motion.button>
         );
@@ -285,13 +292,15 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
   const hasAspects = positiveAspects.length > 0 || negativeAspects.length > 0;
   const hasVariants = variants.length > 0;
   const steps = useMemo<StepKey[]>(() => {
-    // Which configuration first — it frames every following answer.
-    const s: StepKey[] = hasVariants ? ['variant'] : [];
-    s.push('buyAgain', 'duration', 'mood');
-    if (hasAspects) s.push('aspects');
-    for (const p of prompts) s.push(`prompt:${p.id}`);
-    s.push('wish', 'share');
-    return s;
+    const nextSteps: StepKey[] = hasVariants ? ['variant'] : [];
+    nextSteps.push('buyAgain', 'duration', 'mood');
+
+    const mostUsefulPrompt = prompts[0];
+    if (mostUsefulPrompt) nextSteps.push(`prompt:${mostUsefulPrompt.id}`);
+    else if (hasAspects) nextSteps.push('aspects');
+
+    nextSteps.push('share');
+    return nextSteps;
   }, [hasVariants, hasAspects, prompts]);
 
   const total = steps.length;
@@ -393,7 +402,19 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
             variantId,
           }
         : null,
-    [buyAgain, duration, mood, wish, insteadOf, positives, negatives, customAspects, promptAnswers, isPublic, variantId],
+    [
+      buyAgain,
+      duration,
+      mood,
+      wish,
+      insteadOf,
+      positives,
+      negatives,
+      customAspects,
+      promptAnswers,
+      isPublic,
+      variantId,
+    ],
   );
 
   const submit = async () => {
@@ -448,8 +469,14 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
   if (resuming && !done) {
     return (
       <div className="mx-auto max-w-md px-2 pt-24 text-center">
-        <Loader2 className="mx-auto h-8 w-8 animate-spin text-accent" strokeWidth={2.2} aria-hidden />
-        <p className="mt-4 text-[1.0625rem] text-muted-foreground">Dein Urteil wird gespeichert …</p>
+        <Loader2
+          className="mx-auto h-8 w-8 animate-spin text-accent"
+          strokeWidth={2.2}
+          aria-hidden
+        />
+        <p className="mt-4 text-[1.0625rem] text-muted-foreground">
+          Dein Urteil wird gespeichert …
+        </p>
       </div>
     );
   }
@@ -461,9 +488,13 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
         <div className="animate-pop mx-auto grid h-16 w-16 place-items-center rounded-full bg-positive text-white shadow-[var(--shadow-glow)]">
           <Check className="h-9 w-9" strokeWidth={3} aria-hidden />
         </div>
-        <h1 className="font-display mt-5 text-[1.9rem] leading-tight text-label">Urteil gefällt.</h1>
+        <h1 className="font-display mt-5 text-[1.9rem] leading-tight text-label">
+          Urteil gefällt.
+        </h1>
         <p className="mx-auto mt-2 max-w-sm text-pretty text-[1.0625rem] leading-snug text-muted-foreground">
-          Deine Erfahrung mit {productName} zählt jetzt zum Wudly Signal — und in dein Kaufprofil.
+          {isPublic
+            ? `Deine Erfahrung mit ${productName} zählt jetzt einmalig zum Wudly Signal.`
+            : `${productName} ist jetzt privat in deinem Produktprofil gespeichert.`}
         </p>
         <div className="mt-8 space-y-2.5">
           <Link
@@ -476,10 +507,13 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
             href="/check?own=1"
             className="tap-dim flex h-[3.125rem] items-center justify-center rounded-[var(--radius-md)] bg-fill-2 text-[1.0625rem] font-semibold text-label"
           >
-            Weiteres Produkt bewerten
+            Noch ein eigenes Produkt hinzufügen
           </Link>
         </div>
-        <Link href="/me" className="tap-dim mt-5 inline-block text-[0.9375rem] font-medium text-accent">
+        <Link
+          href="/me"
+          className="tap-dim mt-5 inline-block text-[0.9375rem] font-medium text-accent"
+        >
           Dein Kaufprofil ansehen →
         </Link>
       </div>
@@ -512,12 +546,19 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
                   ? 'Dein Urteil teilen?'
                   : (activePrompt?.questionText ?? '');
 
-  const optional = current === 'wish' || current === 'variant' || isPromptStep;
+  const optional = current === 'variant' || current === 'aspects' || isPromptStep;
 
   return (
     <div className="mx-auto max-w-md pb-36 pt-2">
       {/* Progress — thin verdict segments, dynamic to the adaptive path */}
-      <div className="mb-6 flex items-center gap-1.5 px-1" aria-hidden>
+      <div
+        className="mb-6 flex items-center gap-1.5 px-1"
+        role="progressbar"
+        aria-label="Fortschritt deiner Erfahrung"
+        aria-valuemin={1}
+        aria-valuemax={total}
+        aria-valuenow={step + 1}
+      >
         {steps.map((key, i) => (
           <div key={key} className="h-1 flex-1 overflow-hidden rounded-full bg-fill-2">
             <div
@@ -657,7 +698,7 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
                 <span className="mt-0.5 block text-[0.8125rem] leading-snug text-muted-foreground">
                   {isPublic
                     ? 'Deine Erfahrung hilft anderen Käufern sichtbar.'
-                    : 'Zählt zum Signal, bleibt aber anonym.'}
+                    : 'Bleibt privat und fließt nicht in das öffentliche Signal ein.'}
                 </span>
               </span>
               <span
@@ -768,8 +809,8 @@ function VariantCard({
                 </span>
                 {variant.experienceCount > 0 && (
                   <span className="mt-0.5 block text-[0.8125rem] leading-snug text-muted-foreground">
-                    {variant.experienceCount} Erfahrung{variant.experienceCount === 1 ? '' : 'en'} zu
-                    dieser Ausführung
+                    {variant.experienceCount} Erfahrung{variant.experienceCount === 1 ? '' : 'en'}{' '}
+                    zu dieser Ausführung
                   </span>
                 )}
               </span>
@@ -780,7 +821,11 @@ function VariantCard({
                 )}
               >
                 {selected && (
-                  <Check className="h-[0.9rem] w-[0.9rem] text-white" strokeWidth={3.2} aria-hidden />
+                  <Check
+                    className="h-[0.9rem] w-[0.9rem] text-white"
+                    strokeWidth={3.2}
+                    aria-hidden
+                  />
                 )}
               </span>
             </motion.button>
@@ -846,7 +891,13 @@ function PromptCard({
                     selected ? 'bg-accent' : 'bg-fill-2',
                   )}
                 >
-                  {selected && <Check className="h-[0.9rem] w-[0.9rem] text-white" strokeWidth={3.2} aria-hidden />}
+                  {selected && (
+                    <Check
+                      className="h-[0.9rem] w-[0.9rem] text-white"
+                      strokeWidth={3.2}
+                      aria-hidden
+                    />
+                  )}
                 </span>
               </motion.button>
             );
@@ -867,7 +918,11 @@ function PromptCard({
             placeholder="Deine eigene Antwort…"
             className="h-12 min-w-0 flex-1 rounded-[var(--radius-lg)] bg-surface px-4 text-[1.0625rem] text-label outline-none placeholder:text-faint shadow-[0_0_0_1px_var(--color-border)] focus:shadow-[0_0_0_2px_var(--color-accent)]"
           />
-          <Button onClick={submitCustom} disabled={customText.trim().length < 1} className="shrink-0 rounded-full">
+          <Button
+            onClick={submitCustom}
+            disabled={customText.trim().length < 1}
+            className="shrink-0 rounded-full"
+          >
             <Check className="h-[1.1rem] w-[1.1rem]" strokeWidth={2.6} aria-hidden />
           </Button>
         </div>

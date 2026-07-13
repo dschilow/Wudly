@@ -12,9 +12,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Enums
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 enum UserRole {
   USER
@@ -222,9 +224,11 @@ enum PulseChangeType {
   OTHER
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Identity
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 model User {
   id           String   @id @default(cuid())
@@ -235,18 +239,19 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  ownerships        Ownership[]
-  experienceReports ExperienceReport[]
-  askedQuestions    ProductQuestion[]  @relation("AskedBy")
-  answers           ProductAnswer[]
-  badges            UserBadge[]
-  notifications     Notification[]
-  quickVotes        QuickVote[]
-  createdProducts   Product[]          @relation("CreatedProducts")
-  pushSubscriptions PushSubscription[]
+  ownerships          Ownership[]
+  experienceReports   ExperienceReport[]
+  askedQuestions      ProductQuestion[]       @relation("AskedBy")
+  answers             ProductAnswer[]
+  answerHelpfulVotes  AnswerHelpfulVote[]
+  badges              UserBadge[]
+  notifications       Notification[]
+  quickVotes          QuickVote[]
+  createdProducts     Product[]               @relation("CreatedProducts")
+  pushSubscriptions   PushSubscription[]
   professionalProfile ProfessionalProfile?
-  sentInvites         RatingInvite[]       @relation("SentInvites")
-  claimedInvitedVotes InvitedVote[]        @relation("ClaimedInvitedVotes")
+  sentInvites         RatingInvite[]          @relation("SentInvites")
+  claimedInvitedVotes InvitedVote[]           @relation("ClaimedInvitedVotes")
   promptResponses     ProductPromptResponse[]
   passwordResetTokens PasswordResetToken[]
 
@@ -269,9 +274,11 @@ model PasswordResetToken {
   @@index([expiresAt])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Catalog: products, variants, identifiers, sources
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 model Category {
   id        String   @id @default(cuid())
@@ -299,27 +306,27 @@ model CategoryAspect {
 }
 
 model Product {
-  id             String        @id @default(cuid())
-  canonicalName  String
-  normalizedName String
+  id                 String        @id @default(cuid())
+  canonicalName      String
+  normalizedName     String
   /// De-variantized family key (variant phrases stripped, model codes de-sized)
   /// — the prefilter for "is this a size/color/storage sibling of an existing
   /// product?". Computed from canonicalName via @wudly/shared variantBaseName().
-  variantBaseName String?
-  brand          String?
-  categoryId     String?
-  description    String?
-  imageUrl       String?
+  variantBaseName    String?
+  brand              String?
+  categoryId         String?
+  description        String?
+  imageUrl           String?
   /// Key→value technical facts (model, color, dimensions, …) gathered from
   /// external catalogs (Icecat/UPCitemdb). Order-preserving array of pairs.
-  specs          Json          @default("[]")
-  status         ProductStatus @default(ACTIVE)
-  createdByUserId String?
+  specs              Json          @default("[]")
+  status             ProductStatus @default(ACTIVE)
+  createdByUserId    String?
   /// When the owner/buyer question pool was first generated (null = not yet).
   /// Gates one-time generation so the AI is asked at most once per product.
   promptsGeneratedAt DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   category  Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdBy User?     @relation("CreatedProducts", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -367,7 +374,7 @@ model ProductVariant {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  product           Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product           Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   identifiers       ProductIdentifier[]
   ownerships        Ownership[]
   experienceReports ExperienceReport[]
@@ -472,23 +479,23 @@ model ExternalRating {
 /// Source-backed themes distilled from public reviews and long-term reports.
 /// Orientation only: never contributes to the Wudly Signal or rankings.
 model ExternalConsensus {
-  id             String   @id @default(cuid())
-  productId      String   @unique
-  summary        String?
+  id                 String   @id @default(cuid())
+  productId          String   @unique
+  summary            String?
   /// 1–2 sentences on durability/long-term reports from public sources.
-  longTermNote   String?
-  positiveThemes Json     @default("[]")
-  negativeThemes Json     @default("[]")
+  longTermNote       String?
+  positiveThemes     Json     @default("[]")
+  negativeThemes     Json     @default("[]")
   /// Paraphrased per-source takeaways ("Stimmen aus dem Netz"): sourceLabel,
   /// url, sentiment PRO/CONTRA/MIXED, text. Orientation only, never the Signal.
-  voices         Json     @default("[]")
+  voices             Json     @default("[]")
   /// Source-backed "Umsteiger" suggestions: products reviewers switched to
   /// (name, brand, reason, sourceUrls, matched productId). Orientation only.
-  switchAlternatives Json @default("[]")
-  sourceUrls     Json     @default("[]")
-  fetchedAt      DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  switchAlternatives Json     @default("[]")
+  sourceUrls         Json     @default("[]")
+  fetchedAt          DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -528,9 +535,11 @@ model ProductSource {
   @@index([productId])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Ownership & experiences
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 model Ownership {
   id                 String             @id @default(cuid())
@@ -548,6 +557,7 @@ model Ownership {
   variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   experienceReports ExperienceReport[]
+  answers           ProductAnswer[]
 
   @@unique([userId, productId])
   @@index([productId])
@@ -579,6 +589,7 @@ model ExperienceReport {
   aspects         ExperienceAspect[]
   promptResponses ProductPromptResponse[]
 
+  @@unique([userId, productId])
   @@index([productId])
   @@index([userId])
   @@index([productId, isPublic])
@@ -616,9 +627,11 @@ model QuickVote {
   @@index([userId])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Questions & answers
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 model ProductQuestion {
   id            String         @id @default(cuid())
@@ -629,8 +642,8 @@ model ProductQuestion {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  askedBy   User?   @relation("AskedBy", fields: [askedByUserId], references: [id], onDelete: SetNull)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  askedBy User?   @relation("AskedBy", fields: [askedByUserId], references: [id], onDelete: SetNull)
 
   answers ProductAnswer[]
 
@@ -643,44 +656,66 @@ model ProductAnswer {
   questionId       String
   productId        String
   answeredByUserId String
+  ownershipId      String?
   answerText       String
   quickAnswer      QuickAnswer?
   helpfulCount     Int          @default(0)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
-  question   ProductQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  product    Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  answeredBy User            @relation(fields: [answeredByUserId], references: [id], onDelete: Cascade)
+  question     ProductQuestion     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  product      Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  answeredBy   User                @relation(fields: [answeredByUserId], references: [id], onDelete: Cascade)
+  ownership    Ownership?          @relation(fields: [ownershipId], references: [id], onDelete: SetNull)
+  helpfulVotes AnswerHelpfulVote[]
 
+  @@unique([questionId, answeredByUserId])
   @@index([questionId])
   @@index([productId])
+  @@index([ownershipId])
 }
 
-/* ----------------------------------------------------------------- *
+/// One auditable helpful vote per person and answer. The denormalized count on
+/// ProductAnswer remains a fast read model and is updated transactionally.
+model AnswerHelpfulVote {
+  id        String   @id @default(cuid())
+  answerId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  answer ProductAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([answerId, userId])
+  @@index([userId])
+}
+
+/**
+ * ----------------------------------------------------------------- *
  * Owner/buyer question pool — a stored, product-specific set of sharp
  * questions WITH quick answers. Generated once (AI) or grown by users, then
  * reused everywhere: the owner answers them fast in the "Ich besitze es"
  * wizard, a buyer picks them as ask-suggestions, and the product page shows
  * the aggregated owner answers. Strictly product-knowledge — never the Signal.
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 model ProductPrompt {
-  id           String              @id @default(cuid())
-  productId    String
-  questionText String
+  id            String              @id @default(cuid())
+  productId     String
+  questionText  String
   /// Suggested short answers, order-preserving: ["Sehr leise","Okay","Zu laut"].
   /// Owners may add their own; accepted custom answers are appended here so the
   /// pool learns over time. Empty array = open question (free text only).
-  quickAnswers Json                @default("[]")
+  quickAnswers  Json                @default("[]")
   /// Where this prompt came from: ai | curated | user.
-  source       String              @default("ai")
-  sortOrder    Int                 @default(0)
+  source        String              @default("ai")
+  sortOrder     Int                 @default(0)
   /// Denormalized count of owner responses (drives "meistbeantwortet zuerst").
-  responseCount Int                @default(0)
-  status       ProductPromptStatus @default(ACTIVE)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  responseCount Int                 @default(0)
+  status        ProductPromptStatus @default(ACTIVE)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   product   Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
   responses ProductPromptResponse[]
@@ -713,38 +748,40 @@ model ProductPromptResponse {
   @@index([productId])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Derived insights (snapshot per product)
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 model ProductInsightSnapshot {
-  id                  String   @id @default(cuid())
-  productId           String   @unique
-  ownerCount          Int      @default(0)
-  experienceCount     Int      @default(0)
+  id                  String    @id @default(cuid())
+  productId           String    @unique
+  ownerCount          Int       @default(0)
+  experienceCount     Int       @default(0)
   rebuyScore          Int?
   regretScore         Int?
   unsureScore         Int?
-  topPositiveAspects  Json     @default("[]")
-  topNegativeAspects  Json     @default("[]")
-  wishKnownHighlights Json     @default("[]")
-  usageDurationStats  Json     @default("{}")
+  topPositiveAspects  Json      @default("[]")
+  topNegativeAspects  Json      @default("[]")
+  wishKnownHighlights Json      @default("[]")
+  usageDurationStats  Json      @default("{}")
   // Comparative regret: share (0–100) who named an alternative + the top names.
-  insteadOfShare      Int      @default(0)
-  insteadOfHighlights Json     @default("[]")
+  insteadOfShare      Int       @default(0)
+  insteadOfHighlights Json      @default("[]")
   // "Wudly-empfohlen" seal — auto-awarded, recomputed with every snapshot.
-  wudlySeal           Boolean  @default(false)
+  wudlySeal           Boolean   @default(false)
   // Cached "Netz-Konsens": average of external ratings normalized to 0–100, plus
   // how many sources back it. NOT part of the Wudly Signal — purely external facts,
   // precomputed here so product cards don't have to join ExternalRating per render.
   externalAvgPercent  Int?
-  externalSourceCount Int      @default(0)
+  externalSourceCount Int       @default(0)
   // AI-generated summary (OpenRouter). Null until generated / when AI is disabled.
   aiHeadline          String?
-  aiSuitedFor         Json     @default("[]")
-  aiNotSuitedFor      Json     @default("[]")
+  aiSuitedFor         Json      @default("[]")
+  aiNotSuitedFor      Json      @default("[]")
   aiGeneratedAt       DateTime?
-  generatedAt         DateTime @default(now())
+  generatedAt         DateTime  @default(now())
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -753,9 +790,11 @@ model ProductInsightSnapshot {
   @@index([experienceCount])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Web Push — device subscriptions so notifications reach users off-app
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 model PushSubscription {
   id        String   @id @default(cuid())
@@ -770,9 +809,11 @@ model PushSubscription {
   @@index([userId])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Notifications — close the Q&A loop (owner gets asked, asker gets answered)
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 model Notification {
   id         String           @id @default(cuid())
@@ -794,9 +835,11 @@ model Notification {
   @@index([userId, createdAt])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Gamification
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 model Badge {
   id          String      @id @default(cuid())
@@ -819,9 +862,11 @@ model UserBadge {
   @@index([userId])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Admin: product dedupe / merge tooling
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 model AdminMergeCandidate {
   id         String               @id @default(cuid())
@@ -853,13 +898,14 @@ model ProductAlias {
   @@index([canonicalProductId])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Wudly Showcase — professional creator / brand product presentation.
- *
  * These tables hold clearly-labelled COMMERCIAL / CREATOR content. They are
  * intentionally separate from the Signal tables (experiences, insights) and
  * must NEVER be read into the score or the rankings.
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 /// A professional profile (creator, influencer, brand, merchant, tester).
 /// One per user; the public page lives at /creator/:slug.
@@ -881,11 +927,11 @@ model ProfessionalProfile {
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
 
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  showcases ProductShowcase[]
-  pulseWatches PulseWatch[]
-  pulseActions PulseAction[]
-  pulseChanges PulseChange[]
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  showcases      ProductShowcase[]
+  pulseWatches   PulseWatch[]
+  pulseActions   PulseAction[]
+  pulseChanges   PulseChange[]
   pulseEmailLogs PulseEmailLog[]
 
   @@index([type])
@@ -948,11 +994,13 @@ model ProductTemplate {
   @@index([categoryId])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Invite-to-rate — ask an acquaintance to rate a product they own,
  * without an account. Guest voices are clearly marked and weighted DOWN
  * in the Signal; they can be upgraded to a full vote on login/register.
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 /// A shareable invite link for a specific product. Optionally capped + expiring.
 model RatingInvite {
@@ -997,14 +1045,15 @@ model InvitedVote {
   @@index([claimedByUserId])
 }
 
-/* ----------------------------------------------------------------- *
+/**
+ * ----------------------------------------------------------------- *
  * Wudly Pulse — B2B product-health dashboard for brands / merchants.
- *
  * Pulse only READS the neutral signal (experiences, votes, insights) and
  * derives signals/metrics live. What companies own here: their watchlist
  * (portfolio + competitor mapping), an action board and a change log. None
  * of these tables ever feed the Wudly Signal score or the rankings.
- * ----------------------------------------------------------------- */
+ * -----------------------------------------------------------------
+ */
 
 /// One watched catalog product in a company's Pulse portfolio.
 model PulseWatch {
@@ -1040,29 +1089,29 @@ model PulseCompetitor {
 /// One entry on the Pulse action board ("Maßnahme"). Baseline metrics are
 /// frozen at creation so effect can be judged honestly after completion.
 model PulseAction {
-  id        String              @id @default(cuid())
-  profileId String
-  productId String
-  title     String
+  id                      String              @id @default(cuid())
+  profileId               String
+  productId               String
+  title                   String
   /// What triggered this (human-readable signal summary, e.g. from a signal card).
-  triggerSummary String?
+  triggerSummary          String?
   /// Machine key of the triggering signal kind (e.g. "rebuy-drop").
-  triggerKey     String?
+  triggerKey              String?
   /// Free-text responsible person / team.
-  assignee       String?
-  priority       PulseActionPriority @default(MEDIUM)
-  status         PulseActionStatus   @default(OPEN)
+  assignee                String?
+  priority                PulseActionPriority @default(MEDIUM)
+  status                  PulseActionStatus   @default(OPEN)
   /// Measurable goal, e.g. "App-Beschwerden in 60 Tagen um 20 % senken".
-  goal           String?
-  expectedImpact String?
-  dueAt          DateTime?
+  goal                    String?
+  expectedImpact          String?
+  dueAt                   DateTime?
   /// Metrics frozen at creation (before/after comparison after completion).
   baselineRebuyScore      Int?
   baselineRegretScore     Int?
-  baselineExperienceCount Int       @default(0)
+  baselineExperienceCount Int                 @default(0)
   completedAt             DateTime?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
 
   profile ProfessionalProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   product Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -1109,4 +1158,3 @@ model PulseChange {
   @@index([profileId, productId])
   @@index([productId, effectiveAt])
 }
-

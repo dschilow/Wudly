@@ -67,6 +67,8 @@ const EXCLUDED_NAME_KEYWORDS: readonly string[] = [
   'limonade',
   'nahrungsergaenzung',
   'proteinpulver',
+  // Automated browser/integration fixtures must never reach discovery surfaces.
+  ' e2e ',
   'protein pulver',
 ];
 

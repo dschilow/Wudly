@@ -26,6 +26,22 @@ Purpose: let a coding agent research and optionally insert real catalog products
 
 `catalog:agent:research` is the safe default. It writes reports only. `catalog:agent:import` adds `--commit` and can create products.
 
+## MediaMarkt Bulk Harvest
+
+Use `pnpm --filter @wudly/api catalog:mediamarkt` for a MediaMarkt-first batch fill. It does not call OpenRouter or `AI_SERVICE`: it harvests MediaMarkt product URLs, probes public product pages, then passes source-backed seeds into `ProductAgentCurationService` and finally `ProductsService.createCurated()` only when `--commit` is set.
+
+Typical flow:
+
+```bash
+pnpm --filter @wudly/api catalog:mediamarkt -- --harvest-only --per-category=30
+pnpm --filter @wudly/api catalog:mediamarkt -- --seed-file tmp/mediamarkt-catalog-import/mediamarkt-seeds.json
+pnpm --filter @wudly/api catalog:mediamarkt -- --seed-file tmp/mediamarkt-catalog-import/mediamarkt-seeds.json --commit
+```
+
+Useful scope flags: `--categories=smartphone,laptop`, `--per-category=50`, `--category-query=saugroboter=roborock`, `--category-url=smartphone=https://...`, `--no-brave`.
+
+The script stores external rating facts and source-backed themes only. It must not fabricate Wudly owner experiences; real experiences still come from users.
+
 ## Safety Rules
 
 - The CLI never writes products unless `--commit` is present.

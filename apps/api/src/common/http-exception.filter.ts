@@ -27,8 +27,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const { status, error, message } = this.normalize(exception);
 
     if (status >= 500) {
-      // Log full server errors (without request bodies to avoid leaking PII).
-      this.logger.error(`${request.method} ${request.url} -> ${status}`, this.stack(exception));
+      // Correlate with the response header while avoiding bodies and query values.
+      const requestId =
+        typeof response.locals.requestId === 'string' ? response.locals.requestId : 'unknown';
+      this.logger.error(
+        `[${requestId}] ${request.method} ${request.path} -> ${status}`,
+        this.stack(exception),
+      );
     }
 
     const body: ApiErrorDto = {

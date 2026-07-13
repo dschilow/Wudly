@@ -19,7 +19,7 @@ const toneToPill = {
 } as const;
 
 const verificationCopy = {
-  VERIFIED: 'verifiziert',
+  VERIFIED: 'zusätzlich geprüft',
   SELF_DECLARED: 'selbst angegeben',
   UNVERIFIED: 'ungeprüft',
 } as const;
@@ -37,9 +37,7 @@ export function ExperienceCard({ experience }: { experience: ExperienceDto }) {
   return (
     <article className="card p-4">
       {lead ? (
-        <p className="font-display text-[1.25rem] italic leading-snug text-label">
-          »{lead}«
-        </p>
+        <p className="font-display text-[1.25rem] italic leading-snug text-label">»{lead}«</p>
       ) : (
         mood && (
           <p className="font-display text-[1.25rem] italic leading-snug text-label">
@@ -90,7 +88,7 @@ export function ExperienceCard({ experience }: { experience: ExperienceDto }) {
             <BadgeCheck
               className="h-3.5 w-3.5 shrink-0 text-positive-ink"
               strokeWidth={2.4}
-              aria-label="Per Kamera/Barcode als echter Käufer bestätigt"
+              aria-label="Besitz zusätzlich plausibilisiert"
             />
           )}
           <span className="rounded-full bg-fill-2 px-1.5 py-0.5 text-[0.625rem] normal-case tracking-normal text-muted-foreground">

@@ -1,9 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown, MessagesSquare } from 'lucide-react';
 import type { QuestionDto } from '@wudly/shared';
+import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { cn, formatDate } from '@/lib/utils';
 import { EmptyState } from '@/components/states/States';
 import { QuestionCard } from '@/components/QuestionCard';
@@ -16,9 +18,40 @@ type Filter = 'alle' | 'offen' | 'beantwortet';
  * collapses to its headline + status and opens to reveal the owners' answers and
  * the answer composer. Replaces the old flat list so the Q&A reads at a glance.
  */
-export function QuestionsPanel({ questions }: { questions: QuestionDto[] }) {
+export function QuestionsPanel({
+  questions,
+  productId,
+}: {
+  questions: QuestionDto[];
+  productId: string;
+}) {
   const [filter, setFilter] = useState<Filter>('alle');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [canAnswer, setCanAnswer] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setCanAnswer(false);
+      return;
+    }
+
+    void api.ownership
+      .mine()
+      .then((ownerships) => {
+        if (active) {
+          setCanAnswer(ownerships.some((ownership) => ownership.productId === productId));
+        }
+      })
+      .catch(() => {
+        if (active) setCanAnswer(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [productId, user]);
 
   const answeredCount = useMemo(
     () => questions.filter((q) => q.answers.length > 0).length,
@@ -38,7 +71,7 @@ export function QuestionsPanel({ questions }: { questions: QuestionDto[] }) {
         <EmptyState
           icon={<MessagesSquare className="h-7 w-7" strokeWidth={1.8} />}
           title="Noch keine Fragen"
-          description="Stell den Besitzern, was dich wirklich interessiert."
+          description="Stell Besitzern die Frage, die kein Datenblatt beantwortet."
         />
       </div>
     );
@@ -52,7 +85,7 @@ export function QuestionsPanel({ questions }: { questions: QuestionDto[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5" role="group" aria-label="Fragen filtern">
         {segments.map((s) => {
           const active = s.key === filter;
           return (
@@ -62,8 +95,9 @@ export function QuestionsPanel({ questions }: { questions: QuestionDto[] }) {
                 navigator.vibrate?.(5);
                 setFilter(s.key);
               }}
+              aria-pressed={active}
               className={cn(
-                'flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[0.8125rem] font-semibold transition-colors',
+                'flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-[0.8125rem] font-semibold transition-colors',
                 active
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-fill-2 text-muted-foreground active:opacity-70',
@@ -95,6 +129,7 @@ export function QuestionsPanel({ questions }: { questions: QuestionDto[] }) {
                   setOpenId(isOpen ? null : q.id);
                 }}
                 aria-expanded={isOpen}
+                aria-controls={`question-${q.id}-answers`}
                 className="tap flex w-full items-center gap-3 px-4 py-3.5 text-left"
               >
                 <span className="min-w-0 flex-1">
@@ -137,8 +172,8 @@ export function QuestionsPanel({ questions }: { questions: QuestionDto[] }) {
                     transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                     className="overflow-hidden"
                   >
-                    <div className="px-4 pb-4 pt-1">
-                      <QuestionCard question={q} embedded />
+                    <div id={`question-${q.id}-answers`} role="region" className="px-4 pb-4 pt-1">
+                      <QuestionCard question={q} embedded canAnswer={canAnswer} />
                     </div>
                   </motion.div>
                 )}

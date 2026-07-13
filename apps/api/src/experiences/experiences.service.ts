@@ -104,8 +104,9 @@ export class ExperiencesService {
       })),
     ];
 
-    const report = await this.prisma.experienceReport.create({
-      data: {
+    const report = await this.prisma.experienceReport.upsert({
+      where: { userId_productId: { userId, productId } },
+      create: {
         userId,
         productId,
         ownershipId: ownership.id,
@@ -118,6 +119,18 @@ export class ExperiencesService {
         insteadOfText: input.insteadOfText ?? null,
         isPublic: input.isPublic,
         aspects: { create: aspectData },
+      },
+      update: {
+        ownershipId: ownership.id,
+        variantId,
+        wouldBuyAgain: input.wouldBuyAgain,
+        usageDuration: input.usageDuration,
+        experienceMood: input.experienceMood,
+        wishKnownText: input.wishKnownText ?? null,
+        freeText: input.freeText ?? null,
+        insteadOfText: input.insteadOfText ?? null,
+        isPublic: input.isPublic,
+        aspects: { deleteMany: {}, create: aspectData },
       },
       include: EXPERIENCE_INCLUDE,
     });

@@ -1,5 +1,7 @@
 import 'reflect-metadata';
+import { randomUUID } from 'node:crypto';
 import { NestFactory } from '@nestjs/core';
+import type { NextFunction, Request, Response } from 'express';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -22,6 +24,26 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService<AppConfig, true>);
   const logger = new Logger('Bootstrap');
 
+  // Privacy-safe request correlation: no body, IP address or query values are logged.
+  app.use((request: Request, response: Response, next: NextFunction) => {
+    const incoming = request.header('x-request-id');
+    const requestId =
+      incoming && /^[a-zA-Z0-9._-]{8,128}$/.test(incoming) ? incoming : randomUUID();
+    const startedAt = performance.now();
+
+    response.locals.requestId = requestId;
+    response.setHeader('x-request-id', requestId);
+    response.on('finish', () => {
+      const durationMs = Math.round(performance.now() - startedAt);
+      if (response.statusCode >= 500 || durationMs >= 2_000) {
+        logger.warn(
+          `[${requestId}] ${request.method} ${request.path} -> ${response.statusCode} in ${durationMs}ms`,
+        );
+      }
+    });
+    next();
+  });
+
   // Security headers. Frontend is a separate origin, so CSP is left to the proxy/CDN.
   app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
   app.use(cookieParser());
@@ -33,6 +55,7 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: corsOrigins.length > 0 ? corsOrigins : false,
     credentials: true,
+    exposedHeaders: ['x-request-id'],
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
 

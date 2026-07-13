@@ -16,6 +16,12 @@ describe('isExcludedFromRankings', () => {
     ).toBe(true);
   });
 
+  it('keeps automated E2E fixtures out of public discovery', () => {
+    expect(
+      isExcludedFromRankings({ canonicalName: 'Erfahrungsgeraet E2E 1782984791503-907634' }),
+    ).toBe(true);
+  });
+
   it('keeps durable consumer goods', () => {
     expect(
       isExcludedFromRankings({

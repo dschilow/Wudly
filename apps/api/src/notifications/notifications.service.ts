@@ -14,7 +14,12 @@ import { toQuestionDto, type QuestionWithRelations } from '../questions/question
 
 const INBOX_QUESTION_INCLUDE = {
   askedBy: { select: { id: true, displayName: true } },
-  answers: { include: { answeredBy: { select: { id: true, displayName: true } } } },
+  answers: {
+    include: {
+      answeredBy: { select: { id: true, displayName: true, role: true } },
+      ownership: { select: { verificationStatus: true, createdAt: true } },
+    },
+  },
 } as const;
 
 interface CreateNotificationInput {
@@ -106,21 +111,17 @@ export class NotificationsService {
   }
 
   async groupedInbox(userId: string): Promise<GroupedNotificationInboxDto> {
-    const [rows, ownerships, createdProducts, unreadCount] = await Promise.all([
+    const [rows, ownerships, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
         take: 100,
       }),
       this.prisma.ownership.findMany({ where: { userId }, select: { productId: true } }),
-      this.prisma.product.findMany({ where: { createdByUserId: userId }, select: { id: true } }),
       this.prisma.notification.count({ where: { userId, readAt: null } }),
     ]);
 
-    const eligibleProductIds = new Set([
-      ...ownerships.map((ownership) => ownership.productId),
-      ...createdProducts.map((product) => product.id),
-    ]);
+    const eligibleProductIds = new Set(ownerships.map((ownership) => ownership.productId));
     const notifiedProductIds = rows
       .map((row) => row.productId)
       .filter((id): id is string => Boolean(id));
@@ -146,11 +147,6 @@ export class NotificationsService {
         _count: { _all: true },
       }),
     ]);
-    const directlyAskedQuestionIds = new Set(
-      rows
-        .filter((row) => row.type === NotificationType.QUESTION_ASKED && row.questionId)
-        .map((row) => row.questionId as string),
-    );
     const ownerCountMap = new Map(ownerCounts.map((row) => [row.productId, row._count._all]));
     const notificationsByProduct = new Map<string, NotificationDto[]>();
     const questionsByProduct = new Map<string, InboxQuestionDto[]>();
@@ -171,9 +167,7 @@ export class NotificationsService {
         ...dto,
         answeredByMe,
         canAnswer:
-          (eligibleProductIds.has(row.productId) || directlyAskedQuestionIds.has(row.id)) &&
-          row.askedByUserId !== userId &&
-          !answeredByMe,
+          eligibleProductIds.has(row.productId) && row.askedByUserId !== userId && !answeredByMe,
       };
       const items = questionsByProduct.get(row.productId) ?? [];
       items.push(item);

@@ -50,8 +50,8 @@ export const REGRET_MOODS: ReadonlySet<ExperienceMoodType> = new Set<ExperienceM
  */
 export const VERIFICATION_WEIGHT: Record<VerificationStatusType, number> = {
   VERIFIED: 1.0,
-  SELF_DECLARED: 0.6,
-  UNVERIFIED: 0.2,
+  SELF_DECLARED: 1.0,
+  UNVERIFIED: 0.5,
 };
 
 /** Minimal shape needed from an experience report to score it. */

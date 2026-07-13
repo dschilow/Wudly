@@ -27,7 +27,6 @@ import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { productPath } from '@/lib/seo';
 import { dataConfidenceLabel, isEarlySignal } from '@/lib/verdict';
-import { OnboardingIntro } from '@/components/OnboardingIntro';
 import { ProductList } from '@/components/ProductList';
 import { Thumb } from '@/components/Thumb';
 import { WaveLines } from '@/components/motion/WaveLines';
@@ -292,6 +291,7 @@ export function CheckClient({
   );
 
   const idle = query.trim().length === 0;
+  const canResearch = Boolean(found && !found.hasStrongMatch);
 
   return (
     <motion.div
@@ -300,7 +300,6 @@ export function CheckClient({
       initial="hidden"
       animate="show"
     >
-      <OnboardingIntro />
       <CameraScanner
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
@@ -327,7 +326,7 @@ export function CheckClient({
         <p className="mt-3 max-w-[28rem] text-[1.0625rem] leading-snug text-muted-foreground">
           {ownIntent
             ? 'Suche oder scanne dein Produkt — und trag dich in Sekunden als Besitzer ein.'
-            : 'Suche oder scanne ein Produkt — und sieh, was echte Besitzer nach echter Nutzung sagen.'}
+            : 'Sieh belegte Recherche und klar gekennzeichnete Erfahrungen echter Besitzer.'}
         </p>
       </motion.section>
 
@@ -354,7 +353,7 @@ export function CheckClient({
                 setQuery('');
                 setScanNotice(null);
               }}
-              className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-fill-2 text-muted-foreground"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-fill-2 text-muted-foreground"
               aria-label="Suche leeren"
               type="button"
             >
@@ -400,7 +399,16 @@ export function CheckClient({
               ))}
             </div>
           )}
-          {error && <p className="px-1 text-[0.9375rem] text-regret">{error}</p>}
+          {error && (
+            <p role="alert" className="px-1 text-[0.9375rem] text-regret">
+              {error}
+            </p>
+          )}
+          {!loading && found && (
+            <p role="status" className="sr-only">
+              {found.catalog.length} passende Produkte gefunden.
+            </p>
+          )}
 
           {/* 1 · Relevant catalog hits (server-side display cutoff — no noise).
                  In "own" mode each hit becomes a "Besitze ich" shortcut. */}
@@ -487,7 +495,7 @@ export function CheckClient({
           )}
 
           {/* 3 · The guaranteed exit — ALWAYS there, never a dead end. */}
-          {!loading && found && !showAdd && (
+          {!loading && canResearch && !showAdd && (
             <button
               type="button"
               onClick={handleResearch}
@@ -541,6 +549,40 @@ export function CheckClient({
             </motion.section>
           )}
 
+          {!ownIntent && (
+            <motion.section
+              variants={rise}
+              className="card-elevated relative overflow-hidden border border-accent/20 p-5"
+            >
+              <div
+                className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-accent/10 blur-3xl"
+                aria-hidden
+              />
+              <p className="mono-data relative text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-accent-ink">
+                Wudly lebt von echten Produkten
+              </p>
+              <h2 className="font-display relative mt-2 text-[1.75rem] leading-tight text-label">
+                Was steht bei dir zu Hause?
+              </h2>
+              <p className="relative mt-2 max-w-lg text-[0.9375rem] leading-relaxed text-muted-foreground">
+                Name, Link oder Barcode reichen. Wudly recherchiert den Rest und stellt nur wenige
+                kurze Fragen zu deiner Nutzung.
+              </p>
+              <div className="relative mt-4 flex flex-wrap gap-2 text-[0.75rem] font-semibold text-label">
+                <span className="rounded-full bg-fill-2 px-3 py-1.5">Keine Rechnung nötig</span>
+                <span className="rounded-full bg-fill-2 px-3 py-1.5">Meist unter 1 Minute</span>
+                <span className="rounded-full bg-fill-2 px-3 py-1.5">Jederzeit aktualisierbar</span>
+              </div>
+              <Link
+                href="/check?own=1"
+                className="brand-gradient relative mt-5 inline-flex min-h-12 items-center gap-2 rounded-full px-5 text-[0.9375rem] font-semibold text-[#f1efe6] shadow-[var(--shadow-glow)]"
+              >
+                <Plus className="h-5 w-5" strokeWidth={2.5} aria-hidden />
+                Eigenes Produkt hinzufügen
+              </Link>
+            </motion.section>
+          )}
+
           {freshlyAdded.length > 0 && (
             <motion.section variants={rise} className="space-y-3">
               <div className="px-1">
@@ -548,8 +590,8 @@ export function CheckClient({
                   Frisch im Katalog
                 </h2>
                 <p className="mt-1 text-[0.8125rem] text-muted-foreground">
-                  Neu hinzugefügt — noch ohne Wudly-Stimmen. Bis echte Besitzer urteilen,
-                  zeigt der graue Netz-Wert, was andere Plattformen sagen.
+                  Neu hinzugefügt — noch ohne Wudly-Stimmen. Bis echte Besitzer urteilen, zeigt der
+                  graue Netz-Wert, was andere Plattformen sagen.
                 </p>
               </div>
               <ProductList products={freshlyAdded.slice(0, 6)} layout="grid" />
@@ -576,10 +618,7 @@ export function CheckClient({
           )}
 
           {/* The manifest — what makes the Wudly Signal different. */}
-          <motion.section
-            variants={rise}
-            className="card-elevated relative overflow-hidden p-5"
-          >
+          <motion.section variants={rise} className="card-elevated relative overflow-hidden p-5">
             <div aria-hidden className="absolute inset-0 text-accent">
               <WaveLines opacity={0.09} />
             </div>

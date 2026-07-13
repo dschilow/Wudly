@@ -20,9 +20,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
   return (
     <div className="min-h-dvh">
+      <a href="#main-content" className="skip-link">
+        Zum Hauptinhalt
+      </a>
       <div aria-hidden className="app-ambient pointer-events-none fixed inset-0 -z-10" />
       <MobileHeader />
-      <main className="mx-auto w-full max-w-6xl px-5 pb-32 pt-1 md:pb-12">{children}</main>
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-6xl px-5 pb-32 pt-1 outline-none md:pb-12"
+      >
+        {children}
+      </main>
       <BottomNavigation />
     </div>
   );

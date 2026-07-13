@@ -23,9 +23,9 @@ async function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
 export default async function RankingsPage() {
   const [categories, rebuy, regret, discussed, newest] = await Promise.all([
     safe(api.categories.list({ next: { revalidate: 300 } }), [] as CategoryDto[]),
-    safe(api.rankings.topRebuy(30, { next: { revalidate: 30 } }, 1), [] as RankingEntryDto[]),
-    safe(api.rankings.topRegret(12, { next: { revalidate: 60 } }, 1), [] as RankingEntryDto[]),
-    safe(api.rankings.mostDiscussed(12, { next: { revalidate: 60 } }, 1), [] as RankingEntryDto[]),
+    safe(api.rankings.topRebuy(30, { next: { revalidate: 30 } }, 5), [] as RankingEntryDto[]),
+    safe(api.rankings.topRegret(12, { next: { revalidate: 60 } }, 5), [] as RankingEntryDto[]),
+    safe(api.rankings.mostDiscussed(12, { next: { revalidate: 60 } }, 5), [] as RankingEntryDto[]),
     safe(api.products.newest(12, { next: { revalidate: 60 } }), [] as ProductSummaryDto[]),
   ]);
 

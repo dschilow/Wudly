@@ -7,9 +7,9 @@ import type { EmailService } from '../src/email/email.service';
 import type { ConfigService } from '@nestjs/config';
 
 describe('QuestionsService owner notifications', () => {
-  it('notifies product owners and the product creator, including the asker when they are an owner', async () => {
+  it('notifies owners, including an asking owner, but never treats the catalog creator as an owner', async () => {
     const { service, notifications } = createService({
-      owners: ['owner-1', 'asker', 'creator'],
+      owners: ['owner-1', 'asker'],
       createdByUserId: 'creator',
     });
 
@@ -27,12 +27,6 @@ describe('QuestionsService owner notifications', () => {
       }),
       expect.objectContaining({
         userId: 'asker',
-        type: NotificationType.QUESTION_ASKED,
-        productId: 'product-1',
-        questionId: 'question-1',
-      }),
-      expect.objectContaining({
-        userId: 'creator',
         type: NotificationType.QUESTION_ASKED,
         productId: 'product-1',
         questionId: 'question-1',
@@ -68,7 +62,9 @@ describe('QuestionsService.createAnswer notifications', () => {
   it('notifies the asker in-app and by email, but not when answering own question', async () => {
     const { service, notifications, email } = createService({ owners: [] });
 
-    await service.createAnswer('question-1', 'answerer', { answerText: 'Hält seit Monaten super.' });
+    await service.createAnswer('question-1', 'answerer', {
+      answerText: 'Hält seit Monaten super.',
+    });
 
     expect(notifications.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -84,16 +80,26 @@ describe('QuestionsService.createAnswer notifications', () => {
     );
   });
 
-  it('does not notify or email when the asker answers their own question', async () => {
+  it('rejects self-answers so a user cannot manufacture owner Q&A', async () => {
     const { service, notifications, email } = createService({
       owners: [],
       askedByUserId: 'same-user',
     });
 
-    await service.createAnswer('question-1', 'same-user', { answerText: 'Update von mir selbst.' });
+    await expect(
+      service.createAnswer('question-1', 'same-user', { answerText: 'Update von mir selbst.' }),
+    ).rejects.toThrow('Die eigene Frage kann nicht selbst beantwortet werden.');
 
     expect(notifications.create).not.toHaveBeenCalled();
     expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('rejects answers from users without a matching ownership', async () => {
+    const { service } = createService({ owners: [], hasOwnership: false });
+
+    await expect(
+      service.createAnswer('question-1', 'answerer', { answerText: 'Nicht mein Produkt.' }),
+    ).rejects.toThrow('Nur eingetragene Besitzer');
   });
 
   it('still creates the answer even if the email send fails', async () => {
@@ -110,17 +116,21 @@ function createService(input: {
   owners: string[] | Promise<Array<{ userId: string }>>;
   createdByUserId?: string | null;
   askedByUserId?: string | null;
+  hasOwnership?: boolean;
 }): {
   service: QuestionsService;
   notifications: Pick<NotificationsService, 'createMany' | 'create'>;
   email: { send: ReturnType<typeof vi.fn> };
 } {
   const now = new Date('2026-06-07T12:00:00.000Z');
-  const ownerRows =
-    Array.isArray(input.owners) ? input.owners.map((userId) => ({ userId })) : input.owners;
+  const ownerRows = Array.isArray(input.owners)
+    ? input.owners.map((userId) => ({ userId }))
+    : input.owners;
   const askedByUserId = input.askedByUserId ?? 'asker';
+  const transaction = vi.fn();
 
   const prisma = {
+    $transaction: transaction,
     product: {
       findUnique: vi.fn().mockResolvedValue({
         id: 'product-1',
@@ -160,7 +170,11 @@ function createService(input: {
         helpfulCount: 0,
         createdAt: now,
         updatedAt: now,
-        answeredBy: { id: 'answerer', displayName: 'Answerer' },
+        answeredBy: { id: 'answerer', displayName: 'Answerer', role: 'USER' },
+        ownership: {
+          verificationStatus: 'SELF_DECLARED',
+          createdAt: now,
+        },
       }),
     },
     user: {
@@ -168,8 +182,14 @@ function createService(input: {
     },
     ownership: {
       findMany: vi.fn().mockResolvedValue(ownerRows),
+      findUnique: vi
+        .fn()
+        .mockResolvedValue(input.hasOwnership === false ? null : { id: 'ownership-1' }),
     },
   };
+  transaction.mockImplementation(async (callback: (client: typeof prisma) => unknown) =>
+    callback(prisma),
+  );
   const notifications = {
     createMany: vi.fn().mockResolvedValue(undefined),
     create: vi.fn().mockResolvedValue(undefined),

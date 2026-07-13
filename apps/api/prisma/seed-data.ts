@@ -57,7 +57,7 @@ export const CATEGORIES: SeedCategory[] = [
       { key: 'navigation', label: 'Navigation', type: AspectSentiment.POSITIVE },
       { key: 'saugkraft', label: 'Saugkraft', type: AspectSentiment.POSITIVE },
       { key: 'app', label: 'App-Steuerung', type: AspectSentiment.NEUTRAL },
-      { key: 'lautstaerke', label: 'Lautstärke', type: AspectSentiment.NEGATIVE },
+      { key: 'lautstaerke', label: 'LautstÃ¤rke', type: AspectSentiment.NEGATIVE },
       { key: 'wartung', label: 'Wartungsaufwand', type: AspectSentiment.NEGATIVE },
       { key: 'haare', label: 'Tierhaare', type: AspectSentiment.POSITIVE },
     ],
@@ -70,17 +70,17 @@ export const CATEGORIES: SeedCategory[] = [
       { key: 'akkulaufzeit', label: 'Akkulaufzeit', type: AspectSentiment.NEGATIVE },
       { key: 'gewicht', label: 'Gewicht', type: AspectSentiment.NEGATIVE },
       { key: 'handling', label: 'Handling', type: AspectSentiment.POSITIVE },
-      { key: 'lautstaerke', label: 'Lautstärke', type: AspectSentiment.NEGATIVE },
+      { key: 'lautstaerke', label: 'LautstÃ¤rke', type: AspectSentiment.NEGATIVE },
     ],
   },
   {
     slug: 'kaffeevollautomat',
     name: 'Kaffeevollautomat',
     aspects: [
-      { key: 'kaffeequalitaet', label: 'Kaffeequalität', type: AspectSentiment.POSITIVE },
+      { key: 'kaffeequalitaet', label: 'KaffeequalitÃ¤t', type: AspectSentiment.POSITIVE },
       { key: 'bedienung', label: 'Bedienung', type: AspectSentiment.POSITIVE },
       { key: 'reinigung', label: 'Reinigung', type: AspectSentiment.NEGATIVE },
-      { key: 'lautstaerke', label: 'Lautstärke', type: AspectSentiment.NEGATIVE },
+      { key: 'lautstaerke', label: 'LautstÃ¤rke', type: AspectSentiment.NEGATIVE },
       { key: 'milchschaum', label: 'Milchschaum', type: AspectSentiment.POSITIVE },
     ],
   },
@@ -111,7 +111,7 @@ export const CATEGORIES: SeedCategory[] = [
     name: 'Matratze',
     aspects: [
       { key: 'liegekomfort', label: 'Liegekomfort', type: AspectSentiment.POSITIVE },
-      { key: 'haerte', label: 'Härtegrad', type: AspectSentiment.NEUTRAL },
+      { key: 'haerte', label: 'HÃ¤rtegrad', type: AspectSentiment.NEUTRAL },
       { key: 'haltbarkeit', label: 'Haltbarkeit', type: AspectSentiment.NEGATIVE },
       { key: 'geruch', label: 'Geruch (neu)', type: AspectSentiment.NEGATIVE },
       { key: 'temperatur', label: 'Temperaturregulierung', type: AspectSentiment.NEUTRAL },
@@ -121,7 +121,7 @@ export const CATEGORIES: SeedCategory[] = [
     slug: 'pv-speicher',
     name: 'PV-Speicher',
     aspects: [
-      { key: 'kapazitaet', label: 'Kapazität', type: AspectSentiment.POSITIVE },
+      { key: 'kapazitaet', label: 'KapazitÃ¤t', type: AspectSentiment.POSITIVE },
       { key: 'wirkungsgrad', label: 'Wirkungsgrad', type: AspectSentiment.POSITIVE },
       { key: 'installation', label: 'Installation', type: AspectSentiment.NEUTRAL },
       { key: 'app', label: 'App & Monitoring', type: AspectSentiment.NEUTRAL },
@@ -130,10 +130,10 @@ export const CATEGORIES: SeedCategory[] = [
   },
   {
     slug: 'waermepumpe',
-    name: 'Wärmepumpe',
+    name: 'WÃ¤rmepumpe',
     aspects: [
       { key: 'effizienz', label: 'Effizienz (JAZ)', type: AspectSentiment.POSITIVE },
-      { key: 'lautstaerke', label: 'Lautstärke', type: AspectSentiment.NEGATIVE },
+      { key: 'lautstaerke', label: 'LautstÃ¤rke', type: AspectSentiment.NEGATIVE },
       { key: 'installation', label: 'Installation', type: AspectSentiment.NEUTRAL },
       { key: 'betriebskosten', label: 'Betriebskosten', type: AspectSentiment.POSITIVE },
       { key: 'service', label: 'Service', type: AspectSentiment.NEGATIVE },
@@ -151,6 +151,18 @@ export const CATEGORIES: SeedCategory[] = [
     ],
   },
   {
+    slug: 'fernseher',
+    name: 'Fernseher',
+    aspects: [
+      { key: 'bildqualitaet', label: 'Bildqualitaet', type: AspectSentiment.POSITIVE },
+      { key: 'ton', label: 'Ton', type: AspectSentiment.NEUTRAL },
+      { key: 'smart-tv', label: 'Smart-TV & Apps', type: AspectSentiment.NEUTRAL },
+      { key: 'bedienung', label: 'Bedienung', type: AspectSentiment.POSITIVE },
+      { key: 'gaming', label: 'Gaming & HDMI 2.1', type: AspectSentiment.NEUTRAL },
+      { key: 'preisleistung', label: 'Preis-Leistung', type: AspectSentiment.POSITIVE },
+    ],
+  },
+  {
     slug: 'laptop',
     name: 'Laptop',
     aspects: [
@@ -158,8 +170,8 @@ export const CATEGORIES: SeedCategory[] = [
       { key: 'performance', label: 'Performance', type: AspectSentiment.POSITIVE },
       { key: 'display', label: 'Display', type: AspectSentiment.POSITIVE },
       { key: 'tastatur', label: 'Tastatur', type: AspectSentiment.NEUTRAL },
-      { key: 'anschluesse', label: 'Anschlüsse', type: AspectSentiment.NEGATIVE },
-      { key: 'lautstaerke', label: 'Lüfter-Lautstärke', type: AspectSentiment.NEGATIVE },
+      { key: 'anschluesse', label: 'AnschlÃ¼sse', type: AspectSentiment.NEGATIVE },
+      { key: 'lautstaerke', label: 'LÃ¼fter-LautstÃ¤rke', type: AspectSentiment.NEGATIVE },
     ],
   },
   {
@@ -167,7 +179,7 @@ export const CATEGORIES: SeedCategory[] = [
     name: 'Waschmaschine',
     aspects: [
       { key: 'waschergebnis', label: 'Waschergebnis', type: AspectSentiment.POSITIVE },
-      { key: 'lautstaerke', label: 'Lautstärke', type: AspectSentiment.NEGATIVE },
+      { key: 'lautstaerke', label: 'LautstÃ¤rke', type: AspectSentiment.NEGATIVE },
       { key: 'verbrauch', label: 'Verbrauch', type: AspectSentiment.POSITIVE },
       { key: 'programme', label: 'Programme', type: AspectSentiment.NEUTRAL },
       { key: 'haltbarkeit', label: 'Haltbarkeit', type: AspectSentiment.NEGATIVE },
@@ -213,7 +225,7 @@ export const PRODUCTS: SeedProduct[] = [
         wouldBuyAgain: WouldBuyAgain.YES,
         usageDuration: UsageDuration.ONE_TO_SIX_MONTHS,
         experienceMood: ExperienceMood.TOP_BUY,
-        wishKnownText: 'Dass die Station relativ groß ist und einen festen Platz braucht.',
+        wishKnownText: 'Dass die Station relativ groÃŸ ist und einen festen Platz braucht.',
         positive: ['navigation', 'saugkraft', 'haare'],
         negative: ['lautstaerke'],
       },
@@ -245,7 +257,7 @@ export const PRODUCTS: SeedProduct[] = [
         wouldBuyAgain: WouldBuyAgain.YES,
         usageDuration: UsageDuration.MORE_THAN_YEAR,
         experienceMood: ExperienceMood.TOP_BUY,
-        wishKnownText: 'Dass die Ersatzakkus teuer sind, aber der Sauger hält lange.',
+        wishKnownText: 'Dass die Ersatzakkus teuer sind, aber der Sauger hÃ¤lt lange.',
         positive: ['saugkraft', 'handling'],
         negative: ['akkulaufzeit'],
       },
@@ -300,7 +312,7 @@ export const PRODUCTS: SeedProduct[] = [
         wouldBuyAgain: WouldBuyAgain.YES,
         usageDuration: UsageDuration.MORE_THAN_YEAR,
         experienceMood: ExperienceMood.GOOD_DAILY_USE,
-        wishKnownText: 'Dass die Wischwalze regelmäßig entkalkt werden muss.',
+        wishKnownText: 'Dass die Wischwalze regelmÃ¤ÃŸig entkalkt werden muss.',
         positive: ['saugkraft', 'navigation'],
         negative: ['wartung'],
       },
@@ -325,7 +337,7 @@ export const PRODUCTS: SeedProduct[] = [
         wouldBuyAgain: WouldBuyAgain.UNSURE,
         usageDuration: UsageDuration.ONE_TO_SIX_MONTHS,
         experienceMood: ExperienceMood.OKAY,
-        wishKnownText: 'Dass das Milchsystem täglich gespült werden sollte.',
+        wishKnownText: 'Dass das Milchsystem tÃ¤glich gespÃ¼lt werden sollte.',
         positive: ['kaffeequalitaet'],
         negative: ['reinigung', 'lautstaerke'],
       },
@@ -357,7 +369,7 @@ export const PRODUCTS: SeedProduct[] = [
         wouldBuyAgain: WouldBuyAgain.YES,
         usageDuration: UsageDuration.SIX_TO_TWELVE_MONTHS,
         experienceMood: ExperienceMood.GOOD_DAILY_USE,
-        wishKnownText: 'Dass er auf der Rückbank recht breit ist — 3 Sitze nebeneinander wird eng.',
+        wishKnownText: 'Dass er auf der RÃ¼ckbank recht breit ist â€” 3 Sitze nebeneinander wird eng.',
         positive: ['sicherheit'],
         negative: ['platzbedarf'],
       },
@@ -389,7 +401,7 @@ export const PRODUCTS: SeedProduct[] = [
         wouldBuyAgain: WouldBuyAgain.UNSURE,
         usageDuration: UsageDuration.ONE_TO_FOUR_WEEKS,
         experienceMood: ExperienceMood.OKAY,
-        wishKnownText: 'Dass der Akku bei intensiver Nutzung keinen ganzen Tag hält.',
+        wishKnownText: 'Dass der Akku bei intensiver Nutzung keinen ganzen Tag hÃ¤lt.',
         positive: ['display'],
         negative: ['akku'],
       },
@@ -398,7 +410,7 @@ export const PRODUCTS: SeedProduct[] = [
         wouldBuyAgain: WouldBuyAgain.NO,
         usageDuration: UsageDuration.ONE_TO_SIX_MONTHS,
         experienceMood: ExperienceMood.ANNOYING,
-        freeText: 'Tolles Display, aber für den Preis erwarte ich mehr Akku.',
+        freeText: 'Tolles Display, aber fÃ¼r den Preis erwarte ich mehr Akku.',
         negative: ['akku'],
       },
     ],
@@ -407,14 +419,14 @@ export const PRODUCTS: SeedProduct[] = [
     canonicalName: 'Apple MacBook Air',
     brand: 'Apple',
     categorySlug: 'laptop',
-    description: 'Leichtes Notebook mit Apple-Silicon, lüfterlos.',
+    description: 'Leichtes Notebook mit Apple-Silicon, lÃ¼fterlos.',
     experiences: [
       {
         author: 'carla',
         wouldBuyAgain: WouldBuyAgain.YES,
         usageDuration: UsageDuration.MORE_THAN_YEAR,
         experienceMood: ExperienceMood.TOP_BUY,
-        wishKnownText: 'Dass 256 GB Speicher schnell knapp werden — lieber gleich mehr nehmen.',
+        wishKnownText: 'Dass 256 GB Speicher schnell knapp werden â€” lieber gleich mehr nehmen.',
         positive: ['akku', 'performance', 'display'],
         negative: ['anschluesse'],
       },
@@ -525,7 +537,7 @@ export const QUESTIONS: SeedQuestion[] = [
   {
     productName: 'Dyson V15 Detect Absolute',
     asker: 'nina',
-    questionText: 'Reicht der Akku für eine 90m²-Wohnung in einem Durchgang?',
+    questionText: 'Reicht der Akku fÃ¼r eine 90mÂ²-Wohnung in einem Durchgang?',
     answers: [
       {
         author: 'sarah',
@@ -535,7 +547,7 @@ export const QUESTIONS: SeedQuestion[] = [
       },
       {
         author: 'ben',
-        answerText: 'Bei mir (75m²) reicht eine Ladung, aber knapp.',
+        answerText: 'Bei mir (75mÂ²) reicht eine Ladung, aber knapp.',
         quickAnswer: 'YES',
         helpful: 1,
       },
@@ -544,7 +556,7 @@ export const QUESTIONS: SeedQuestion[] = [
   {
     productName: 'Samsung Galaxy S25',
     asker: 'carla',
-    questionText: 'Wie ist der Akku nach ein paar Monaten — hält er einen Arbeitstag?',
+    questionText: 'Wie ist der Akku nach ein paar Monaten â€” hÃ¤lt er einen Arbeitstag?',
     answers: [
       {
         author: 'ben',
@@ -557,11 +569,11 @@ export const QUESTIONS: SeedQuestion[] = [
   {
     productName: 'Roborock S8 Pro Ultra',
     asker: 'jonas',
-    questionText: 'Kommt er mit langen Tierhaaren klar, ohne dass sich die Bürste zusetzt?',
+    questionText: 'Kommt er mit langen Tierhaaren klar, ohne dass sich die BÃ¼rste zusetzt?',
     answers: [
       {
         author: 'paul',
-        answerText: 'Ja, die Gummibürste verheddert kaum. Alle paar Wochen kurz säubern.',
+        answerText: 'Ja, die GummibÃ¼rste verheddert kaum. Alle paar Wochen kurz sÃ¤ubern.',
         quickAnswer: 'YES',
         helpful: 5,
       },

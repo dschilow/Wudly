@@ -95,9 +95,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const canonicalPath = productPath(product);
     const image = productShareImageUrl(product.id);
     const title = `${product.canonicalName}: Erfahrungen & Wiederkauf-Score`;
+    const isThin =
+      !product.category ||
+      (product.insights.experienceCount === 0 && product.externalSourceCount < 2);
     return {
       title,
       description,
+      robots: isThin ? { index: false, follow: true } : undefined,
       alternates: { canonical: canonicalPath },
       openGraph: {
         title: `${product.canonicalName} — Erfahrungen, Bewertung & Wudly Signal`,
@@ -182,14 +186,15 @@ function DecisionBrief({
             </p>
           </div>
           <ul className="mt-3.5 space-y-2.5">
-            {(buyItems.length > 0 ? buyItems : ['die ersten Besitzer weiter positive Langzeitdaten liefern']).map(
-              (item) => (
-                <li key={item} className="flex gap-2 text-[0.9375rem] leading-snug text-label">
-                  <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
-                  <span>{item}</span>
-                </li>
-              ),
-            )}
+            {(buyItems.length > 0
+              ? buyItems
+              : ['die ersten Besitzer weiter positive Langzeitdaten liefern']
+            ).map((item) => (
+              <li key={item} className="flex gap-2 text-[0.9375rem] leading-snug text-label">
+                <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-positive" />
+                <span>{item}</span>
+              </li>
+            ))}
           </ul>
         </div>
 
@@ -203,14 +208,15 @@ function DecisionBrief({
             </p>
           </div>
           <ul className="mt-3.5 space-y-2.5">
-            {(avoidItems.length > 0 ? avoidItems : ['du ohne mehr echte Nutzung kein Risiko eingehen willst']).map(
-              (item) => (
-                <li key={item} className="flex gap-2 text-[0.9375rem] leading-snug text-label">
-                  <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-regret" />
-                  <span>{item}</span>
-                </li>
-              ),
-            )}
+            {(avoidItems.length > 0
+              ? avoidItems
+              : ['du ohne mehr echte Nutzung kein Risiko eingehen willst']
+            ).map((item) => (
+              <li key={item} className="flex gap-2 text-[0.9375rem] leading-snug text-label">
+                <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-regret" />
+                <span>{item}</span>
+              </li>
+            ))}
           </ul>
         </div>
       </div>
@@ -245,14 +251,13 @@ function TrustPanel({ insights }: { insights: ProductInsightsDto }) {
   // Degrade gracefully if the trust breakdown is missing rather than crashing the page.
   if (!verification) return null;
   const hasOwners = verification.total > 0;
-  const level =
-    !hasOwners
-      ? 'Noch offen'
-      : verification.verified > 0
-        ? verification.verifiedShare >= 50
-          ? 'Verifiziertes Signal'
-          : 'Gemischter Nachweis'
-        : 'Selbst deklariert';
+  const level = !hasOwners
+    ? 'Noch offen'
+    : verification.verified > 0
+      ? verification.verifiedShare >= 50
+        ? 'Zusätzlich geprüft'
+        : 'Transparente Mischung'
+      : 'Selbst angegeben';
 
   return (
     <section>
@@ -268,8 +273,8 @@ function TrustPanel({ insights }: { insights: ProductInsightsDto }) {
                 {level}
               </p>
               <p className="mt-1 text-[0.9375rem] leading-snug text-muted-foreground">
-                Verifizierte Besitzer zählen im Score stärker. Selbst deklarierte Stimmen bleiben
-                sichtbar, aber weniger gewichtet.
+                Keine Rechnung nötig. Selbst angegebene und zusätzlich geprüfte Erfahrungen zählen
+                gleich; der Status bleibt transparent sichtbar.
               </p>
             </div>
           </div>
@@ -284,7 +289,7 @@ function TrustPanel({ insights }: { insights: ProductInsightsDto }) {
         <div className="grid grid-cols-3 hairline">
           <TrustMetric
             icon={<BadgeCheck className="h-4 w-4" strokeWidth={2.3} />}
-            label="Verifiziert"
+            label="Geprüft"
             value={verification.verified}
           />
           <TrustMetric
@@ -303,15 +308,7 @@ function TrustPanel({ insights }: { insights: ProductInsightsDto }) {
   );
 }
 
-function TrustMetric({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: number;
-}) {
+function TrustMetric({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
   return (
     <div className="flex flex-col items-center gap-1 px-2 py-3 text-center">
       <span className="text-accent-ink">{icon}</span>
@@ -326,6 +323,7 @@ function TrustMetric({
 function QuickSignalPanel({ insights }: { insights: ProductInsightsDto }) {
   const quick = insights.quickVotes;
   if (!quick || quick.count === 0) return null;
+  const enoughForPercentage = quick.count >= 5;
 
   return (
     <section>
@@ -337,12 +335,21 @@ function QuickSignalPanel({ insights }: { insights: ProductInsightsDto }) {
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-display text-[2.3rem] leading-none text-label">
-              {quick.rebuy ?? '–'}
-              {quick.rebuy !== null && <span className="text-[1.2rem]">%</span>}
+              {enoughForPercentage ? (
+                <>
+                  {quick.rebuy ?? '–'}
+                  {quick.rebuy !== null && <span className="text-[1.2rem]">%</span>}
+                </>
+              ) : (
+                <>
+                  {quick.count} frühe {quick.count === 1 ? 'Stimme' : 'Stimmen'}
+                </>
+              )}
             </p>
             <p className="mt-1 text-[0.875rem] leading-snug text-muted-foreground">
-              {quick.count} Schnellcheck{quick.count === 1 ? '' : 's'} aus dem Swipe-Flow. Dieses
-              Signal bleibt getrennt vom belastbaren Wudly Score.
+              {enoughForPercentage
+                ? `${quick.count} anonyme Schnellchecks – getrennt vom Wudly Signal.`
+                : 'Noch zu wenig für eine Prozentzahl. Die Rohstimmen bleiben transparent sichtbar.'}
             </p>
           </div>
         </div>
@@ -473,8 +480,8 @@ function Alternatives({
                 </p>
                 {better && (
                   <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-positive-soft px-2 py-0.5 text-[0.6875rem] font-semibold text-positive-ink">
-                    <TrendingUp className="h-3 w-3" strokeWidth={2.4} aria-hidden />
-                    +{delta} Pkt. Wiederkauf
+                    <TrendingUp className="h-3 w-3" strokeWidth={2.4} aria-hidden />+{delta} Pkt.
+                    Wiederkauf
                   </span>
                 )}
               </div>
@@ -572,12 +579,7 @@ export default async function ProductPage({ params }: PageProps) {
     <>
       {ins.aiHeadline && <AiInsightCard headline={ins.aiHeadline} />}
 
-      <DecisionBrief
-        insights={ins}
-        positive={positive}
-        negative={negative}
-        knowItems={knowItems}
-      />
+      <DecisionBrief insights={ins} positive={positive} negative={negative} knowItems={knowItems} />
 
       <div className="lg:hidden">
         <TrustPanel insights={ins} />
@@ -804,7 +806,7 @@ export default async function ProductPage({ params }: PageProps) {
     <>
       <div className="flex items-center justify-between px-1">
         <p className="text-[0.9375rem] text-muted-foreground">
-          Echte Besitzer antworten — meist innerhalb weniger Tage.
+          Antworten zeigen transparent, ob der Besitz selbst angegeben oder geprüft wurde.
         </p>
         <Link
           href={`/products/${productId}/ask`}
@@ -813,126 +815,122 @@ export default async function ProductPage({ params }: PageProps) {
           Frage stellen
         </Link>
       </div>
-      <QuestionsPanel questions={questions} />
+      <QuestionsPanel questions={questions} productId={productId} />
     </>
   );
 
   return (
     <div className="animate-fade mx-auto grid max-w-5xl gap-6 pb-4 pt-3 lg:grid-cols-[minmax(0,42rem)_20rem] lg:items-start">
       <div className="space-y-5">
-      <JsonLd data={structuredData} />
+        <JsonLd data={structuredData} />
 
-      {/* 1 · Editorial hero: image beside serif title, mono meta overline */}
-      <section className="animate-rise flex items-center gap-4">
-        <Thumb
-          product={product}
-          className="h-28 w-28 shrink-0 sm:h-32 sm:w-32"
-          rounded="rounded-[1rem]"
-          pollForPhoto
-          fit="contain"
-        />
-        <div className="min-w-0 flex-1">
-          <p className="mono-data flex flex-wrap items-center gap-x-2 text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {product.brand && <span>{product.brand}</span>}
-            {product.brand && product.category && <span aria-hidden>·</span>}
-            {product.category && (
-              <Link
-                href={`/kategorie/${product.category.slug}`}
-                className="tap-dim text-accent-ink"
-              >
-                {product.category.name}
-              </Link>
-            )}
-          </p>
-          <div className="mt-1.5 flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h1 className="font-display text-balance text-[1.9rem] leading-[1.02] text-label">
-                {product.canonicalName}
-              </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {ins.wudlySeal && <SealBadge size="lg" />}
+        {/* 1 · Editorial hero: image beside serif title, mono meta overline */}
+        <section className="animate-rise flex items-center gap-4">
+          <Thumb
+            product={product}
+            className="h-28 w-28 shrink-0 sm:h-32 sm:w-32"
+            rounded="rounded-[1rem]"
+            pollForPhoto
+            fit="contain"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="mono-data flex flex-wrap items-center gap-x-2 text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {product.brand && <span>{product.brand}</span>}
+              {product.brand && product.category && <span aria-hidden>·</span>}
+              {product.category && (
                 <Link
-                  href={`/compare?ids=${product.id}`}
-                  className="press inline-flex h-8 items-center gap-1.5 rounded-full bg-fill-2 px-3 text-[0.8125rem] font-semibold text-label shadow-[inset_0_0_0_1px_var(--color-border)]"
+                  href={`/kategorie/${product.category.slug}`}
+                  className="tap-dim text-accent-ink"
                 >
-                  <GitCompareArrows className="h-4 w-4 text-accent-ink" strokeWidth={2.3} />
-                  Vergleichen
+                  {product.category.name}
                 </Link>
+              )}
+            </p>
+            <div className="mt-1.5 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h1 className="font-display text-balance text-[1.9rem] leading-[1.02] text-label">
+                  {product.canonicalName}
+                </h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {ins.wudlySeal && <SealBadge size="lg" />}
+                  <Link
+                    href={`/compare?ids=${product.id}`}
+                    className="press inline-flex h-8 items-center gap-1.5 rounded-full bg-fill-2 px-3 text-[0.8125rem] font-semibold text-label shadow-[inset_0_0_0_1px_var(--color-border)]"
+                  >
+                    <GitCompareArrows className="h-4 w-4 text-accent-ink" strokeWidth={2.3} />
+                    Vergleichen
+                  </Link>
+                </div>
               </div>
+              <ShareButton
+                title={`${product.canonicalName} — Würdest du es wieder kaufen?`}
+                text={
+                  ins.aiHeadline ??
+                  (earlySignal
+                    ? `Erst ${earlyYesCount} von ${ins.ownerCount} Besitzern würden es wieder kaufen.`
+                    : `${ins.rebuyScore ?? '–'}% würden es wieder kaufen`)
+                }
+              />
             </div>
-            <ShareButton
-              title={`${product.canonicalName} — Würdest du es wieder kaufen?`}
-              text={
-                ins.aiHeadline ??
-                (earlySignal
-                  ? `Erst ${earlyYesCount} von ${ins.ownerCount} Besitzern würden es wieder kaufen.`
-                  : `${ins.rebuyScore ?? '–'}% würden es wieder kaufen`)
-              }
-            />
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* 2 · The Verdict — Wudly's signal */}
-      <SignalPanel
-        productId={product.id}
-        productName={product.canonicalName}
-        score={ins.rebuyScore}
-        earlySignal={earlySignal}
-        earlyYesCount={earlyYesCount}
-        ownerCount={ins.ownerCount}
-        experienceCount={ins.experienceCount}
-        signalStrength={signalStrength}
-        subline={subline}
-      />
+        {/* 2 · The Verdict — Wudly's signal */}
+        <SignalPanel
+          productId={product.id}
+          productName={product.canonicalName}
+          score={ins.rebuyScore}
+          earlySignal={earlySignal}
+          earlyYesCount={earlyYesCount}
+          ownerCount={ins.ownerCount}
+          experienceCount={ins.experienceCount}
+          signalStrength={signalStrength}
+          subline={subline}
+        />
 
-      <InviteButton productId={product.id} productName={product.canonicalName} />
+        <InviteButton productId={product.id} productName={product.canonicalName} />
 
-      {earlySignal && (
-        <p className="px-1 text-[0.875rem] leading-snug text-muted-foreground">
-          Sobald mehr Besitzer bewerten, wird das Urteil verlässlicher.
-        </p>
-      )}
-
-      {/* 3 · Tabs keep scroll paths short */}
-      <ProductTabs
-        tabs={[
-          { key: 'uebersicht', label: 'Übersicht', content: uebersichtTab },
-          { key: 'stimmen', label: 'Stimmen', count: experiences.length, content: stimmenTab },
-          { key: 'fragen', label: 'Fragen', count: questions.length, content: fragenTab },
-        ]}
-      />
-
-      {/* Passende Alternativen — always visible, right in the product. */}
-      <Alternatives
-        productId={product.id}
-        alternatives={similar}
-        currentScore={ins.rebuyScore}
-      />
-
-      {/* Wudly Showcase — clearly separated commercial / creator content. */}
-      {showcases.length > 0 && (
-        <Reveal className="space-y-2.5 pt-2">
-          <div className="flex items-center gap-2 px-1 pb-0.5">
-            <span className="h-px flex-1 bg-separator" aria-hidden />
-            <span className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Wudly Showcase
-            </span>
-            <span className="h-px flex-1 bg-separator" aria-hidden />
-          </div>
-          <p className="px-1 text-center text-[0.8125rem] leading-snug text-muted-foreground">
-            Hersteller- und Creator-Präsentationen. Klar gekennzeichnet und{' '}
-            <span className="font-medium text-label">getrennt vom neutralen Score</span>.
+        {earlySignal && (
+          <p className="px-1 text-[0.875rem] leading-snug text-muted-foreground">
+            Sobald mehr Besitzer bewerten, wird das Urteil verlässlicher.
           </p>
-          {showcases.map((s) => (
-            <ShowcaseCard key={s.id} showcase={s} href={`/showcases/${s.id}`} />
-          ))}
-        </Reveal>
-      )}
+        )}
 
-      {/* 4 · Sticky action bar — "Fragen" opens the composer as a bottom sheet */}
-      <ProductActionBar productId={productId} productName={product.canonicalName} />
-      <div className="h-20" aria-hidden />
+        {/* 3 · Tabs keep scroll paths short */}
+        <ProductTabs
+          tabs={[
+            { key: 'uebersicht', label: 'Übersicht', content: uebersichtTab },
+            { key: 'stimmen', label: 'Stimmen', count: experiences.length, content: stimmenTab },
+            { key: 'fragen', label: 'Fragen', count: questions.length, content: fragenTab },
+          ]}
+        />
+
+        {/* Passende Alternativen — always visible, right in the product. */}
+        <Alternatives productId={product.id} alternatives={similar} currentScore={ins.rebuyScore} />
+
+        {/* Wudly Showcase — clearly separated commercial / creator content. */}
+        {showcases.length > 0 && (
+          <Reveal className="space-y-2.5 pt-2">
+            <div className="flex items-center gap-2 px-1 pb-0.5">
+              <span className="h-px flex-1 bg-separator" aria-hidden />
+              <span className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Wudly Showcase
+              </span>
+              <span className="h-px flex-1 bg-separator" aria-hidden />
+            </div>
+            <p className="px-1 text-center text-[0.8125rem] leading-snug text-muted-foreground">
+              Hersteller- und Creator-Präsentationen. Klar gekennzeichnet und{' '}
+              <span className="font-medium text-label">getrennt vom neutralen Score</span>.
+            </p>
+            {showcases.map((s) => (
+              <ShowcaseCard key={s.id} showcase={s} href={`/showcases/${s.id}`} />
+            ))}
+          </Reveal>
+        )}
+
+        {/* 4 · Sticky action bar — "Fragen" opens the composer as a bottom sheet */}
+        <ProductActionBar productId={productId} productName={product.canonicalName} />
+        <div className="h-20" aria-hidden />
       </div>
 
       <aside className="hidden space-y-4 lg:sticky lg:top-20 lg:block">

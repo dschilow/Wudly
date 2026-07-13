@@ -1,4 +1,12 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Inject,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import {
   NotificationType,
@@ -14,15 +22,16 @@ import { EmailService } from '../email/email.service';
 import { questionAnsweredEmail } from '../email/email-templates';
 import type { AppConfig } from '../config/configuration';
 import { toProductSummaryDto, type ProductWithRelations } from '../products/product.mapper';
-import {
-  toQuestionDto,
-  toAnswerDto,
-  type QuestionWithRelations,
-} from './question.mapper';
+import { toQuestionDto, toAnswerDto, type QuestionWithRelations } from './question.mapper';
 
 const QUESTION_INCLUDE = {
   askedBy: { select: { id: true, displayName: true } },
-  answers: { include: { answeredBy: { select: { id: true, displayName: true } } } },
+  answers: {
+    include: {
+      answeredBy: { select: { id: true, displayName: true, role: true } },
+      ownership: { select: { verificationStatus: true, createdAt: true } },
+    },
+  },
 } as const;
 
 @Injectable()
@@ -59,13 +68,11 @@ export class QuestionsService {
    * Powers the "answer the owner" inbox in the profile.
    */
   async listOpenForOwner(userId: string): Promise<OpenQuestionDto[]> {
-    const [ownerships, created] = await Promise.all([
-      this.prisma.ownership.findMany({ where: { userId }, select: { productId: true } }),
-      this.prisma.product.findMany({ where: { createdByUserId: userId }, select: { id: true } }),
-    ]);
-    const productIds = Array.from(
-      new Set([...ownerships.map((o) => o.productId), ...created.map((c) => c.id)]),
-    );
+    const ownerships = await this.prisma.ownership.findMany({
+      where: { userId },
+      select: { productId: true },
+    });
+    const productIds = Array.from(new Set(ownerships.map((ownership) => ownership.productId)));
     if (productIds.length === 0) return [];
 
     const questions = await this.prisma.productQuestion.findMany({
@@ -85,7 +92,10 @@ export class QuestionsService {
 
     const ownerCounts = await this.ownerCountMap(productIds);
     return questions.map((q) => ({
-      question: toQuestionDto(q as unknown as QuestionWithRelations, ownerCounts.get(q.productId) ?? 0),
+      question: toQuestionDto(
+        q as unknown as QuestionWithRelations,
+        ownerCounts.get(q.productId) ?? 0,
+      ),
       product: toProductSummaryDto(q.product as ProductWithRelations),
     }));
   }
@@ -104,7 +114,10 @@ export class QuestionsService {
     if (questions.length === 0) return [];
     const ownerCounts = await this.ownerCountMap(questions.map((q) => q.productId));
     return questions.map((q) => ({
-      question: toQuestionDto(q as unknown as QuestionWithRelations, ownerCounts.get(q.productId) ?? 0),
+      question: toQuestionDto(
+        q as unknown as QuestionWithRelations,
+        ownerCounts.get(q.productId) ?? 0,
+      ),
       product: toProductSummaryDto(q.product as ProductWithRelations),
     }));
   }
@@ -127,7 +140,7 @@ export class QuestionsService {
   ): Promise<QuestionDto> {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, canonicalName: true, createdByUserId: true },
+      select: { id: true, canonicalName: true },
     });
     if (!product) throw new NotFoundException('Produkt nicht gefunden.');
 
@@ -141,7 +154,6 @@ export class QuestionsService {
       productId,
       productName: product.canonicalName,
       questionId: question.id,
-      createdByUserId: product.createdByUserId,
     });
 
     return toQuestionDto(question as QuestionWithRelations);
@@ -157,6 +169,21 @@ export class QuestionsService {
       select: { id: true, productId: true, askedByUserId: true, questionText: true },
     });
     if (!question) throw new NotFoundException('Frage nicht gefunden.');
+    if (question.askedByUserId === userId) {
+      throw new BadRequestException('Die eigene Frage kann nicht selbst beantwortet werden.');
+    }
+
+    const ownership = await this.prisma.ownership.findUnique({
+      where: {
+        userId_productId: { userId, productId: question.productId },
+      },
+      select: { id: true },
+    });
+    if (!ownership) {
+      throw new ForbiddenException(
+        'Nur eingetragene Besitzer dieses Produkts können als Besitzer antworten.',
+      );
+    }
 
     const alreadyAnswered = await this.prisma.productAnswer.findFirst({
       where: { questionId, answeredByUserId: userId },
@@ -164,22 +191,34 @@ export class QuestionsService {
     });
     if (alreadyAnswered) throw new BadRequestException('Du hast diese Frage bereits beantwortet.');
 
-    const answer = await this.prisma.productAnswer.create({
-      data: {
-        questionId,
-        productId: question.productId,
-        answeredByUserId: userId,
-        answerText: input.answerText,
-        quickAnswer: input.quickAnswer ?? null,
-      },
-      include: { answeredBy: { select: { id: true, displayName: true } } },
-    });
-
-    // First answer flips the question to ANSWERED.
-    await this.prisma.productQuestion.update({
-      where: { id: questionId },
-      data: { status: 'ANSWERED' },
-    });
+    const answer = await this.prisma
+      .$transaction(async (tx) => {
+        const created = await tx.productAnswer.create({
+          data: {
+            questionId,
+            productId: question.productId,
+            answeredByUserId: userId,
+            ownershipId: ownership.id,
+            answerText: input.answerText,
+            quickAnswer: input.quickAnswer ?? null,
+          },
+          include: {
+            answeredBy: { select: { id: true, displayName: true, role: true } },
+            ownership: { select: { verificationStatus: true, createdAt: true } },
+          },
+        });
+        await tx.productQuestion.update({
+          where: { id: questionId },
+          data: { status: 'ANSWERED' },
+        });
+        return created;
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw new BadRequestException('Du hast diese Frage bereits beantwortet.');
+        }
+        throw error;
+      });
 
     // Notify the asker that their question got an answer: in-app always, email
     // best-effort on top (the core Q&A loop must not depend on mail delivery).
@@ -236,32 +275,51 @@ export class QuestionsService {
       questionUrl: `${webAppUrl}/me/inbox?product=${params.productId}&question=${params.questionId}`,
     });
     void this.email.send({ to, ...message }).catch((err) => {
-      this.logger.warn(`Question-answered email failed: ${err instanceof Error ? err.message : err}`);
+      this.logger.warn(
+        `Question-answered email failed: ${err instanceof Error ? err.message : err}`,
+      );
     });
   }
 
-  /** Increment helpful count and notify the answer's author. */
+  /** Record one auditable helpful vote and notify the answer's author. */
   async markHelpful(answerId: string, byUserId: string): Promise<AnswerDto> {
-    const answer = await this.prisma.productAnswer
-      .update({
-        where: { id: answerId },
-        data: { helpfulCount: { increment: 1 } },
-        include: { answeredBy: { select: { id: true, displayName: true } } },
-      })
-      .catch(() => null);
-    if (!answer) throw new NotFoundException('Antwort nicht gefunden.');
-
-    if (answer.answeredByUserId !== byUserId) {
-      void this.notifications.create({
-        userId: answer.answeredByUserId,
-        type: NotificationType.ANSWER_HELPFUL,
-        title: 'Deine Antwort war hilfreich',
-        body: 'Jemand fand deine Antwort hilfreich.',
-        link: `/me/inbox?product=${answer.productId}&question=${answer.questionId}`,
-        productId: answer.productId,
-        questionId: answer.questionId,
-      });
+    const existing = await this.prisma.productAnswer.findUnique({
+      where: { id: answerId },
+      select: { answeredByUserId: true },
+    });
+    if (!existing) throw new NotFoundException('Antwort nicht gefunden.');
+    if (existing.answeredByUserId === byUserId) {
+      throw new BadRequestException('Die eigene Antwort kann nicht als hilfreich markiert werden.');
     }
+
+    const answer = await this.prisma
+      .$transaction(async (tx) => {
+        await tx.answerHelpfulVote.create({ data: { answerId, userId: byUserId } });
+        return tx.productAnswer.update({
+          where: { id: answerId },
+          data: { helpfulCount: { increment: 1 } },
+          include: {
+            answeredBy: { select: { id: true, displayName: true, role: true } },
+            ownership: { select: { verificationStatus: true, createdAt: true } },
+          },
+        });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw new BadRequestException('Du hast diese Antwort bereits als hilfreich markiert.');
+        }
+        throw error;
+      });
+
+    void this.notifications.create({
+      userId: answer.answeredByUserId,
+      type: NotificationType.ANSWER_HELPFUL,
+      title: 'Deine Antwort war hilfreich',
+      body: 'Jemand fand deine Antwort hilfreich.',
+      link: `/me/inbox?product=${answer.productId}&question=${answer.questionId}`,
+      productId: answer.productId,
+      questionId: answer.questionId,
+    });
 
     return toAnswerDto(answer);
   }
@@ -270,18 +328,14 @@ export class QuestionsService {
     productId: string;
     productName: string;
     questionId: string;
-    createdByUserId: string | null;
   }): Promise<void> {
-    // Recipients = everyone who owns the product PLUS whoever added it to Wudly.
-    // If the asker is also an owner/creator, keep them in the loop: owners expect
-    // product questions to land in their inbox on every device.
+    // Product creation is catalog work, not proof of ownership.
     const owners = await this.prisma.ownership.findMany({
       where: { productId: params.productId },
       select: { userId: true },
     });
 
-    const recipientIds = new Set<string>(owners.map((o) => o.userId));
-    if (params.createdByUserId) recipientIds.add(params.createdByUserId);
+    const recipientIds = new Set<string>(owners.map((owner) => owner.userId));
     if (recipientIds.size === 0) return;
 
     await this.notifications.createMany(

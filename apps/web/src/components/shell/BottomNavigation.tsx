@@ -3,17 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'motion/react';
-import {
-  Box,
-  Compass,
-  FlaskConical,
-  GitCompareArrows,
-  Search,
-  User,
-  type LucideIcon,
-} from 'lucide-react';
+import { Box, Compass, MessageCircleQuestion, Search, User, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/lib/auth-context';
 import { useNotifications } from '@/lib/notifications-context';
 
 interface NavItem {
@@ -28,51 +19,43 @@ interface NavItem {
 const BASE_ITEMS: NavItem[] = [
   {
     href: '/check',
-    label: 'Prüfen',
+    label: 'Suchen',
     icon: Search,
     match: (p) =>
       p === '/' || p.startsWith('/check') || p.startsWith('/products') || p.startsWith('/produkte'),
   },
-  {
-    href: '/compare',
-    label: 'Vergleich',
-    icon: GitCompareArrows,
-    match: (p) => p.startsWith('/compare'),
-  },
   { href: '/rankings', label: 'Entdecken', icon: Compass, match: (p) => p.startsWith('/rankings') },
   {
+    href: '/me/inbox',
+    label: 'Fragen',
+    icon: MessageCircleQuestion,
+    match: (p) => p.startsWith('/me/inbox'),
+  },
+  {
     href: '/me/products',
-    label: 'Besitzen',
+    label: 'Produkte',
     icon: Box,
     match: (p) => p.startsWith('/me/products'),
   },
   {
     href: '/me',
-    label: 'Ich',
+    label: 'Profil',
     icon: User,
-    match: (p) => p === '/me' || (p.startsWith('/me/') && !p.startsWith('/me/products')),
+    match: (p) =>
+      p === '/me' ||
+      (p.startsWith('/me/') && !p.startsWith('/me/products') && !p.startsWith('/me/inbox')),
   },
 ];
-
-/** Admin-only model benchmarking tab, appended for ADMIN users. */
-const KI_ITEM: NavItem = {
-  href: '/ki-test',
-  label: 'KI-Test',
-  icon: FlaskConical,
-  match: (p) => p.startsWith('/ki-test'),
-};
 
 /**
  * Floating dock — a detached glass pill hovering above the content. The active
  * tab gets a monochrome ink platter that glides between items (shared layout
  * animation); the luminous accent stays reserved for verdicts and CTAs. The
- * "Ich" tab carries an unread dot so notifications stay visible app-wide.
+ * "Fragen" carries an unread dot so owner questions stay visible app-wide.
  */
 export function BottomNavigation() {
   const pathname = usePathname();
-  const { user } = useAuth();
   const { unreadCount } = useNotifications();
-  const items = user?.role === 'ADMIN' ? [...BASE_ITEMS, KI_ITEM] : BASE_ITEMS;
 
   return (
     <nav
@@ -80,10 +63,10 @@ export function BottomNavigation() {
       aria-label="Hauptnavigation"
     >
       <ul className="glass flex w-full max-w-sm items-center justify-between gap-1 rounded-full p-1.5 shadow-[0_0_0_1px_var(--color-border),var(--shadow-pop)]">
-        {items.map((item) => {
+        {BASE_ITEMS.map((item) => {
           const active = item.match(pathname);
           const Icon = item.icon;
-          const showDot = item.href === '/me' && !active && unreadCount > 0;
+          const showDot = item.href === '/me/inbox' && !active && unreadCount > 0;
           return (
             <li key={item.href} className="flex-1">
               <Link

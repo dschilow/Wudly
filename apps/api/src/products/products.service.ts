@@ -698,9 +698,9 @@ export class ProductsService {
     let researchedConsensus: ResearchedExternalConsensus | null = null;
     if (params.research) {
       try {
-        const slugs = (
-          await this.prisma.category.findMany({ select: { slug: true } })
-        ).map((s) => s.slug);
+        const slugs = (await this.prisma.category.findMany({ select: { slug: true } })).map(
+          (s) => s.slug,
+        );
         let researched: ResearchedProduct;
         if (this.combinedResearch) {
           const combined = await this.ai.researchProductAndConsensus(rawName, slugs);
@@ -797,7 +797,12 @@ export class ProductsService {
       variantTitle,
     );
     if (params.ean) {
-      await this.attachIdentifier(result.product.id, params.ean, 'scan', createdVariant?.id ?? null);
+      await this.attachIdentifier(
+        result.product.id,
+        params.ean,
+        'scan',
+        createdVariant?.id ?? null,
+      );
     }
     if (specs.length > 0) {
       await this.prisma.product.update({
@@ -1109,12 +1114,7 @@ export class ProductsService {
     const results: RatingBackfillResultDto[] = [];
     for (const p of products) {
       try {
-        const stored = await this.researchAndStoreRatings(
-          p.id,
-          p.canonicalName,
-          p.brand,
-          options,
-        );
+        const stored = await this.researchAndStoreRatings(p.id, p.canonicalName, p.brand, options);
         results.push({
           productId: p.id,
           name: p.canonicalName,
@@ -1482,29 +1482,42 @@ export class ProductsService {
     };
 
     const pairs = await Promise.all(
-      categories.map(async (category): Promise<{ pair: ComparePairDto; strength: number } | null> => {
-        const rows = await this.prisma.product.findMany({
-          where: { categoryId: category.id, status: 'ACTIVE' },
-          include: PRODUCT_INCLUDE,
-          take: 20,
-        });
-        const ranked = rows
-          .filter(
-            (p) =>
-              rank(p) > 0 &&
-              !isExcludedFromRankings({
-                canonicalName: p.canonicalName,
-                categorySlug: p.category?.slug ?? null,
-              }),
-          )
-          .sort((a, b) => rank(b) - rank(a));
-        const [top, runnerUp] = ranked;
-        if (!top || !runnerUp) return null;
-        return {
-          pair: { a: toProductSummaryDto(top), b: toProductSummaryDto(runnerUp), categoryName: category.name },
-          strength: rank(top) + rank(runnerUp),
-        };
-      }),
+      categories.map(
+        async (category): Promise<{ pair: ComparePairDto; strength: number } | null> => {
+          const rows = await this.prisma.product.findMany({
+            where: { categoryId: category.id, status: 'ACTIVE' },
+            include: PRODUCT_INCLUDE,
+            take: 20,
+          });
+          const ranked = rows
+            .filter(
+              (p) =>
+                rank(p) > 0 &&
+                !isExcludedFromRankings({
+                  canonicalName: p.canonicalName,
+                  categorySlug: p.category?.slug ?? null,
+                }),
+            )
+            .sort((a, b) => rank(b) - rank(a));
+          const top = ranked[0];
+          if (!top) return null;
+          const runnerUp = ranked.find(
+            (candidate) =>
+              candidate.id !== top.id &&
+              normalizeProductName(candidate.canonicalName) !==
+                normalizeProductName(top.canonicalName),
+          );
+          if (!runnerUp) return null;
+          return {
+            pair: {
+              a: toProductSummaryDto(top),
+              b: toProductSummaryDto(runnerUp),
+              categoryName: category.name,
+            },
+            strength: rank(top) + rank(runnerUp),
+          };
+        },
+      ),
     );
 
     return pairs

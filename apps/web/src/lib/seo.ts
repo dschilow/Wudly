@@ -115,17 +115,15 @@ export function productJsonLd(product: ProductDetailDto): JsonLd {
     }));
   }
 
-  // Only claim a rating when owners have actually weighed in. Google's rich
-  // results expect a conventional star scale, so the rebuy share (0–100) is
-  // expressed on a 5-point scale — honest, and eligible for the rating snippet.
+  // A rebuy share is not a star review. Keep its native 0–100 scale so search
+  // engines and users receive the same meaning as the visible Wudly Signal.
   if (ins.rebuyScore !== null && ins.experienceCount >= MIN_EXPERIENCES_FOR_RATING) {
     data.aggregateRating = {
       '@type': 'AggregateRating',
-      ratingValue: Math.round((ins.rebuyScore / 20) * 10) / 10,
-      bestRating: 5,
+      ratingValue: ins.rebuyScore,
+      bestRating: 100,
       worstRating: 0,
       ratingCount: ins.experienceCount,
-      reviewCount: ins.experienceCount,
     };
   }
   return data;
@@ -142,11 +140,22 @@ export function productQaPageJsonLd(
   questions: Array<{
     questionText: string;
     createdAt: string;
-    answers: Array<{ answerText: string; helpfulCount: number; createdAt: string; authorName: string | null }>;
+    answers: Array<{
+      answerText: string;
+      helpfulCount: number;
+      createdAt: string;
+      authorName: string | null;
+      authorType?: 'OWNER' | 'WUDLY_TEAM' | 'COMMUNITY';
+    }>;
   }>,
 ): JsonLd | null {
   const answered = questions
-    .map((q) => ({ ...q, answers: q.answers.filter((a) => a.answerText.trim().length > 1) }))
+    .map((question) => ({
+      ...question,
+      answers: question.answers.filter(
+        (answer) => answer.authorType === 'OWNER' && answer.answerText.trim().length > 1,
+      ),
+    }))
     .filter((q) => q.answers.length > 0)
     .slice(0, 10);
   if (answered.length === 0) return null;

@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 /**
- * Bottom sheet — Wudly's "card that slides up from below". Spring entrance,
- * blurred backdrop, drag-down to dismiss (distance or flick velocity), a
- * grabber handle, and safe-area padding. Content scrolls inside.
+ * Accessible bottom sheet with focus containment, focus restoration, Escape,
+ * backdrop click and an explicit close control.
  */
 export function Sheet({
   open,
@@ -20,8 +20,9 @@ export function Sheet({
   ariaLabel: string;
 }) {
   const reduced = useReducedMotion();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
-  // Lock body scroll while the sheet is open.
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -33,19 +34,60 @@ export function Sheet({
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    const selector =
+      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    const focusFirst = window.requestAnimationFrame(() => {
+      const first = dialog?.querySelector<HTMLElement>(selector);
+      (first ?? dialog)?.focus();
+    });
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+
+      const focusable = [...dialog.querySelectorAll<HTMLElement>(selector)].filter(
+        (element) => !element.hasAttribute('hidden'),
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.cancelAnimationFrame(focusFirst);
+      document.removeEventListener('keydown', onKey);
+      previousFocusRef.current?.focus();
+    };
   }, [open, onClose]);
 
   return (
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" role="presentation">
-          <motion.button
-            aria-label="Schließen"
+          <motion.div
+            aria-hidden
             className="absolute inset-0 bg-[#05060a]/55 backdrop-blur-[3px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -54,10 +96,12 @@ export function Sheet({
             onClick={onClose}
           />
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label={ariaLabel}
-            className="relative mx-auto flex max-h-[88dvh] w-full max-w-2xl flex-col rounded-t-[1.5rem] border-t border-border bg-canvas shadow-[0_-20px_60px_-12px_rgba(0,0,0,0.55)]"
+            tabIndex={-1}
+            className="relative mx-auto flex max-h-[88dvh] w-full max-w-2xl flex-col rounded-t-[1.5rem] border-t border-border bg-canvas shadow-[0_-20px_60px_-12px_rgba(0,0,0,0.55)] outline-none"
             initial={reduced ? { opacity: 0 } : { y: '100%' }}
             animate={reduced ? { opacity: 1 } : { y: 0 }}
             exit={reduced ? { opacity: 0 } : { y: '100%' }}
@@ -69,9 +113,16 @@ export function Sheet({
               if (info.offset.y > 130 || info.velocity.y > 600) onClose();
             }}
           >
-            {/* Grabber */}
-            <div className="flex shrink-0 cursor-grab justify-center pb-1 pt-2.5 active:cursor-grabbing">
+            <div className="relative flex shrink-0 cursor-grab justify-center pb-1 pt-2.5 active:cursor-grabbing">
               <span className="h-1.5 w-12 rounded-full bg-label-3" aria-hidden />
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Dialog schließen"
+                className="press absolute right-3 top-2 grid h-11 w-11 place-items-center rounded-full text-muted-foreground hover:bg-fill hover:text-label"
+              >
+                <X className="h-5 w-5" aria-hidden />
+              </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-2">
               {children}

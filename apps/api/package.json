@@ -29,6 +29,7 @@
     "catalog:agent:research": "tsx scripts/agent-product-curation.ts",
     "catalog:agent:import": "tsx scripts/agent-product-curation.ts --commit",
     "catalog:import:research": "tsx scripts/agent-product-import.ts",
+    "catalog:mediamarkt": "tsx scripts/mediamarkt-catalog-import.ts",
     "prisma:studio": "prisma studio"
   },
   "prisma": {

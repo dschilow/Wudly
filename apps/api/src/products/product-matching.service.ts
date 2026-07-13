@@ -161,6 +161,21 @@ const CATEGORY_ALIASES = [
     ],
   },
   {
+    slug: 'fernseher',
+    aliases: [
+      'fernseher',
+      'tv',
+      'smart tv',
+      'oled tv',
+      'qled tv',
+      'mini led',
+      'uhd tv',
+      '4k tv',
+      'ambilight',
+      'bravia',
+    ],
+  },
+  {
     slug: 'waschmaschine',
     aliases: [
       'waschmaschine',
@@ -199,6 +214,24 @@ const QUERY_REWRITES = [
     addTerms: ['apple', 'laptop'],
     brand: 'apple',
     categorySlugs: ['laptop'],
+  },
+  {
+    terms: ['bravia'],
+    addTerms: ['sony', 'fernseher'],
+    brand: 'sony',
+    categorySlugs: ['fernseher'],
+  },
+  {
+    terms: ['ambilight'],
+    addTerms: ['philips', 'fernseher'],
+    brand: 'philips',
+    categorySlugs: ['fernseher'],
+  },
+  {
+    terms: ['oled', 'qled'],
+    addTerms: ['fernseher', 'smart tv'],
+    brand: null,
+    categorySlugs: ['fernseher'],
   },
   {
     terms: ['thinkpad'],

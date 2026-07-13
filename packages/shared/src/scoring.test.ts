@@ -62,6 +62,21 @@ describe('computeScores', () => {
     expect(result.regretScore).toBe(0);
   });
 
+  it('does not penalize a self-declared owner for skipping receipt verification', () => {
+    const result = computeScores([
+      {
+        ...exp(WouldBuyAgain.YES, UsageDuration.ONE_TO_SIX_MONTHS, ExperienceMood.GOOD_DAILY_USE),
+        verificationStatus: 'SELF_DECLARED',
+      },
+      {
+        ...exp(WouldBuyAgain.NO, UsageDuration.ONE_TO_SIX_MONTHS, ExperienceMood.OKAY),
+        verificationStatus: 'VERIFIED',
+      },
+    ]);
+
+    expect(result.rebuyScore).toBe(50);
+  });
+
   it('counts experiences regardless of weighting', () => {
     const result = computeScores([
       exp(WouldBuyAgain.YES, UsageDuration.LESS_THAN_WEEK, ExperienceMood.TOP_BUY),
