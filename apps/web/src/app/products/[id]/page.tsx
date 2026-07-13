@@ -175,7 +175,7 @@ function DecisionBrief({
   return (
     <section>
       <SectionTitle>Kaufentscheidung</SectionTitle>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="card p-4">
           <div className="flex items-center gap-2.5">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[0.7rem] bg-positive text-white">
@@ -472,7 +472,7 @@ function Alternatives({
             >
               <Thumb product={alt} className="h-[3.25rem] w-[3.25rem]" fit="contain" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[1rem] font-semibold leading-tight text-label">
+                <p className="line-clamp-2 text-[0.9375rem] font-semibold leading-tight text-label sm:text-[1rem]">
                   {alt.canonicalName}
                 </p>
                 <p className="mt-0.5 truncate text-[0.8125rem] text-muted-foreground">
@@ -820,7 +820,7 @@ export default async function ProductPage({ params }: PageProps) {
   );
 
   return (
-    <div className="animate-fade mx-auto grid max-w-5xl gap-6 pb-4 pt-3 lg:grid-cols-[minmax(0,42rem)_20rem] lg:items-start">
+    <div className="animate-fade mx-auto grid max-w-5xl grid-cols-1 gap-6 pb-4 pt-3 lg:grid-cols-[minmax(0,42rem)_20rem] lg:items-start">
       <div className="space-y-5">
         <JsonLd data={structuredData} />
 
@@ -828,7 +828,7 @@ export default async function ProductPage({ params }: PageProps) {
         <section className="animate-rise flex items-center gap-4">
           <Thumb
             product={product}
-            className="h-28 w-28 shrink-0 sm:h-32 sm:w-32"
+            className="h-[5.5rem] w-[5.5rem] shrink-0 sm:h-32 sm:w-32"
             rounded="rounded-[1rem]"
             pollForPhoto
             fit="contain"
@@ -848,7 +848,7 @@ export default async function ProductPage({ params }: PageProps) {
             </p>
             <div className="mt-1.5 flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <h1 className="font-display text-balance text-[1.9rem] leading-[1.02] text-label">
+                <h1 className="font-display text-balance text-[1.4rem] leading-[1.12] text-label sm:text-[1.9rem] sm:leading-[1.02]">
                   {product.canonicalName}
                 </h1>
                 <div className="mt-2 flex flex-wrap items-center gap-2">

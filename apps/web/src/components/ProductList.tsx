@@ -39,7 +39,7 @@ export function ProductList({
 
   if (layout === 'grid') {
     return (
-      <div className={cn('animate-stagger grid gap-2.5 lg:grid-cols-2', className)}>
+      <div className={cn('animate-stagger grid grid-cols-1 gap-2.5 lg:grid-cols-2', className)}>
         {entries.map((entry, i) => (
           <div key={entry.product.id} className="card overflow-hidden" style={{ ['--i' as string]: i }}>
             <ProductRow

@@ -314,7 +314,7 @@ export function KiTestClient() {
         </div>
 
         {!compare && (
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {targets.map((t) => (
               <button
                 key={t.id}
@@ -480,8 +480,8 @@ export function KiTestClient() {
               </div>
               <div
                 className={cn(
-                  'grid gap-3',
-                  turn.replies.length > 1 ? 'sm:grid-cols-3' : 'grid-cols-1',
+                  'grid grid-cols-1 gap-3',
+                  turn.replies.length > 1 && 'sm:grid-cols-3',
                 )}
               >
                 {turn.replies.map((r) => (

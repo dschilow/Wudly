@@ -138,7 +138,7 @@ export default async function ComparePairPage({ params }: PageProps) {
         </p>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {[a, b].map((product) => {
           const rebuy = getRebuy(product);
           const regret = getRegret(product);
@@ -191,7 +191,7 @@ export default async function ComparePairPage({ params }: PageProps) {
         })}
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {[a, b].map((product) => (
           <div key={product.id} className="card p-4">
             <p className="line-clamp-1 text-[0.9375rem] font-semibold text-label">

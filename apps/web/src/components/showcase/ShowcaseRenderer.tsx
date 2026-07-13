@@ -134,7 +134,7 @@ function Block({ block, showcase }: { block: ShowcaseBlockDto; showcase: Showcas
       if (cards.length === 0) return null;
       return (
         <BlockShell title="Features" icon={Star}>
-          <div className="grid gap-2.5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {cards.map((card, i) => (
               <div key={i} className="rounded-[0.9rem] bg-fill-2 p-3.5">
                 <p className="text-[0.9375rem] font-semibold text-label">{card.title}</p>

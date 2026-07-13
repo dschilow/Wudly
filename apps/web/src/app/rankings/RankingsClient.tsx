@@ -7,7 +7,6 @@ import { AnimatePresence, motion } from 'motion/react';
 import {
   ChevronRight,
   CircleAlert,
-  Compass,
   MessageCircle,
   PackageSearch,
   Search,
@@ -137,24 +136,6 @@ function SignalSummary({
         <SummaryMetric label="Stimmen" value={String(ownerCount)} sub="Wudly" />
         <SummaryMetric label="Kategorien" value={String(categories.length)} sub="Regale" />
       </div>
-      <div className="hairline flex items-center gap-3 px-4 py-3.5">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink">
-          <Compass className="h-5 w-5" strokeWidth={2.2} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[0.95rem] font-semibold leading-tight text-label">Heute interessant</p>
-          <p className="mt-0.5 text-[0.8125rem] leading-snug text-muted-foreground">
-            Besitzerstimmen, Netz-Konsens und neue Katalogprodukte in einer Ansicht.
-          </p>
-        </div>
-        <Link
-          href="/check"
-          className="tap-dim inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] bg-primary px-3.5 text-[0.875rem] font-semibold text-primary-foreground"
-        >
-          <Search className="h-4 w-4" strokeWidth={2.4} />
-          Prüfen
-        </Link>
-      </div>
     </motion.section>
   );
 }
@@ -267,10 +248,10 @@ function RankedRow({ entry, mode }: { entry: RankingEntryDto; mode: RowMode }) {
         rounded="rounded-[0.7rem]"
       />
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-[1.0625rem] font-semibold leading-tight text-label">
+        <h3 className="line-clamp-2 text-[1rem] font-semibold leading-tight text-label sm:text-[1.0625rem]">
           {product.canonicalName}
         </h3>
-        <p className={cn('mt-0.5 truncate text-[0.8125rem] leading-snug', metric.subClass)}>
+        <p className={cn('mt-0.5 line-clamp-2 text-[0.8125rem] leading-snug sm:line-clamp-1', metric.subClass)}>
           {sub}
         </p>
         <div className="mt-1 flex items-center gap-2 text-[0.75rem] text-faint">
@@ -290,7 +271,7 @@ function RankedRow({ entry, mode }: { entry: RankingEntryDto; mode: RowMode }) {
         </span>
       </div>
       <ChevronRight
-        className="h-4 w-4 shrink-0 text-label-3 transition-transform duration-200 md:group-hover:translate-x-0.5"
+        className="hidden h-4 w-4 shrink-0 text-label-3 transition-transform duration-200 sm:block md:group-hover:translate-x-0.5"
         strokeWidth={2.4}
       />
     </Link>
@@ -511,7 +492,7 @@ export function RankingsClient({
         <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
           Entdecken
         </p>
-        <h1 className="font-display mt-2.5 text-balance text-[3rem] leading-[1.0] text-label">
+        <h1 className="font-display mt-2.5 text-balance text-[2.4rem] leading-[1.04] text-label sm:text-[3rem] sm:leading-[1.0]">
           Was lohnt sich <em className="text-accent-ink">wirklich</em>?
         </h1>
         <p className="mt-3 max-w-xl text-[1rem] leading-snug text-muted-foreground">

@@ -442,7 +442,7 @@ export function ProductCurationAdmin() {
         )}
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-4">
           {research?.catalog.length ? (
             <section className="space-y-2">
@@ -547,7 +547,7 @@ export function ProductCurationAdmin() {
         </div>
 
         <Card className="space-y-4">
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <input
               value={form.canonicalName}
               onChange={(e) => setField('canonicalName', e.target.value)}
@@ -664,7 +664,7 @@ export function ProductCurationAdmin() {
             {form.ratings.map((rating) => (
               <div
                 key={rating.id}
-                className="grid gap-2 rounded-[0.7rem] bg-fill-1 p-2 sm:grid-cols-2"
+                className="grid grid-cols-1 gap-2 rounded-[0.7rem] bg-fill-1 p-2 sm:grid-cols-2"
               >
                 <input
                   value={rating.source}
@@ -768,7 +768,7 @@ export function ProductCurationAdmin() {
                   </Button>
                 </div>
                 {form[kind].map((theme) => (
-                  <div key={theme.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                  <div key={theme.id} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
                     <input
                       value={theme.label}
                       onChange={(e) => updateTheme(kind, theme.id, 'label', e.target.value)}

@@ -50,7 +50,7 @@ function RecentProduct({ product }: { product: ProductSummaryDto }) {
     <Link href={productPath(product)} className="card press flex items-center gap-3.5 p-3">
       <Thumb product={product} className="h-16 w-16" rounded="rounded-[0.8rem]" />
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-[1.0625rem] font-semibold leading-tight text-label">
+        <h3 className="line-clamp-2 text-[1rem] font-semibold leading-tight text-label sm:text-[1.0625rem]">
           {product.canonicalName}
         </h3>
         <p className="mono-data mt-1 truncate text-[0.6875rem] uppercase tracking-[0.12em] text-muted-foreground">
@@ -312,7 +312,7 @@ export function CheckClient({
         <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
           {ownIntent ? 'Eintragen' : 'Prüfen'}
         </p>
-        <h1 className="font-display mt-2.5 text-balance text-[3rem] leading-[1.0] text-label">
+        <h1 className="font-display mt-2.5 text-balance text-[2.4rem] leading-[1.04] text-label sm:text-[3rem] sm:leading-[1.0]">
           {ownIntent ? (
             <>
               Was <em className="text-accent-ink">besitzt</em> du?
@@ -541,7 +541,7 @@ export function CheckClient({
                   Alle
                 </Link>
               </div>
-              <div className="grid gap-2.5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 {featured.slice(0, 4).map((product) => (
                   <RecentProduct key={product.id} product={product} />
                 ))}

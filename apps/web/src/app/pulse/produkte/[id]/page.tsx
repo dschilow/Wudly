@@ -143,7 +143,7 @@ export default function PulseProduct360Page() {
         <OwnershipCurve points={data.curve} />
       </SectionCard>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Strengths */}
         <SectionCard title="Stärken" subtitle="Warum Besitzer das Produkt mögen.">
           <AspectList
@@ -300,7 +300,7 @@ export default function PulseProduct360Page() {
       </SectionCard>
 
       {/* Audience fit */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <SectionCard title="Geeignet für">
           <TagList items={data.suitedFor} tone="positive" emptyText="Noch keine Einschätzung." />
         </SectionCard>
@@ -315,7 +315,7 @@ export default function PulseProduct360Page() {
           <h2 className="mb-3 text-[1.1rem] font-bold tracking-tight text-label">
             Aktive Signale
           </h2>
-          <div className="grid gap-3 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {data.signals.map((signal) => (
               <SignalCard key={signal.id} signal={signal} onCreateAction={createActionFromSignal} />
             ))}

@@ -152,6 +152,11 @@
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    /* The app must never pan sideways on mobile. `clip` (not `hidden`) kills
+       horizontal scrolling without creating a scroll container, so
+       position: sticky keeps working. Root-cause fixes live in the layouts;
+       this is the safety net for the next overflowing element. */
+    overflow-x: clip;
   }
 
   body {
@@ -163,6 +168,7 @@
     letter-spacing: -0.011em;
     line-height: 1.55;
     overscroll-behavior-y: none;
+    overflow-x: clip;
   }
 
   button,

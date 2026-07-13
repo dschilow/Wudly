@@ -117,7 +117,7 @@ export default function PulseSignalsPage() {
           description="Signale entstehen automatisch, sobald sich Kennzahlen oder Problemthemen in deinem Portfolio messbar bewegen."
         />
       ) : (
-        <div className="grid gap-3 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           {filtered.map((signal) => (
             <SignalCard key={signal.id} signal={signal} onCreateAction={createActionFromSignal} />
           ))}

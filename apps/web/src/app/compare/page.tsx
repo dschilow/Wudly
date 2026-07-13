@@ -23,7 +23,7 @@ async function PopularComparisons() {
       <p className="mono-data px-1 pb-2.5 text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         Beliebte Vergleiche
       </p>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {pairs.map((pair) => (
           <Link
             key={`${pair.a.id}-${pair.b.id}`}

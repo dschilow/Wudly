@@ -76,7 +76,7 @@ export function ExternalConsensusCard({
 
       {consensus &&
         (consensus.positiveThemes.length > 0 || consensus.negativeThemes.length > 0) && (
-          <div className="grid gap-5 border-t border-border p-4 sm:grid-cols-2 sm:p-5">
+          <div className="grid grid-cols-1 gap-5 border-t border-border p-4 sm:grid-cols-2 sm:p-5">
             <ThemeList
               title="Wiederholt gelobt"
               items={consensus.positiveThemes}
@@ -98,7 +98,7 @@ export function ExternalConsensusCard({
             <MessageSquareQuote className="h-4 w-4 text-accent-ink" strokeWidth={2.2} aria-hidden />
             Stimmen aus dem Netz
           </h4>
-          <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {consensus.voices.map((voice) => (
               <div
                 key={voice.url + voice.text.slice(0, 24)}

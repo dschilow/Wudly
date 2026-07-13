@@ -150,17 +150,21 @@ export function SignalPanel({
                 <span className="text-[2.4rem]">%</span>
               </p>
             ) : (
-              <p className="font-display text-[5rem] font-semibold leading-[0.88] text-white/25">–</p>
+              <p className="font-display text-[2.7rem] font-semibold leading-[1.0] tracking-[-0.03em] text-white/90 sm:text-[3rem]">
+                Noch offen
+              </p>
             )}
-            <div className="pb-3">
-              <span
-                className="animate-stamp inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 font-mono text-[0.7rem] font-bold uppercase tracking-[0.16em]"
-                style={{ borderColor: 'rgba(255,255,255,0.18)', color: toneColor }}
-              >
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: toneColor }} />
-                {stamp.label}
-              </span>
-            </div>
+            {(earlySignal || score !== null) && (
+              <div className="pb-3">
+                <span
+                  className="animate-stamp inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 font-mono text-[0.7rem] font-bold uppercase tracking-[0.16em]"
+                  style={{ borderColor: 'rgba(255,255,255,0.18)', color: toneColor }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: toneColor }} />
+                  {stamp.label}
+                </span>
+              </div>
+            )}
           </div>
 
           <p className="mt-3 max-w-[26rem] text-[1.05rem] leading-snug text-white/70">{subline}</p>

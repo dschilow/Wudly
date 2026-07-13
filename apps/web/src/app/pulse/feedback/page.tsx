@@ -136,7 +136,7 @@ export default function PulseFeedbackPage() {
         </FilterToggle>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_340px]">
         {/* Feed */}
         <div className="space-y-3">
           {loading && (

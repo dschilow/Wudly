@@ -445,7 +445,7 @@ export function CompareClient() {
     >
       <motion.section
         variants={rise}
-        className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-stretch"
+        className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-stretch"
       >
         <div className="premium-panel relative overflow-hidden rounded-[var(--radius-xl)] px-5 py-5 shadow-[var(--shadow-elevated)] sm:px-6 sm:py-6">
           <div
@@ -457,7 +457,7 @@ export function CompareClient() {
               <Sparkles className="h-4 w-4" strokeWidth={2.3} />
               Wudly Vergleich
             </p>
-            <h1 className="font-display mt-3 max-w-3xl text-balance text-[2.45rem] leading-[0.98] text-white sm:text-[3.25rem]">
+            <h1 className="font-display mt-3 max-w-3xl text-balance text-[2rem] leading-[1.04] text-white sm:text-[3.25rem] sm:leading-[0.98]">
               Produktvergleich, der wirklich entscheidet.
             </h1>
             <p className="mt-3 max-w-xl text-pretty text-[1rem] leading-relaxed text-white/70">
@@ -466,7 +466,7 @@ export function CompareClient() {
             </p>
           </div>
 
-          <div className="relative mt-6 grid gap-2.5 sm:grid-cols-3">
+          <div className="relative mt-5 grid grid-cols-[1fr_1.5fr_1fr] gap-2 sm:mt-6 sm:grid-cols-3 sm:gap-2.5">
             <HeroMetric
               icon={GitCompareArrows}
               label="Produkte"
@@ -604,17 +604,17 @@ function HeroMetric({
   compact?: boolean;
 }) {
   return (
-    <div className="rounded-[0.95rem] bg-white/[0.07] px-3.5 py-3 ring-1 ring-white/10">
-      <div className="flex items-center gap-2 text-white/60">
-        <Icon className="h-4 w-4" strokeWidth={2.2} />
-        <span className="mono-data text-[0.625rem] font-semibold uppercase tracking-[0.14em]">
+    <div className="rounded-[0.95rem] bg-white/[0.07] px-2.5 py-2.5 ring-1 ring-white/10 sm:px-3.5 sm:py-3">
+      <div className="flex items-center gap-1.5 text-white/60 sm:gap-2">
+        <Icon className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+        <span className="mono-data truncate text-[0.625rem] font-semibold uppercase tracking-[0.1em] sm:tracking-[0.14em]">
           {label}
         </span>
       </div>
       <p
         className={cn(
           'mt-2 truncate font-display leading-none text-white',
-          compact ? 'text-[1.25rem]' : 'text-[1.7rem]',
+          compact ? 'text-[0.95rem] sm:text-[1.25rem]' : 'text-[1.35rem] sm:text-[1.7rem]',
         )}
       >
         {value}
@@ -797,7 +797,7 @@ function ModeSelector({
         </div>
       </div>
 
-      <div className="grid gap-2 md:grid-cols-3" role="radiogroup" aria-label="Entscheidungsmodell">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3" role="radiogroup" aria-label="Entscheidungsmodell">
         {MODES.map((item) => {
           const active = item.key === mode;
           return (
@@ -993,7 +993,7 @@ function ProductPicker({
 
 function DecisionPanel({ verdict, mode }: { verdict: Verdict; mode: DecisionMode }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="card-elevated relative overflow-hidden p-5 sm:p-6">
         <div
           aria-hidden
@@ -1017,7 +1017,7 @@ function DecisionPanel({ verdict, mode }: { verdict: Verdict; mode: DecisionMode
           </div>
         </div>
 
-        <div className="mt-5 grid gap-2.5 sm:grid-cols-3">
+        <div className="mt-5 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
           {verdict.reasons.map((reason) => (
             <div key={reason} className="rounded-[0.9rem] bg-fill px-3 py-3">
               <p className="text-[0.9rem] leading-snug text-label">{reason}</p>
@@ -1082,7 +1082,7 @@ function RecommendationCards({
         title="Wann welches Produkt sinnvoll ist"
         description="Die Karten übersetzen die Signale in konkrete Nutzungssituationen."
       />
-      <div className="mt-3 grid gap-3 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
         {stats.map((item) => {
           const isLeader = verdict?.leader.product.id === item.product.id && verdict.gap >= 3;
           return <RecommendationCard key={item.product.id} stats={item} leader={isLeader} />;
@@ -1672,7 +1672,7 @@ function InsightComparison({ stats }: { stats: ProductStats[] }) {
         title="Was im Alltag wirklich zählt"
         description="Die wichtigsten Stärken, Schwächen und offenen Fragen nebeneinander."
       />
-      <div className="mt-3 grid gap-3 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
         <InsightColumn
           title="Stärken"
           icon={ThumbsUp}
@@ -1799,7 +1799,7 @@ function MethodologyPanel() {
           </p>
         </div>
       </div>
-      <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
         <TrustChip icon={Users} label="Besitzer" text="Wie viele echte Stimmen dahinterstehen." />
         <TrustChip
           icon={ShieldCheck}

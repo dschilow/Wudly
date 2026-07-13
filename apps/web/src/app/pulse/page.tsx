@@ -144,7 +144,7 @@ export default function PulseOverviewPage() {
                 </div>
               </div>
             ) : (
-              <div className="grid gap-3 xl:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                 {data.attention.map((signal) => (
                   <SignalCard
                     key={signal.id}
@@ -167,7 +167,7 @@ export default function PulseOverviewPage() {
                 Kennzahl sichtbar verbessert, erscheint sie hier.
               </p>
             ) : (
-              <div className="grid gap-3 xl:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                 {data.positives.map((signal) => (
                   <SignalCard key={signal.id} signal={signal} />
                 ))}

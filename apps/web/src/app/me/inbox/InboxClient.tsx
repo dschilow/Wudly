@@ -268,7 +268,7 @@ export function InboxClient() {
             )}
           </div>
           <motion.div
-            className="grid gap-3 lg:grid-cols-2"
+            className="grid grid-cols-1 gap-3 lg:grid-cols-2"
             initial="hidden"
             animate="show"
             variants={{ hidden: {}, show: { transition: { staggerChildren: 0.065 } } }}

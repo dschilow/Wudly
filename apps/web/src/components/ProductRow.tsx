@@ -77,7 +77,7 @@ export function ProductRow({ product, rank, emphasis = 'rebuy', last, intent = '
         <Thumb product={product} className="h-[3.25rem] w-[3.25rem]" />
 
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[1.0625rem] font-medium leading-tight text-label">
+          <div className="line-clamp-2 text-[1rem] font-medium leading-tight text-label sm:text-[1.0625rem]">
             {product.canonicalName}
           </div>
           <div className="mt-0.5 truncate text-[0.8125rem] text-muted-foreground">

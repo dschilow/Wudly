@@ -206,7 +206,7 @@ function ActionBoard({ actions, onChanged }: { actions: PulseActionDto[]; onChan
   }
 
   return (
-    <div className="grid gap-3 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
       {visible.map((action) => (
         <article key={action.id} className="card space-y-3 p-4">
           <div className="flex flex-wrap items-center gap-2">
