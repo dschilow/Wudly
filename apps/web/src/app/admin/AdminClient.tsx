@@ -18,6 +18,7 @@ import { ExternalRatingsAdmin } from './ExternalRatingsAdmin';
 import { ImageBackfillAdmin } from './ImageBackfillAdmin';
 import { RatingsBackfillAdmin } from './RatingsBackfillAdmin';
 import { ProductCurationAdmin } from './ProductCurationAdmin';
+import { EnterpriseAdmin } from './EnterpriseAdmin';
 
 export function AdminClient() {
   const router = useRouter();
@@ -91,6 +92,8 @@ export function AdminClient() {
       <LargeTitle title="Admin" subtitle="Katalogpflege, Duplikate und Backfills." />
 
       <ProductCurationAdmin />
+
+      <EnterpriseAdmin />
 
       <div className="px-1 pt-2">
         <h2 className="text-[1.3rem] font-bold tracking-tight text-label">Merge-Kandidaten</h2>

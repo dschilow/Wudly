@@ -57,6 +57,8 @@ import {
   toProductDetailDto,
   type ProductWithRelations,
 } from './product.mapper';
+import { FunnelMetricsService } from '../metrics/funnel-metrics.service';
+import { calculateCatalogQuality, countDistinctSourceDomains } from './catalog-quality';
 
 const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
 
@@ -287,6 +289,7 @@ export class ProductsService {
     @Inject(BraveSearchService) private readonly webSearch: BraveSearchService,
     @Inject(AI_SERVICE) private readonly ai: AiService,
     @Inject(ConfigService) config: ConfigService<AppConfig, true>,
+    @Inject(FunnelMetricsService) private readonly metrics: FunnelMetricsService,
   ) {
     // One combined product+consensus search per add (halves the paid search cost)
     // unless explicitly turned off for the higher-recall per-aspect searches.
@@ -334,6 +337,7 @@ export class ProductsService {
    * have this?" — the client uses it to decide whether to go deep / ask the AI.
    */
   async findProducts(query: string, deep = false): Promise<ProductFindResultDto> {
+    this.metrics.increment('SEARCH_PERFORMED');
     const candidates = await this.matching.search(query, 12);
 
     // Display cutoff: relevant-only. 0.45 keeps typo matches ("roborok") but
@@ -599,7 +603,10 @@ export class ProductsService {
 
   /** Manual entry that isn't in the catalog → live web research → auto-create. */
   async researchAndCreate(query: string, userId: string | null = null): Promise<EnsuredProductDto> {
-    return this.ensureProduct({ canonicalName: query, userId, research: true });
+    this.metrics.increment('RESEARCH_STARTED');
+    const result = await this.ensureProduct({ canonicalName: query, userId, research: true });
+    this.metrics.increment(result.product ? 'RESEARCH_SUCCEEDED' : 'RESEARCH_NO_MATCH');
+    return result;
   }
 
   /**
@@ -647,6 +654,7 @@ export class ProductsService {
     const product = await this.findOrThrow(productId);
     await this.researchAndStoreRatings(productId, product.canonicalName, product.brand);
     this.prompts.generateInBackground(productId);
+    await this.promoteIfQualityReady(productId);
   }
 
   /**
@@ -696,6 +704,7 @@ export class ProductsService {
     // combined research a SINGLE web search returns both the product data and the
     // rating consensus; the consensus is held and stored right after create.
     let researchedConsensus: ResearchedExternalConsensus | null = null;
+    let researchFound = false;
     if (params.research) {
       try {
         const slugs = (await this.prisma.category.findMany({ select: { slug: true } })).map(
@@ -713,6 +722,7 @@ export class ProductsService {
           if (researched.canonicalName && !params.imageUrl) {
             canonicalName = researched.canonicalName;
           }
+          researchFound = true;
           brand = brand ?? researched.brand;
           categorySlug = categorySlug ?? researched.categorySlug;
           description = description ?? researched.description;
@@ -727,6 +737,11 @@ export class ProductsService {
       }
     }
 
+    const hasTrustedCatalogEvidence =
+      Boolean(params.ean) || Boolean(dbImageUrl) || Boolean(params.description) || specs.length > 0;
+    if (params.research && !researchFound && !hasTrustedCatalogEvidence) {
+      return { product: null, created: false };
+    }
     const imageQuery = buildImageQuery(brand, canonicalName);
     const huntImage = (productId: string) =>
       this.images.findAndCacheInBackground(productId, imageQuery, {
@@ -792,6 +807,12 @@ export class ProductsService {
     // Family hygiene from day one: a source title like "… 65 Zoll, Titan
     // Schwarz" creates the product as its FAMILY (graduated name) plus one
     // variant for the configuration the title described.
+    if (params.research) {
+      await this.prisma.product.update({
+        where: { id: result.product.id },
+        data: { status: 'PENDING_REVIEW' },
+      });
+    }
     const createdVariant = await this.variants.ensureVariantFromTitle(
       result.product.id,
       variantTitle,
@@ -830,6 +851,7 @@ export class ProductsService {
         );
       }
     }
+    await this.promoteIfQualityReady(result.product.id);
     const product = await this.getSummaryOrThrow(result.product.id);
     return { product, created: true };
   }
@@ -2010,6 +2032,69 @@ export class ProductsService {
       this.logger.warn(`AI product enrichment failed: ${err instanceof Error ? err.message : err}`);
       return {};
     }
+  }
+
+  async catalogQualityForProduct(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: {
+        id: true,
+        canonicalName: true,
+        status: true,
+        brand: true,
+        categoryId: true,
+        description: true,
+        specs: true,
+        imageUrl: true,
+        createdAt: true,
+        cachedImage: { select: { id: true } },
+        insightSnapshot: {
+          select: { externalSourceCount: true, experienceCount: true },
+        },
+        externalRatings: { select: { url: true } },
+        externalConsensus: { select: { sourceUrls: true } },
+        _count: { select: { experienceReports: true } },
+      },
+    });
+    if (!product) throw new NotFoundException('Produkt nicht gefunden.');
+
+    const urls = new Set(product.externalRatings.map((rating) => rating.url));
+    if (Array.isArray(product.externalConsensus?.sourceUrls)) {
+      for (const value of product.externalConsensus.sourceUrls) {
+        if (typeof value === 'string') urls.add(value);
+      }
+    }
+    const sourceCount = Math.max(
+      product.insightSnapshot?.externalSourceCount ?? 0,
+      countDistinctSourceDomains(urls),
+    );
+    const experienceCount = Math.max(
+      product.insightSnapshot?.experienceCount ?? 0,
+      product._count.experienceReports,
+    );
+
+    return calculateCatalogQuality({
+      productId: product.id,
+      canonicalName: product.canonicalName,
+      status: product.status,
+      brand: product.brand,
+      categoryId: product.categoryId,
+      description: product.description,
+      specs: product.specs,
+      hasImage: Boolean(product.cachedImage || product.imageUrl),
+      sourceCount,
+      experienceCount,
+      createdAt: product.createdAt,
+    });
+  }
+
+  private async promoteIfQualityReady(productId: string): Promise<void> {
+    const quality = await this.catalogQualityForProduct(productId);
+    if (quality.status !== 'PENDING_REVIEW' || !quality.publishReady) return;
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { status: 'ACTIVE' },
+    });
   }
 
   private async maybeLogMergeCandidate(created: ProductWithRelations, name: string): Promise<void> {

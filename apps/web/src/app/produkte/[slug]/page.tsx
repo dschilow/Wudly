@@ -3,13 +3,12 @@ import { notFound, redirect } from 'next/navigation';
 import type { ProductSummaryDto } from '@wudly/shared';
 import ProductOverviewPage, {
   generateMetadata as generateProductMetadata,
-  revalidate,
 } from '@/app/products/[id]/page';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { productIdFromSlug, productPath, productSlug } from '@/lib/seo';
 
-export { revalidate };
+export const revalidate = 20;
 
 /**
  * Pre-render the most-visited products at build time so their pages are static

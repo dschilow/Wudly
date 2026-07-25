@@ -16,6 +16,8 @@ import type {
   OwnershipDto,
   RankingEntryDto,
   MergeCandidateDto,
+  CatalogQualityOverviewDto,
+  FunnelOverviewDto,
   ProfileSummaryDto,
   CategoryDto,
   PaginatedDto,
@@ -355,6 +357,16 @@ export const api = {
       }),
     reject: (id: string) =>
       apiFetch<{ success: true }>(`/admin/merge-candidates/${id}/reject`, { method: 'POST' }),
+    catalogQuality: (opts?: RequestOptions) =>
+      apiFetch<CatalogQualityOverviewDto>('/admin/catalog-quality', opts),
+    funnel: (days = 14, opts?: RequestOptions) =>
+      apiFetch<FunnelOverviewDto>(`/admin/funnel${qs({ days })}`, opts),
+    publishProduct: (id: string) =>
+      apiFetch<{ success: true }>(`/admin/products/${id}/publish`, { method: 'POST' }),
+    holdProduct: (id: string) =>
+      apiFetch<{ success: true }>(`/admin/products/${id}/hold`, { method: 'POST' }),
+    hideProduct: (id: string) =>
+      apiFetch<{ success: true }>(`/admin/products/${id}/hide`, { method: 'POST' }),
 
     /** AI-free catalog curation workbench. */
     curationResearch: (q: string, opts?: RequestOptions) =>

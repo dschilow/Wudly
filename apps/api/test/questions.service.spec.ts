@@ -170,9 +170,16 @@ function createService(input: {
         helpfulCount: 0,
         createdAt: now,
         updatedAt: now,
-        answeredBy: { id: 'answerer', displayName: 'Answerer', role: 'USER' },
+        answeredBy: {
+          id: 'answerer',
+          displayName: 'Answerer',
+          role: 'USER',
+          _count: { answers: 1 },
+        },
         ownership: {
           verificationStatus: 'SELF_DECLARED',
+          verificationMethod: null,
+          verifiedAt: null,
           createdAt: now,
         },
       }),
@@ -191,18 +198,20 @@ function createService(input: {
     callback(prisma),
   );
   const notifications = {
-    createMany: vi.fn().mockResolvedValue(undefined),
+    createMany: vi.fn().mockResolvedValue(true),
     create: vi.fn().mockResolvedValue(undefined),
   };
   const email = { send: vi.fn().mockResolvedValue(true) };
   const config = { get: vi.fn().mockReturnValue('http://localhost:3000') };
 
+  const metrics = { increment: vi.fn() };
   return {
     service: new QuestionsService(
       prisma as unknown as PrismaService,
       notifications as unknown as NotificationsService,
       email as unknown as EmailService,
       config as unknown as ConfigService,
+      metrics as never,
     ),
     notifications,
     email,

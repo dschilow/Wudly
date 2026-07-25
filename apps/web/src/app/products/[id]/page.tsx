@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import {
   Battery,
   BadgeCheck,
+  CircleAlert,
   Bolt,
   GitCompareArrows,
   Lightbulb,
@@ -96,6 +97,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const image = productShareImageUrl(product.id);
     const title = `${product.canonicalName}: Erfahrungen & Wiederkauf-Score`;
     const isThin =
+      product.status !== 'ACTIVE' ||
       !product.category ||
       (product.insights.experienceCount === 0 && product.externalSourceCount < 2);
     return {
@@ -273,8 +275,9 @@ function TrustPanel({ insights }: { insights: ProductInsightsDto }) {
                 {level}
               </p>
               <p className="mt-1 text-[0.9375rem] leading-snug text-muted-foreground">
-                Keine Rechnung nötig. Selbst angegebene und zusätzlich geprüfte Erfahrungen zählen
-                gleich; der Status bleibt transparent sichtbar.
+                Keine Rechnung nötig. Wiederholte Erfahrungs-Updates über Zeit können Besitz
+                automatisch plausibilisieren. Alle Stimmen zählen gleich; die Methode bleibt
+                transparent sichtbar.
               </p>
             </div>
           </div>
@@ -289,7 +292,7 @@ function TrustPanel({ insights }: { insights: ProductInsightsDto }) {
         <div className="grid grid-cols-3 hairline">
           <TrustMetric
             icon={<BadgeCheck className="h-4 w-4" strokeWidth={2.3} />}
-            label="Geprüft"
+            label="Plausibel"
             value={verification.verified}
           />
           <TrustMetric
@@ -823,6 +826,21 @@ export default async function ProductPage({ params }: PageProps) {
     <div className="animate-fade mx-auto grid max-w-5xl grid-cols-1 gap-6 pb-4 pt-3 lg:grid-cols-[minmax(0,42rem)_20rem] lg:items-start">
       <div className="space-y-5">
         <JsonLd data={structuredData} />
+        {product.status === 'PENDING_REVIEW' && (
+          <div
+            role="status"
+            className="card flex items-start gap-3 border border-unsure/30 bg-unsure-soft/40 p-4"
+          >
+            <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-unsure-ink" aria-hidden />
+            <div>
+              <p className="font-semibold text-label">Recherche wird gerade geprüft</p>
+              <p className="mt-1 text-[0.875rem] leading-snug text-muted-foreground">
+                Du kannst das Produkt schon nutzen und Besitzer hinzufügen. In öffentliche Listen
+                kommt es erst, wenn Name, Daten und unabhängige Quellen belastbar sind.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* 1 · Editorial hero: image beside serif title, mono meta overline */}
         <section className="animate-rise flex items-center gap-4">

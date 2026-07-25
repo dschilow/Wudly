@@ -45,6 +45,13 @@ const USAGE_SINCE: Record<string, string> = {
 /** How many nodes to show before collapsing the older tail into a summary. */
 const INITIAL = 6;
 
+function verificationLabel(exp: ExperienceDto) {
+  if (exp.verificationMethod === 'CONTINUITY') {
+    return 'Besitz durch wiederholte Langzeit-Updates plausibilisiert';
+  }
+  return 'Besitz zusätzlich durch Wudly geprüft';
+}
+
 function TimelineNode({ exp, newest }: { exp: ExperienceDto; newest: boolean }) {
   const reduced = useReducedMotion();
   const buy = buyAgainMap[exp.wouldBuyAgain];
@@ -79,7 +86,10 @@ function TimelineNode({ exp, newest }: { exp: ExperienceDto; newest: boolean }) 
       </span>
 
       {/* The journey marker — time since purchase, in the verdict's color. */}
-      <p className="font-mono text-[0.6875rem] font-bold uppercase tracking-[0.12em]" style={{ color }}>
+      <p
+        className="font-mono text-[0.6875rem] font-bold uppercase tracking-[0.12em]"
+        style={{ color }}
+      >
         {USAGE_SINCE[exp.usageDuration] ?? USAGE_DURATION_LABEL[exp.usageDuration]}
         <span className="font-normal text-faint"> · {formatDate(exp.createdAt)}</span>
       </p>
@@ -125,7 +135,7 @@ function TimelineNode({ exp, newest }: { exp: ExperienceDto; newest: boolean }) 
               <BadgeCheck
                 className="h-3.5 w-3.5 shrink-0 text-positive-ink"
                 strokeWidth={2.4}
-                aria-label="Echter Käufer"
+                aria-label={verificationLabel(exp)}
               />
             )}
             {exp.variantName && (
@@ -180,8 +190,8 @@ export function ExperienceTimeline({ experiences }: { experiences: ExperienceDto
       <div className="mb-4 flex items-center gap-2 px-1">
         <History className="h-4 w-4 shrink-0 text-accent-ink" strokeWidth={2.2} aria-hidden />
         <p className="text-[0.9375rem] leading-snug text-muted-foreground">
-          Die <span className="font-semibold text-label">Besitzer-Reise</span> — von Kauf bis Urteil,
-          neueste zuerst.
+          Die <span className="font-semibold text-label">Besitzer-Reise</span> — von Kauf bis
+          Urteil, neueste zuerst.
         </p>
       </div>
 

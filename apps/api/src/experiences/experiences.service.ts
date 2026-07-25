@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
 import {
   AspectSentiment,
@@ -10,11 +11,18 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProductInsightsService } from '../products/product-insights.service';
 import { ProductPromptsService } from '../products/product-prompts.service';
 import { toExperienceDto, type ExperienceWithRelations } from './experience.mapper';
+import { FunnelMetricsService } from '../metrics/funnel-metrics.service';
 
 const EXPERIENCE_INCLUDE = {
   aspects: true,
   user: { select: { id: true, displayName: true } },
-  ownership: { select: { verificationStatus: true } },
+  ownership: {
+    select: {
+      verificationStatus: true,
+      verificationMethod: true,
+      verifiedAt: true,
+    },
+  },
   product: { select: { id: true, canonicalName: true } },
   variant: { select: { id: true, name: true } },
 } as const;
@@ -28,6 +36,7 @@ export class ExperiencesService {
     @Inject(ProductInsightsService) private readonly insights: ProductInsightsService,
     @Inject(ProductPromptsService) private readonly prompts: ProductPromptsService,
     @Inject(AI_SERVICE) private readonly ai: AiService,
+    @Inject(FunnelMetricsService) private readonly metrics: FunnelMetricsService,
   ) {}
 
   /**
@@ -104,36 +113,98 @@ export class ExperiencesService {
       })),
     ];
 
-    const report = await this.prisma.experienceReport.upsert({
-      where: { userId_productId: { userId, productId } },
-      create: {
-        userId,
-        productId,
-        ownershipId: ownership.id,
-        variantId,
-        wouldBuyAgain: input.wouldBuyAgain,
-        usageDuration: input.usageDuration,
-        experienceMood: input.experienceMood,
-        wishKnownText: input.wishKnownText ?? null,
-        freeText: input.freeText ?? null,
-        insteadOfText: input.insteadOfText ?? null,
-        isPublic: input.isPublic,
-        aspects: { create: aspectData },
-      },
-      update: {
-        ownershipId: ownership.id,
-        variantId,
-        wouldBuyAgain: input.wouldBuyAgain,
-        usageDuration: input.usageDuration,
-        experienceMood: input.experienceMood,
-        wishKnownText: input.wishKnownText ?? null,
-        freeText: input.freeText ?? null,
-        insteadOfText: input.insteadOfText ?? null,
-        isPublic: input.isPublic,
-        aspects: { deleteMany: {}, create: aspectData },
-      },
-      include: EXPERIENCE_INCLUDE,
+    const checkpointDay = new Date().toISOString().slice(0, 10);
+    const fingerprint = createHash('sha256')
+      .update(
+        JSON.stringify({
+          checkpointDay,
+          wouldBuyAgain: input.wouldBuyAgain,
+          usageDuration: input.usageDuration,
+          experienceMood: input.experienceMood,
+          isPublic: input.isPublic,
+        }),
+      )
+      .digest('hex');
+
+    const { report, isUpdate } = await this.prisma.$transaction(async (tx) => {
+      const previous = await tx.experienceReport.findUnique({
+        where: { userId_productId: { userId, productId } },
+        select: { id: true },
+      });
+      const saved = await tx.experienceReport.upsert({
+        where: { userId_productId: { userId, productId } },
+        create: {
+          userId,
+          productId,
+          ownershipId: ownership.id,
+          variantId,
+          wouldBuyAgain: input.wouldBuyAgain,
+          usageDuration: input.usageDuration,
+          experienceMood: input.experienceMood,
+          wishKnownText: input.wishKnownText ?? null,
+          freeText: input.freeText ?? null,
+          insteadOfText: input.insteadOfText ?? null,
+          isPublic: input.isPublic,
+          aspects: { create: aspectData },
+        },
+        update: {
+          ownershipId: ownership.id,
+          variantId,
+          wouldBuyAgain: input.wouldBuyAgain,
+          usageDuration: input.usageDuration,
+          experienceMood: input.experienceMood,
+          wishKnownText: input.wishKnownText ?? null,
+          freeText: input.freeText ?? null,
+          insteadOfText: input.insteadOfText ?? null,
+          isPublic: input.isPublic,
+          aspects: { deleteMany: {}, create: aspectData },
+        },
+      });
+
+      await tx.experienceRevision.upsert({
+        where: {
+          experienceReportId_fingerprint: {
+            experienceReportId: saved.id,
+            fingerprint,
+          },
+        },
+        create: {
+          experienceReportId: saved.id,
+          fingerprint,
+          wouldBuyAgain: input.wouldBuyAgain,
+          usageDuration: input.usageDuration,
+          experienceMood: input.experienceMood,
+          isPublic: input.isPublic,
+        },
+        update: {},
+      });
+
+      const continuityCutoff = new Date(Date.now() - 30 * 86_400_000);
+      const earlierCheckpoint = await tx.experienceRevision.findFirst({
+        where: {
+          experienceReportId: saved.id,
+          createdAt: { lte: continuityCutoff },
+        },
+        select: { id: true },
+      });
+      if (earlierCheckpoint) {
+        await tx.ownership.updateMany({
+          where: { id: ownership.id, verificationStatus: 'SELF_DECLARED' },
+          data: {
+            verificationStatus: 'VERIFIED',
+            verificationMethod: 'CONTINUITY',
+            verifiedAt: new Date(),
+          },
+        });
+      }
+
+      const complete = await tx.experienceReport.findUniqueOrThrow({
+        where: { id: saved.id },
+        include: EXPERIENCE_INCLUDE,
+      });
+      return { report: complete, isUpdate: Boolean(previous) };
     });
+    this.metrics.increment(isUpdate ? 'EXPERIENCE_UPDATED' : 'EXPERIENCE_CREATED');
 
     // Persist the wizard's product-prompt answers, tied to this report (best-effort,
     // never fatal). Lets owners answer the product-specific pool in the same flow.

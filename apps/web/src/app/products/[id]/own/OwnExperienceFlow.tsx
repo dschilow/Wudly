@@ -497,6 +497,11 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
             : `${productName} ist jetzt privat in deinem Produktprofil gespeichert.`}
         </p>
         <div className="mt-8 space-y-2.5">
+          <p className="mx-auto mt-4 max-w-sm rounded-[var(--radius-md)] bg-accent-soft px-4 py-3 text-left text-[0.875rem] leading-relaxed text-accent-ink">
+            Keine Rechnung nötig: Wenn du deine Erfahrung später erneut aktualisierst, kann Wudly
+            den längerfristigen Besitz transparent plausibilisieren. Deine Meinung bleibt jederzeit
+            änderbar.
+          </p>
           <Link
             href={productPath({ id: productId, canonicalName: productName })}
             className="tap-dim flex h-[3.125rem] items-center justify-center rounded-[var(--radius-md)] bg-accent text-[1.0625rem] font-semibold text-white"

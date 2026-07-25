@@ -86,6 +86,23 @@ enum VerificationStatus {
   UNVERIFIED
 }
 
+enum OwnershipVerificationMethod {
+  CONTINUITY
+  MODERATOR
+}
+
+enum FunnelEvent {
+  SEARCH_PERFORMED
+  RESEARCH_STARTED
+  RESEARCH_SUCCEEDED
+  RESEARCH_NO_MATCH
+  OWNERSHIP_CREATED
+  EXPERIENCE_CREATED
+  EXPERIENCE_UPDATED
+  QUESTION_CREATED
+  ANSWER_CREATED
+}
+
 enum ProductIdentifierType {
   EAN
   GTIN
@@ -542,13 +559,15 @@ model ProductSource {
  */
 
 model Ownership {
-  id                 String             @id @default(cuid())
+  id                 String                       @id @default(cuid())
   userId             String
   productId          String
   variantId          String?
-  verificationStatus VerificationStatus @default(SELF_DECLARED)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  verificationStatus VerificationStatus           @default(SELF_DECLARED)
+  verificationMethod OwnershipVerificationMethod?
+  verifiedAt         DateTime?
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
   // When the 6-month rebuy reminder was sent (null = not yet). Avoids re-sending.
   reminderSentAt     DateTime?
 
@@ -589,10 +608,30 @@ model ExperienceReport {
   aspects         ExperienceAspect[]
   promptResponses ProductPromptResponse[]
 
+  revisions ExperienceRevision[]
+
   @@unique([userId, productId])
   @@index([productId])
   @@index([userId])
   @@index([productId, isPublic])
+}
+
+/// Immutable checkpoints of an owner's report. Two checkpoints at least 30
+/// days apart can plausibilise long-term ownership without a receipt upload.
+model ExperienceRevision {
+  id                 String         @id @default(cuid())
+  experienceReportId String
+  fingerprint        String
+  wouldBuyAgain      WouldBuyAgain
+  usageDuration      UsageDuration
+  experienceMood     ExperienceMood
+  isPublic           Boolean
+  createdAt          DateTime       @default(now())
+
+  experienceReport ExperienceReport @relation(fields: [experienceReportId], references: [id], onDelete: Cascade)
+
+  @@unique([experienceReportId, fingerprint])
+  @@index([experienceReportId, createdAt])
 }
 
 model ExperienceAspect {
@@ -690,8 +729,32 @@ model AnswerHelpfulVote {
   @@index([userId])
 }
 
+/// Multi-instance fixed-window rate-limit state. The key is an HMAC; raw IPs
+/// are never persisted.
+model RateLimitBucket {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+  expiresAt   DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
+/// Privacy-safe product funnel telemetry. Only daily aggregate counts are
+/// stored: no user, session, IP, query, or product identifiers.
+model FunnelMetricDaily {
+  id        String      @id @default(cuid())
+  day       DateTime    @db.Date
+  event     FunnelEvent
+  count     Int         @default(0)
+  updatedAt DateTime    @updatedAt
+
+  @@unique([day, event])
+  @@index([day])
+}
+
 /**
- * ----------------------------------------------------------------- *
  * Owner/buyer question pool — a stored, product-specific set of sharp
  * questions WITH quick answers. Generated once (AI) or grown by users, then
  * reused everywhere: the owner answers them fast in the "Ich besitze es"

@@ -1,9 +1,17 @@
 import type { Ownership, ProductQuestion, ProductAnswer, User } from '@prisma/client';
-import type { QuestionDto, AnswerDto, QuickAnswer } from '@wudly/shared';
+import type {
+  QuestionDto,
+  AnswerDto,
+  QuickAnswer,
+  OwnershipVerificationMethod,
+} from '@wudly/shared';
 
 type AnswerWithAuthor = ProductAnswer & {
-  answeredBy: Pick<User, 'id' | 'displayName' | 'role'> | null;
-  ownership: Pick<Ownership, 'verificationStatus' | 'createdAt'> | null;
+  answeredBy: (Pick<User, 'id' | 'displayName' | 'role'> & { _count: { answers: number } }) | null;
+  ownership: Pick<
+    Ownership,
+    'verificationStatus' | 'verificationMethod' | 'verifiedAt' | 'createdAt'
+  > | null;
 };
 
 export type QuestionWithRelations = ProductQuestion & {
@@ -23,6 +31,9 @@ export function toAnswerDto(answer: AnswerWithAuthor): AnswerDto {
         ? 'WUDLY_TEAM'
         : 'COMMUNITY',
     verificationStatus: answer.ownership?.verificationStatus ?? null,
+    verificationMethod:
+      (answer.ownership?.verificationMethod as OwnershipVerificationMethod | null) ?? null,
+    contributionCount: answer.answeredBy?._count.answers ?? 0,
     ownerSince: answer.ownership?.createdAt.toISOString() ?? null,
     answerText: answer.answerText,
     quickAnswer: (answer.quickAnswer as QuickAnswer | null) ?? null,

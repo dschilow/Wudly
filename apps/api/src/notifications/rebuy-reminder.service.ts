@@ -47,7 +47,7 @@ export class RebuyReminderService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  /** One pass: find due ownerships, notify, mark sent. Public for manual triggers/tests. */
+  /** One pass: atomically claim due ownerships, notify, and release failed claims. */
   async runScan(): Promise<number> {
     try {
       const cutoff = new Date(Date.now() - SIX_MONTHS_MS);
@@ -58,40 +58,54 @@ export class RebuyReminderService implements OnModuleInit, OnModuleDestroy {
           userId: true,
           productId: true,
           product: { select: { canonicalName: true } },
+          experienceReports: { select: { id: true }, take: 1 },
         },
         take: MAX_PER_SCAN,
       });
+      if (due.length === 0) return 0;
 
-      // Only nudge owners who haven't already shared an experience for this product.
-      const filtered: typeof due = [];
-      for (const o of due) {
-        const reported = await this.prisma.experienceReport.findFirst({
-          where: { userId: o.userId, productId: o.productId },
-          select: { id: true },
+      // Claim rows with a compare-and-set so multiple Railway replicas cannot
+      // send the same reminder. A failed durable inbox write releases the claim.
+      const claimedAt = new Date();
+      const claimed: typeof due = [];
+      for (const ownership of due) {
+        const result = await this.prisma.ownership.updateMany({
+          where: { id: ownership.id, reminderSentAt: null },
+          data: { reminderSentAt: claimedAt },
         });
-        if (!reported) filtered.push(o);
+        if (result.count === 1) claimed.push(ownership);
       }
+      if (claimed.length === 0) return 0;
 
-      if (filtered.length === 0) return 0;
-
-      await this.notifications.createMany(
-        filtered.map((o) => ({
-          userId: o.userId,
-          type: NotificationType.REBUY_REMINDER,
-          title: 'Schon 6 Monate dabei',
-          body: `Würdest du „${o.product.canonicalName}" wieder kaufen?`,
-          link: `/products/${o.productId}/own`,
-          productId: o.productId,
-        })),
+      const created = await this.notifications.createMany(
+        claimed.map((ownership) => {
+          const isUpdate = ownership.experienceReports.length > 0;
+          return {
+            userId: ownership.userId,
+            type: NotificationType.REBUY_REMINDER,
+            title: isUpdate ? 'Dein Langzeit-Check' : 'Schon 6 Monate dabei',
+            body: isUpdate
+              ? `Hat sich dein Urteil zu „${ownership.product.canonicalName}“ verändert? Aktualisiere es – ganz ohne Rechnung.`
+              : `Würdest du „${ownership.product.canonicalName}“ wieder kaufen?`,
+            link: `/products/${ownership.productId}/own`,
+            productId: ownership.productId,
+          };
+        }),
       );
 
-      await this.prisma.ownership.updateMany({
-        where: { id: { in: filtered.map((o) => o.id) } },
-        data: { reminderSentAt: new Date() },
-      });
+      if (!created) {
+        await this.prisma.ownership.updateMany({
+          where: {
+            id: { in: claimed.map((ownership) => ownership.id) },
+            reminderSentAt: claimedAt,
+          },
+          data: { reminderSentAt: null },
+        });
+        return 0;
+      }
 
-      this.logger.log(`Sent ${filtered.length} 6-month rebuy reminder(s).`);
-      return filtered.length;
+      this.logger.log(`Sent ${claimed.length} 6-month owner check-in reminder(s).`);
+      return claimed.length;
     } catch (err) {
       this.logger.warn(`Rebuy reminder scan failed: ${err instanceof Error ? err.message : err}`);
       return 0;

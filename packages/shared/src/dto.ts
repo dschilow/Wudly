@@ -18,6 +18,8 @@ import type {
   UserRole,
   NotificationType,
   VerificationStatus,
+  OwnershipVerificationMethod,
+  FunnelEvent,
   ProfessionalProfileType,
   ShowcaseStatus,
   ShowcaseBlockType,
@@ -258,8 +260,10 @@ export interface ExperienceDto {
   wouldBuyAgain: WouldBuyAgain;
   usageDuration: UsageDuration;
   experienceMood: ExperienceMood;
-  /** Owner trust level — drives the "echter Käufer" badge + score weighting. */
+  /** Transparent owner trust level used for provenance and score weighting. */
   verificationStatus: VerificationStatus;
+  /** How ownership was plausibilised; null means self-declared. */
+  verificationMethod: OwnershipVerificationMethod | null;
   wishKnownText: string | null;
   freeText: string | null;
   /** Comparative regret: what they'd have bought instead. */
@@ -269,6 +273,7 @@ export interface ExperienceDto {
   variantName: string | null;
   aspects: ExperienceAspectDto[];
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface AnswerDto {
@@ -279,6 +284,10 @@ export interface AnswerDto {
   /** Public provenance for this answer. Never infer owner status from login. */
   authorType: 'OWNER' | 'WUDLY_TEAM' | 'COMMUNITY';
   verificationStatus: string | null;
+  /** Transparent method behind VERIFIED; never implies a receipt unless stated. */
+  verificationMethod: OwnershipVerificationMethod | null;
+  /** Public contribution history as a lightweight reputation signal. */
+  contributionCount: number;
   ownerSince: string | null;
   answerText: string;
   quickAnswer: QuickAnswer | null;
@@ -307,6 +316,8 @@ export interface OwnershipDto {
   variantId: string | null;
   verificationStatus: string;
   createdAt: string;
+  verificationMethod: OwnershipVerificationMethod | null;
+  verifiedAt: string | null;
 }
 
 /** One aggregated owner answer to a prompt: the label and how many owners gave it. */
@@ -385,6 +396,59 @@ export interface MergeCandidateDto {
 }
 
 /** A product that has no cached photo yet — the admin "fehlt warum" overview. */
+export type CatalogQualityIssueCode =
+  | 'SUSPICIOUS_NAME'
+  | 'MISSING_BRAND'
+  | 'MISSING_CATEGORY'
+  | 'SHORT_DESCRIPTION'
+  | 'TOO_FEW_SPECS'
+  | 'MISSING_IMAGE'
+  | 'INSUFFICIENT_EVIDENCE';
+
+export interface CatalogQualityIssueDto {
+  code: CatalogQualityIssueCode;
+  label: string;
+  severity: 'CRITICAL' | 'WARNING';
+}
+
+export interface CatalogQualityItemDto {
+  productId: string;
+  canonicalName: string;
+  status: ProductStatus;
+  score: number;
+  publishReady: boolean;
+  issues: CatalogQualityIssueDto[];
+  sourceCount: number;
+  experienceCount: number;
+  createdAt: string;
+}
+
+export interface CatalogQualityOverviewDto {
+  activeProducts: number;
+  pendingProducts: number;
+  criticalProducts: number;
+  averageScore: number;
+  items: CatalogQualityItemDto[];
+}
+
+export interface FunnelMetricPointDto {
+  day: string;
+  event: FunnelEvent;
+  count: number;
+}
+
+export interface FunnelOverviewDto {
+  windowDays: number;
+  totals: Record<FunnelEvent, number>;
+  daily: FunnelMetricPointDto[];
+  /** Approximate event ratios, not unique-user conversion. */
+  ratios: {
+    researchSuccess: number | null;
+    researchToOwnership: number | null;
+    questionToAnswer: number | null;
+  };
+}
+
 export interface ImagelessProductDto {
   id: string;
   canonicalName: string;

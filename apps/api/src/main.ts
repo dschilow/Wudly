@@ -25,6 +25,10 @@ async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
 
   // Privacy-safe request correlation: no body, IP address or query values are logged.
+  // Railway terminates TLS at one trusted proxy. This makes request.ip use the
+  // actual client address for privacy-hashed abuse protection.
+  app.set('trust proxy', 1);
+
   app.use((request: Request, response: Response, next: NextFunction) => {
     const incoming = request.header('x-request-id');
     const requestId =
@@ -55,7 +59,13 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: corsOrigins.length > 0 ? corsOrigins : false,
     credentials: true,
-    exposedHeaders: ['x-request-id'],
+    exposedHeaders: [
+      'x-request-id',
+      'x-ratelimit-limit',
+      'x-ratelimit-remaining',
+      'x-ratelimit-reset',
+      'retry-after',
+    ],
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
 

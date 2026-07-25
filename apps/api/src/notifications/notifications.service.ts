@@ -16,8 +16,22 @@ const INBOX_QUESTION_INCLUDE = {
   askedBy: { select: { id: true, displayName: true } },
   answers: {
     include: {
-      answeredBy: { select: { id: true, displayName: true, role: true } },
-      ownership: { select: { verificationStatus: true, createdAt: true } },
+      answeredBy: {
+        select: {
+          id: true,
+          displayName: true,
+          role: true,
+          _count: { select: { answers: true } },
+        },
+      },
+      ownership: {
+        select: {
+          verificationStatus: true,
+          verificationMethod: true,
+          verifiedAt: true,
+          createdAt: true,
+        },
+      },
     },
   },
 } as const;
@@ -70,9 +84,9 @@ export class NotificationsService {
     }
   }
 
-  /** Create many at once (e.g. notify all owners of a product). */
-  async createMany(inputs: CreateNotificationInput[]): Promise<void> {
-    if (inputs.length === 0) return;
+  /** Create many at once; returns whether the durable inbox write succeeded. */
+  async createMany(inputs: CreateNotificationInput[]): Promise<boolean> {
+    if (inputs.length === 0) return true;
     try {
       await this.prisma.notification.createMany({
         data: inputs.map((i) => ({
@@ -91,10 +105,12 @@ export class NotificationsService {
           this.push.sendToUser(i.userId, { title: i.title, body: i.body, url: i.link }),
         ),
       );
+      return true;
     } catch (err) {
       this.logger.warn(
         `Notification createMany failed: ${err instanceof Error ? err.message : err}`,
       );
+      return false;
     }
   }
 

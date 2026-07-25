@@ -25,6 +25,8 @@ import {
   type ProductCurationDraftDto,
   type CreateCuratedProductInput,
   type CreateProductResultDto,
+  type CatalogQualityOverviewDto,
+  type FunnelOverviewDto,
 } from '@wudly/shared';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -60,6 +62,34 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   reject(@Param('id') id: string): Promise<{ success: true }> {
     return this.admin.reject(id);
+  }
+
+  @Get('catalog-quality')
+  catalogQuality(): Promise<CatalogQualityOverviewDto> {
+    return this.admin.catalogQuality();
+  }
+
+  @Get('funnel')
+  funnel(@Query('days') days?: string): Promise<FunnelOverviewDto> {
+    return this.admin.funnelOverview(days ? Number(days) : 14);
+  }
+
+  @Post('products/:id/publish')
+  @HttpCode(HttpStatus.OK)
+  publishProduct(@Param('id') id: string): Promise<{ success: true }> {
+    return this.admin.publishProduct(id);
+  }
+
+  @Post('products/:id/hold')
+  @HttpCode(HttpStatus.OK)
+  holdProduct(@Param('id') id: string): Promise<{ success: true }> {
+    return this.admin.holdProduct(id);
+  }
+
+  @Post('products/:id/hide')
+  @HttpCode(HttpStatus.OK)
+  hideProduct(@Param('id') id: string): Promise<{ success: true }> {
+    return this.admin.hideProduct(id);
   }
 
   /* --- AI-free catalog curation workbench --- */

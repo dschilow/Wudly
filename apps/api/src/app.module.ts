@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
+import { FunnelMetricsModule } from './metrics/funnel-metrics.module';
 import { AiModule } from './ai/ai.module';
 import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
@@ -32,6 +33,7 @@ import { HealthModule } from './health/health.module';
       validate: validateEnv,
     }),
     PrismaModule,
+    FunnelMetricsModule,
     AiModule,
     EmailModule,
     AuthModule,

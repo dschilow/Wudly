@@ -72,6 +72,26 @@ export const VerificationStatus = {
 } as const;
 export type VerificationStatus = (typeof VerificationStatus)[keyof typeof VerificationStatus];
 
+export const OwnershipVerificationMethod = {
+  CONTINUITY: 'CONTINUITY',
+  MODERATOR: 'MODERATOR',
+} as const;
+export type OwnershipVerificationMethod =
+  (typeof OwnershipVerificationMethod)[keyof typeof OwnershipVerificationMethod];
+
+export const FunnelEvent = {
+  SEARCH_PERFORMED: 'SEARCH_PERFORMED',
+  RESEARCH_STARTED: 'RESEARCH_STARTED',
+  RESEARCH_SUCCEEDED: 'RESEARCH_SUCCEEDED',
+  RESEARCH_NO_MATCH: 'RESEARCH_NO_MATCH',
+  OWNERSHIP_CREATED: 'OWNERSHIP_CREATED',
+  EXPERIENCE_CREATED: 'EXPERIENCE_CREATED',
+  EXPERIENCE_UPDATED: 'EXPERIENCE_UPDATED',
+  QUESTION_CREATED: 'QUESTION_CREATED',
+  ANSWER_CREATED: 'ANSWER_CREATED',
+} as const;
+export type FunnelEvent = (typeof FunnelEvent)[keyof typeof FunnelEvent];
+
 export const ProductPromptStatus = {
   ACTIVE: 'ACTIVE',
   HIDDEN: 'HIDDEN',

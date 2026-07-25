@@ -33,6 +33,13 @@ export function ExperienceCard({ experience }: { experience: ExperienceDto }) {
   const buy = buyAgainMap[experience.wouldBuyAgain];
   const mood = moodMap[experience.experienceMood];
   const lead = experience.freeText ?? experience.wishKnownText;
+  const verificationLabel =
+    experience.verificationStatus === 'VERIFIED'
+      ? experience.verificationMethod === 'CONTINUITY'
+        ? 'durch Langzeit-Updates plausibilisiert'
+        : 'durch Wudly geprüft'
+      : (verificationCopy[experience.verificationStatus] ?? 'ungeprüft');
+  const wasUpdated = experience.updatedAt !== experience.createdAt;
 
   return (
     <article className="card p-4">
@@ -88,16 +95,19 @@ export function ExperienceCard({ experience }: { experience: ExperienceDto }) {
             <BadgeCheck
               className="h-3.5 w-3.5 shrink-0 text-positive-ink"
               strokeWidth={2.4}
-              aria-label="Besitz zusätzlich plausibilisiert"
+              aria-label={verificationLabel}
             />
           )}
           <span className="rounded-full bg-fill-2 px-1.5 py-0.5 text-[0.625rem] normal-case tracking-normal text-muted-foreground">
-            {verificationCopy[experience.verificationStatus] ?? 'ungeprüft'}
+            {verificationLabel}
           </span>
           <span aria-hidden>·</span>
           <span className="shrink-0">{USAGE_DURATION_LABEL[experience.usageDuration]}</span>
           <span aria-hidden>·</span>
-          <span className="shrink-0">{formatDate(experience.createdAt)}</span>
+          <span className="shrink-0">
+            {wasUpdated ? 'Aktualisiert ' : ''}
+            {formatDate(experience.updatedAt)}
+          </span>
         </p>
         {buy && (
           <Pill tone={toneToPill[buy.tone ?? 'neutral']} className="shrink-0">

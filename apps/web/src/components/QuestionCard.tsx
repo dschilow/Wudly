@@ -33,6 +33,12 @@ function AnswerRow({ answer }: { answer: AnswerDto }) {
   const authorLabel =
     answer.authorName ??
     (isOwner ? 'Besitzer' : answer.authorType === 'WUDLY_TEAM' ? 'Wudly-Team' : 'Community');
+  const ownerTrustLabel =
+    answer.verificationStatus === 'VERIFIED'
+      ? answer.verificationMethod === 'CONTINUITY'
+        ? 'Besitz durch Langzeit-Updates plausibilisiert'
+        : 'Besitz durch Wudly geprüft'
+      : 'Besitz selbst angegeben';
 
   const markHelpful = async () => {
     if (!user) {
@@ -67,9 +73,7 @@ function AnswerRow({ answer }: { answer: AnswerDto }) {
             ) : (
               <BadgeCheck className="h-3.5 w-3.5" aria-hidden />
             )}
-            {answer.verificationStatus === 'VERIFIED'
-              ? 'Besitz geprüft'
-              : 'Besitz selbst angegeben'}
+            {ownerTrustLabel}
           </span>
         )}
         {answer.authorType === 'WUDLY_TEAM' && (
@@ -79,9 +83,12 @@ function AnswerRow({ answer }: { answer: AnswerDto }) {
           <Pill tone={quickTone[answer.quickAnswer]}>{QUICK_ANSWER_LABEL[answer.quickAnswer]}</Pill>
         )}
       </div>
-      {answer.ownerSince && (
+      {isOwner && (
         <p className="mono-data mb-1.5 text-[0.6875rem] text-muted-foreground">
-          Bei Wudly als Besitz eingetragen seit {formatDate(answer.ownerSince)}
+          {answer.ownerSince && <>Besitz eingetragen seit {formatDate(answer.ownerSince)}</>}
+          {answer.ownerSince && answer.contributionCount > 0 && ' · '}
+          {answer.contributionCount}{' '}
+          {answer.contributionCount === 1 ? 'Besitzerantwort' : 'Besitzerantworten'}
         </p>
       )}
       <p className="text-[0.9375rem] leading-relaxed text-label">{answer.answerText}</p>

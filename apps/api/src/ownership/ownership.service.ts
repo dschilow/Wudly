@@ -1,8 +1,13 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
-import type { CreateOwnershipInput, OwnershipDto } from '@wudly/shared';
+import type {
+  CreateOwnershipInput,
+  OwnershipDto,
+  OwnershipVerificationMethod,
+} from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductInsightsService } from '../products/product-insights.service';
 import { toProductSummaryDto, type ProductWithRelations } from '../products/product.mapper';
+import { FunnelMetricsService } from '../metrics/funnel-metrics.service';
 
 const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
 
@@ -11,6 +16,7 @@ export class OwnershipService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ProductInsightsService) private readonly insights: ProductInsightsService,
+    @Inject(FunnelMetricsService) private readonly metrics: FunnelMetricsService,
   ) {}
 
   /** Declare ownership of a product (idempotent per user+product). */
@@ -31,6 +37,10 @@ export class OwnershipService {
         )?.id ?? null)
       : null;
 
+    const existing = await this.prisma.ownership.findUnique({
+      where: { userId_productId: { userId, productId: input.productId } },
+      select: { id: true },
+    });
     const ownership = await this.prisma.ownership.upsert({
       where: { userId_productId: { userId, productId: input.productId } },
       create: {
@@ -43,6 +53,7 @@ export class OwnershipService {
       update: variantId ? { variantId } : {},
     });
 
+    if (!existing) this.metrics.increment('OWNERSHIP_CREATED');
     // Owner counts feed the snapshot.
     await this.insights.regenerate(input.productId);
 
@@ -55,13 +66,19 @@ export class OwnershipService {
       include: { product: { include: PRODUCT_INCLUDE } },
       orderBy: { createdAt: 'desc' },
     });
-    return ownerships.map((o) =>
-      this.toDto(o, o.product as ProductWithRelations),
-    );
+    return ownerships.map((o) => this.toDto(o, o.product as ProductWithRelations));
   }
 
   private toDto(
-    ownership: { id: string; productId: string; variantId: string | null; verificationStatus: string; createdAt: Date },
+    ownership: {
+      id: string;
+      productId: string;
+      variantId: string | null;
+      verificationStatus: string;
+      verificationMethod: OwnershipVerificationMethod | null;
+      verifiedAt: Date | null;
+      createdAt: Date;
+    },
     product: ProductWithRelations | null,
   ): OwnershipDto {
     return {
@@ -70,6 +87,8 @@ export class OwnershipService {
       product: product ? toProductSummaryDto(product) : null,
       variantId: ownership.variantId,
       verificationStatus: ownership.verificationStatus,
+      verificationMethod: ownership.verificationMethod,
+      verifiedAt: ownership.verifiedAt?.toISOString() ?? null,
       createdAt: ownership.createdAt.toISOString(),
     };
   }

@@ -11,12 +11,13 @@ import type {
   ExperienceAspectDto,
   AspectSentiment,
   VerificationStatus,
+  OwnershipVerificationMethod,
 } from '@wudly/shared';
 
 export type ExperienceWithRelations = ExperienceReport & {
   aspects: ExperienceAspect[];
   user: Pick<User, 'id' | 'displayName'> | null;
-  ownership?: Pick<Ownership, 'verificationStatus'> | null;
+  ownership?: Pick<Ownership, 'verificationStatus' | 'verificationMethod' | 'verifiedAt'> | null;
   product?: Pick<Product, 'id' | 'canonicalName'> | null;
   variant?: Pick<ProductVariant, 'id' | 'name'> | null;
 };
@@ -37,6 +38,8 @@ export function toExperienceDto(
     verificationStatus: (report.ownership?.verificationStatus ??
       'SELF_DECLARED') as VerificationStatus,
     wishKnownText: report.wishKnownText,
+    verificationMethod:
+      (report.ownership?.verificationMethod as OwnershipVerificationMethod | null) ?? null,
     freeText: report.freeText,
     insteadOfText: report.insteadOfText,
     isPublic: report.isPublic,
@@ -50,5 +53,6 @@ export function toExperienceDto(
       }),
     ),
     createdAt: report.createdAt.toISOString(),
+    updatedAt: report.updatedAt.toISOString(),
   };
 }

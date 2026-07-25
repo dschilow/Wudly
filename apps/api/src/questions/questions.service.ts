@@ -23,14 +23,31 @@ import { questionAnsweredEmail } from '../email/email-templates';
 import type { AppConfig } from '../config/configuration';
 import { toProductSummaryDto, type ProductWithRelations } from '../products/product.mapper';
 import { toQuestionDto, toAnswerDto, type QuestionWithRelations } from './question.mapper';
+import { FunnelMetricsService } from '../metrics/funnel-metrics.service';
+
+const ANSWER_INCLUDE = {
+  answeredBy: {
+    select: {
+      id: true,
+      displayName: true,
+      role: true,
+      _count: { select: { answers: true } },
+    },
+  },
+  ownership: {
+    select: {
+      verificationStatus: true,
+      verificationMethod: true,
+      verifiedAt: true,
+      createdAt: true,
+    },
+  },
+} as const;
 
 const QUESTION_INCLUDE = {
   askedBy: { select: { id: true, displayName: true } },
   answers: {
-    include: {
-      answeredBy: { select: { id: true, displayName: true, role: true } },
-      ownership: { select: { verificationStatus: true, createdAt: true } },
-    },
+    include: ANSWER_INCLUDE,
   },
 } as const;
 
@@ -43,6 +60,7 @@ export class QuestionsService {
     @Inject(NotificationsService) private readonly notifications: NotificationsService,
     @Inject(EmailService) private readonly email: EmailService,
     @Inject(ConfigService) private readonly config: ConfigService<AppConfig, true>,
+    @Inject(FunnelMetricsService) private readonly metrics: FunnelMetricsService,
   ) {}
 
   async listForProduct(productId: string): Promise<QuestionDto[]> {
@@ -149,6 +167,7 @@ export class QuestionsService {
       include: QUESTION_INCLUDE,
     });
 
+    this.metrics.increment('QUESTION_CREATED');
     // Persist owner inbox notifications before returning so the Q&A loop is durable.
     await this.notifyOwnersOfQuestion({
       productId,
@@ -202,10 +221,7 @@ export class QuestionsService {
             answerText: input.answerText,
             quickAnswer: input.quickAnswer ?? null,
           },
-          include: {
-            answeredBy: { select: { id: true, displayName: true, role: true } },
-            ownership: { select: { verificationStatus: true, createdAt: true } },
-          },
+          include: ANSWER_INCLUDE,
         });
         await tx.productQuestion.update({
           where: { id: questionId },
@@ -221,6 +237,7 @@ export class QuestionsService {
       });
 
     // Notify the asker that their question got an answer: in-app always, email
+    this.metrics.increment('ANSWER_CREATED');
     // best-effort on top (the core Q&A loop must not depend on mail delivery).
     if (question.askedByUserId && question.askedByUserId !== userId) {
       const [product, asker] = await Promise.all([
@@ -298,10 +315,7 @@ export class QuestionsService {
         return tx.productAnswer.update({
           where: { id: answerId },
           data: { helpfulCount: { increment: 1 } },
-          include: {
-            answeredBy: { select: { id: true, displayName: true, role: true } },
-            ownership: { select: { verificationStatus: true, createdAt: true } },
-          },
+          include: ANSWER_INCLUDE,
         });
       })
       .catch((error: unknown) => {
