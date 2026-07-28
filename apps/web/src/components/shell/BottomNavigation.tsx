@@ -3,7 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'motion/react';
-import { Box, Compass, MessageCircleQuestion, Search, User, type LucideIcon } from 'lucide-react';
+import {
+  Compass,
+  GitCompareArrows,
+  MessageCircleQuestion,
+  Search,
+  User,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/lib/notifications-context';
 
@@ -24,6 +31,12 @@ const BASE_ITEMS: NavItem[] = [
     match: (p) =>
       p === '/' || p.startsWith('/check') || p.startsWith('/products') || p.startsWith('/produkte'),
   },
+  {
+    href: '/compare',
+    label: 'Vergleich',
+    icon: GitCompareArrows,
+    match: (p) => p.startsWith('/compare') || p.startsWith('/vergleich'),
+  },
   { href: '/rankings', label: 'Entdecken', icon: Compass, match: (p) => p.startsWith('/rankings') },
   {
     href: '/me/inbox',
@@ -31,19 +44,13 @@ const BASE_ITEMS: NavItem[] = [
     icon: MessageCircleQuestion,
     match: (p) => p.startsWith('/me/inbox'),
   },
-  {
-    href: '/me/products',
-    label: 'Produkte',
-    icon: Box,
-    match: (p) => p.startsWith('/me/products'),
-  },
+  // "Meine Produkte" is reached from the profile, which already links there
+  // twice — keeping the dock at five tabs leaves room for the labels to breathe.
   {
     href: '/me',
     label: 'Profil',
     icon: User,
-    match: (p) =>
-      p === '/me' ||
-      (p.startsWith('/me/') && !p.startsWith('/me/products') && !p.startsWith('/me/inbox')),
+    match: (p) => p === '/me' || (p.startsWith('/me/') && !p.startsWith('/me/inbox')),
   },
 ];
 

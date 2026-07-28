@@ -47,6 +47,7 @@ import { SignalPanel } from '@/components/SignalPanel';
 import { InviteButton } from '@/components/InviteButton';
 import { InvitedVotesCard } from '@/components/InvitedVotesCard';
 import { dataConfidenceLabel, isEarlySignal } from '@/lib/verdict';
+import { OwnProductPanel } from '@/components/OwnProductPanel';
 import { ProductActionBar } from '@/components/ProductActionBar';
 import { ProductTabs } from '@/components/ProductTabs';
 import { Reveal } from '@/components/motion/Reveal';
@@ -740,20 +741,15 @@ export default async function ProductPage({ params }: PageProps) {
 
       <OwnerVoices prompts={prompts} />
 
+      {/* No third call to action here: the sticky bar covers mobile and the
+          sidebar covers desktop, so a button in the empty state only added a
+          third identical target on the same screen. */}
       {!hasData && (
         <div className="card">
           <EmptyState
             icon={<PackageOpen className="h-7 w-7" strokeWidth={1.8} />}
             title="Noch keine Erfahrungen"
-            description="Sei der erste Besitzer und teile, ob du es wieder kaufen würdest."
-            action={
-              <Link
-                href={`/products/${productId}/own`}
-                className="press inline-flex h-11 items-center rounded-full bg-accent px-6 text-[1rem] font-semibold text-[#f1efe6] shadow-[var(--shadow-glow)]"
-              >
-                Ich besitze es
-              </Link>
-            }
+            description="Besitzt du es? Über „Ich besitze es“ bist du die erste Stimme — das dauert weniger als eine Minute."
           />
         </div>
       )}
@@ -954,21 +950,7 @@ export default async function ProductPage({ params }: PageProps) {
       <aside className="hidden space-y-4 lg:sticky lg:top-20 lg:block">
         <TrustPanel insights={ins} />
         <QuickSignalPanel insights={ins} />
-        <div className="card p-4">
-          <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-accent-ink">
-            Nächster Schritt
-          </p>
-          <p className="mt-2 text-[0.9375rem] leading-snug text-muted-foreground">
-            Die beste Hilfe für andere Käufer ist eine echte Langzeiterfahrung zu diesem Produkt.
-          </p>
-          <Link
-            href={`/products/${productId}/own`}
-            className="press mt-4 flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-4 text-[0.9375rem] font-semibold text-[#f1efe6] shadow-[var(--shadow-glow)]"
-          >
-            <BadgeCheck className="h-4 w-4" strokeWidth={2.3} />
-            Ich besitze es
-          </Link>
-        </div>
+        <OwnProductPanel productId={productId} />
       </aside>
     </div>
   );

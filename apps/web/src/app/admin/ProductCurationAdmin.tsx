@@ -408,7 +408,7 @@ export function ProductCurationAdmin() {
           Katalogpflege ohne KI-Kosten
         </h2>
         <p className="text-[0.875rem] text-muted-foreground">
-          Suche Quellen, uebernimm EAN-Daten und speichere Produktdaten, Bewertungen und
+          Suche Quellen, übernimm EAN-Daten und speichere Produktdaten, Bewertungen und
           Pro/Contra-Themen manuell kuratiert.
         </p>
       </div>

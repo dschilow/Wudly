@@ -51,6 +51,12 @@ export interface CategoryDto {
   id: string;
   slug: string;
   name: string;
+  /**
+   * Active products in this category. Navigation surfaces filter on this so a
+   * seeded-but-empty category never offers a dead end; `undefined` on payloads
+   * that predate the field.
+   */
+  productCount?: number;
 }
 
 export interface CategoryAspectDto {

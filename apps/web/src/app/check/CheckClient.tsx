@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'motion/react';
@@ -27,6 +27,7 @@ import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { productPath } from '@/lib/seo';
 import { dataConfidenceLabel, isEarlySignal } from '@/lib/verdict';
+import { browsableCategories } from '@/lib/categories';
 import { ProductList } from '@/components/ProductList';
 import { Thumb } from '@/components/Thumb';
 import { WaveLines } from '@/components/motion/WaveLines';
@@ -80,6 +81,8 @@ export function CheckClient({
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
+  /** Only categories that actually hold products, biggest shelf first. */
+  const shelves = useMemo(() => browsableCategories(categories), [categories]);
   const ownIntent = searchParams.get('own') === '1';
   const scanIntent = searchParams.get('scan') === '1';
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
@@ -598,13 +601,13 @@ export function CheckClient({
             </motion.section>
           )}
 
-          {categories.length > 0 && (
+          {shelves.length > 0 && (
             <motion.section variants={rise} className="space-y-3">
               <h2 className="mono-data px-1 text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Kategorien
               </h2>
               <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
-                {categories.slice(0, 8).map((category) => (
+                {shelves.slice(0, 8).map((category) => (
                   <Link
                     key={category.id}
                     href={`/rankings?cat=${category.slug}`}

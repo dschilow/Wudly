@@ -505,13 +505,13 @@ function buildNeutralDescription(name: string, specs: Array<{ label: string; val
   const details = [
     size ? `Bildschirmdiagonale: ${size}` : null,
     panel ? `Display-Technologie: ${panel}` : null,
-    quality ? `Bildqualitaet/Aufloesung: ${quality}` : null,
+    quality ? `Bildqualität/Auflösung: ${quality}` : null,
     os ? `Smart-TV-System: ${os}` : null,
     hdr ? `HDR: ${hdr}` : null,
     refresh ? `Bildwiederholrate: ${refresh}` : null,
   ].filter(Boolean);
   const suffix = details.length > 0 ? ` Wichtige Eckdaten: ${details.slice(0, 5).join('; ')}.` : '';
-  return `Der ${name} ist ein Fernseher aus dem Woodly-Katalog. Die Angaben stammen aus MediaMarkt-, Hersteller- und Bewertungsquellen und dienen der sachlichen Einordnung vor dem Kauf.${suffix}`.slice(0, 2000);
+  return `Der ${name} ist ein Fernseher aus dem Wudly-Katalog. Die Angaben stammen aus MediaMarkt-, Hersteller- und Bewertungsquellen und dienen der sachlichen Einordnung vor dem Kauf.${suffix}`.slice(0, 2000);
 }
 
 function specValue(specs: Array<{ label: string; value: string }>, pattern: RegExp): string | null {

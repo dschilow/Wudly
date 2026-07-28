@@ -3,9 +3,10 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from 'motion/react';
-import { BadgeCheck, MessagesSquare } from 'lucide-react';
+import { BadgeCheck, MessagesSquare, PenLine } from 'lucide-react';
 import { AskForm } from '@/components/AskForm';
 import { Sheet } from '@/components/ui/Sheet';
+import { useViewerOwnsProduct } from '@/lib/use-viewer-owns-product';
 
 /**
  * The product page's floating action pair. "Fragen" opens the composer as a
@@ -15,6 +16,9 @@ import { Sheet } from '@/components/ui/Sheet';
  * down past the tabs, decision brief, reviews …) and reappears the moment
  * they pause or scroll back up — so it never sits permanently on top of the
  * tab bar or content the way a plain `position: fixed` bar would.
+ *
+ * From `lg` up it stays out of the way entirely: the sidebar carries the same
+ * call to action there, and two of them on one screen just competed.
  */
 export function ProductActionBar({
   productId,
@@ -28,6 +32,7 @@ export function ProductActionBar({
   const lastY = useRef(0);
   const reduced = useReducedMotion();
   const { scrollY } = useScroll();
+  const owns = useViewerOwnsProduct(productId);
 
   useMotionValueEvent(scrollY, 'change', (y) => {
     const delta = y - lastY.current;
@@ -47,15 +52,24 @@ export function ProductActionBar({
       <motion.div
         animate={reduced ? undefined : { y: hidden ? 160 : 0, opacity: hidden ? 0 : 1 }}
         transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-        className="fixed inset-x-0 bottom-[4.6rem] z-30 px-5 pb-[max(env(safe-area-inset-bottom),0px)] md:bottom-4"
+        className="fixed inset-x-0 bottom-[4.6rem] z-30 px-5 pb-[max(env(safe-area-inset-bottom),0px)] md:bottom-4 lg:hidden"
       >
         <div className="mx-auto flex max-w-2xl gap-2.5">
           <Link
             href={`/products/${productId}/own`}
             className="press sheen flex h-[3rem] flex-[1.4] items-center justify-center gap-2 rounded-full bg-accent text-[1rem] font-semibold text-[#f1efe6] shadow-[var(--shadow-glow)]"
           >
-            <BadgeCheck className="h-5 w-5" strokeWidth={2.2} />
-            Ich besitze es
+            {owns ? (
+              <>
+                <PenLine className="h-5 w-5" strokeWidth={2.2} />
+                Erfahrung aktualisieren
+              </>
+            ) : (
+              <>
+                <BadgeCheck className="h-5 w-5" strokeWidth={2.2} />
+                Ich besitze es
+              </>
+            )}
           </Link>
           <button
             type="button"

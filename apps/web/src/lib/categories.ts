@@ -82,3 +82,19 @@ export function categoryEmoji(slug: string | undefined, name?: string): string {
 export function categoryTile(slug: string): string {
   return TILES[hash(slug) % TILES.length] ?? TILES[0]!;
 }
+
+/**
+ * The categories worth offering as browse entry points: only those that
+ * actually hold products, biggest shelf first. Seeding a category is a plan,
+ * not a shelf — linking to an empty one costs a visitor a click and some
+ * trust. Payloads without `productCount` are passed through unchanged so an
+ * older API never blanks the navigation.
+ */
+export function browsableCategories<T extends { slug: string; productCount?: number }>(
+  categories: T[],
+): T[] {
+  if (categories.every((c) => c.productCount === undefined)) return categories;
+  return categories
+    .filter((c) => (c.productCount ?? 0) > 0)
+    .sort((a, b) => (b.productCount ?? 0) - (a.productCount ?? 0));
+}

@@ -137,8 +137,13 @@ export class ProductAgentCurationService {
       ...sourceEvidence.flatMap((page) => page.specs),
     ]);
     const ratings = mergeRatings(sourceEvidence.flatMap((page) => page.ratings));
-    const positiveThemes = mergeThemes(sourceEvidence.flatMap((page) => page.positiveThemes));
     const negativeThemes = mergeThemes(sourceEvidence.flatMap((page) => page.negativeThemes));
+    // A label extracted as both praise and criticism counts as criticism —
+    // showing a complaint under "wiederholt gelobt" reads as a broken page.
+    const negativeKeys = new Set(negativeThemes.map((theme) => normalizeProductName(theme.label)));
+    const positiveThemes = mergeThemes(
+      sourceEvidence.flatMap((page) => page.positiveThemes),
+    ).filter((theme) => !negativeKeys.has(normalizeProductName(theme.label)));
     const sourceUrls = mergeUrls([
       ...(productUrl ? [productUrl] : []),
       ...sourceEvidence.filter((page) => page.fetched).map((page) => page.url),
@@ -452,10 +457,10 @@ function buildConsensusSummary(
   }
   const positives = positiveThemes.slice(0, 3).map((theme) => theme.label).join(', ');
   const negatives = negativeThemes.slice(0, 3).map((theme) => theme.label).join(', ');
-  const parts = [`Quellenbasierter Netz-Konsens aus ${fetchedSources} geprueften Seiten`];
+  const parts = [`Quellenbasierter Netz-Konsens aus ${fetchedSources} geprüften Seiten`];
   if (ratingCount > 0) parts.push(`${ratingCount} externe Bewertungsfakten`);
-  if (positives) parts.push(`haeufig positiv: ${positives}`);
-  if (negatives) parts.push(`haeufig kritisch: ${negatives}`);
+  if (positives) parts.push(`häufig positiv: ${positives}`);
+  if (negatives) parts.push(`häufig kritisch: ${negatives}`);
   return `${parts.join('; ')}.`;
 }
 

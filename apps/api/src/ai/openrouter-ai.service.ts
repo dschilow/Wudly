@@ -782,12 +782,20 @@ export class OpenRouterAiService implements AiService {
         .filter((theme) => hasIndependentSources(theme.sourceUrls, 2))
         .filter((theme) => theme.sourceUrls.every((url) => sourceSet.has(url)));
     const hasSources = sourceUrls.length >= 1;
+    // The model regularly leaks criticism into positiveThemes. A label that
+    // shows up on both sides is treated as criticism — presenting a complaint
+    // as praise costs far more trust than dropping one plus point.
+    const negativeThemes = cleanThemes(parsed.negativeThemes);
+    const negativeLabels = new Set(negativeThemes.map((theme) => normalizeLabel(theme.label)));
+    const positiveThemes = cleanThemes(parsed.positiveThemes).filter(
+      (theme) => !negativeLabels.has(normalizeLabel(theme.label)),
+    );
     return {
       ratings,
       summary: hasSources ? (parsed.summary ?? null) : null,
       longTermNote: hasSources ? (parsed.longTermNote ?? null) : null,
-      positiveThemes: cleanThemes(parsed.positiveThemes),
-      negativeThemes: cleanThemes(parsed.negativeThemes),
+      positiveThemes,
+      negativeThemes,
       voices: cleanVoices(parsed.voices ?? [], sourceSet),
       switchAlternatives: cleanSwitchAlternatives(
         parsed.switchAlternatives ?? [],
@@ -1038,6 +1046,14 @@ function isCommerceDomain(url: string): boolean {
  * target must not be the product itself, and duplicates collapse. Hard cap 3 —
  * this is a pointed "Umsteiger" hint, not a ranking.
  */
+/** Loose comparison key for free-text labels: case, punctuation and spacing don't count. */
+function normalizeLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9äöüß]+/g, ' ')
+    .trim();
+}
+
 function cleanSwitchAlternatives(
   alternatives: Array<{
     name: string;
@@ -1048,12 +1064,8 @@ function cleanSwitchAlternatives(
   allowedSources: ReadonlySet<string>,
   productName: string,
 ): Array<{ name: string; brand: string | null; reason: string; sourceUrls: string[] }> {
-  const normalize = (value: string) =>
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9äöüß]+/g, ' ')
-      .trim();
-  const self = normalize(productName);
+  const self = normalizeLabel(productName);
+  const normalize = normalizeLabel;
   const seen = new Set<string>();
   const out: Array<{ name: string; brand: string | null; reason: string; sourceUrls: string[] }> =
     [];

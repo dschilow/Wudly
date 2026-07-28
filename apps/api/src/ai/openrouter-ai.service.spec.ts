@@ -202,6 +202,30 @@ describe('OpenRouterAiService research cost gates', () => {
     expect(result.positiveThemes[0]?.sourceUrls).toHaveLength(2);
     expect(result.negativeThemes[0]?.label).toBe('Erhöhter Akkuverbrauch');
   });
+
+  it('drops a theme from the positives when it is also listed as criticism', async () => {
+    const sourceUrls = ['https://test-a.de/produkt', 'https://test-b.de/review'];
+    const completeJson = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        ratings: [],
+        summary: 'Mehrere Tests loben das Bild, sehen aber Schwächen bei der Ausstattung.',
+        positiveThemes: [
+          { label: 'Scharfes 4K-Bild', sourceUrls },
+          // The model leaks criticism into the positives — differing case and
+          // punctuation must not let it slip past the filter.
+          { label: 'Ausstattung  ausbaufähig!', sourceUrls },
+        ],
+        negativeThemes: [{ label: 'Ausstattung ausbaufähig', sourceUrls }],
+        sourceUrls,
+      }),
+    );
+    const service = createService(completeJson, vi.fn().mockResolvedValue(''), 'openrouter');
+
+    const result = await service.researchExternalConsensus('Test Product', null);
+
+    expect(result.positiveThemes.map((theme) => theme.label)).toEqual(['Scharfes 4K-Bild']);
+    expect(result.negativeThemes.map((theme) => theme.label)).toEqual(['Ausstattung ausbaufähig']);
+  });
 });
 
 function createService(

@@ -31,20 +31,19 @@ const BASE_DESKTOP_ITEMS: DesktopItem[] = [
     match: (p: string) =>
       p === '/' || p.startsWith('/check') || p.startsWith('/products') || p.startsWith('/produkte'),
   },
-  { href: '/compare', label: 'Vergleichen', match: (p: string) => p.startsWith('/compare') },
+  {
+    href: '/compare',
+    label: 'Vergleichen',
+    match: (p: string) => p.startsWith('/compare') || p.startsWith('/vergleich'),
+  },
   { href: '/rankings', label: 'Entdecken', match: (p: string) => p.startsWith('/rankings') },
   { href: '/me/inbox', label: 'Fragen', match: (p: string) => p.startsWith('/me/inbox') },
-  {
-    href: '/me/products',
-    label: 'Meine Produkte',
-    match: (p: string) => p.startsWith('/me/products'),
-  },
+  // Same five entries as the mobile dock, in the same order — "Meine Produkte"
+  // hangs off the profile so both navigations tell one story.
   {
     href: '/me',
     label: 'Profil',
-    match: (p: string) =>
-      p === '/me' ||
-      (p.startsWith('/me/') && !p.startsWith('/me/products') && !p.startsWith('/me/inbox')),
+    match: (p: string) => p === '/me' || (p.startsWith('/me/') && !p.startsWith('/me/inbox')),
   },
 ];
 function DesktopNav({ pathname, items }: { pathname: string; items: DesktopItem[] }) {

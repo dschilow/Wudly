@@ -212,7 +212,7 @@ export function InboxClient() {
               Beantworte echte Fragen, bevor andere falsch kaufen.
             </h1>
             <p className="mt-3 max-w-[32rem] text-[0.9375rem] leading-snug text-white/68">
-              Neue Fragen werden pro Produkt gesammelt. Ein Tap oeffnet Kontext, Frage und
+              Neue Fragen werden pro Produkt gesammelt. Ein Tap öffnet Kontext, Frage und
               Antwortfeld zusammen.
             </p>
           </div>
@@ -224,7 +224,7 @@ export function InboxClient() {
             tone={stats.unread > 0 ? 'hot' : 'calm'}
           />
           <InboxMetric
-            label="Offen fuer dich"
+            label="Offen für dich"
             value={stats.openForYou}
             tone={stats.openForYou > 0 ? 'hot' : 'calm'}
           />

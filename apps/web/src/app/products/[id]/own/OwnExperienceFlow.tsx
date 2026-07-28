@@ -299,6 +299,11 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
     if (mostUsefulPrompt) nextSteps.push(`prompt:${mostUsefulPrompt.id}`);
     else if (hasAspects) nextSteps.push('aspects');
 
+    // The free-text wrap-up. Both fields may stay empty ("Weiter" always
+    // advances), but what owners write here is the only prose Wudly ever
+    // gets — it feeds the strengths/criticism on product and compare pages.
+    nextSteps.push('wish');
+
     nextSteps.push('share');
     return nextSteps;
   }, [hasVariants, hasAspects, prompts]);
@@ -551,7 +556,8 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
                   ? 'Dein Urteil teilen?'
                   : (activePrompt?.questionText ?? '');
 
-  const optional = current === 'variant' || current === 'aspects' || isPromptStep;
+  const optional =
+    current === 'variant' || current === 'aspects' || current === 'wish' || isPromptStep;
 
   return (
     <div className="mx-auto max-w-md pb-36 pt-2">

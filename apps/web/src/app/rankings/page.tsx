@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import type { CategoryDto, ProductSummaryDto, RankingEntryDto } from '@wudly/shared';
 import { api } from '@/lib/api';
+import { browsableCategories } from '@/lib/categories';
 import { PageSkeleton } from '@/components/states/States';
 import { RankingsClient } from './RankingsClient';
 
@@ -32,7 +33,10 @@ export default async function RankingsPage() {
   return (
     <Suspense fallback={<PageSkeleton />}>
       <RankingsClient
-        categories={categories}
+        // Filtered here rather than in the client so the chips, the category
+        // filter and the "Kategorien / Regale" metric all count the same
+        // thing: shelves that actually hold something.
+        categories={browsableCategories(categories)}
         rebuy={rebuy}
         regret={regret}
         discussed={discussed}
