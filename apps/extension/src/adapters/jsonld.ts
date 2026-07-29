@@ -6,6 +6,16 @@ import type { DetectedProduct } from '../types';
  * the DOM for a while, so candidates are checked against URL and h1 first.
  */
 export function detectFromJsonLd(doc: Document, href = location.href): DetectedProduct | null {
+  for (const product of productNodes(doc)) {
+    if (!isCurrentPageProduct(product, doc, href)) continue;
+    const detected = toDetected(product, href);
+    if (detected) return detected;
+  }
+  return null;
+}
+
+/** Every parseable product node in the document, in document order. */
+function* productNodes(doc: Document): Generator<Record<string, unknown>> {
   for (const script of doc.querySelectorAll('script[type="application/ld+json"]')) {
     let parsed: unknown;
     try {
@@ -14,11 +24,56 @@ export function detectFromJsonLd(doc: Document, href = location.href): DetectedP
       continue; // shops ship broken JSON-LD all the time; skip, don't die
     }
     const product = findProductNode(parsed, 0);
-    if (!product || !isCurrentPageProduct(product, doc, href)) continue;
-    const detected = toDetected(product, href);
-    if (detected) return detected;
+    if (product) yield product;
   }
-  return null;
+}
+
+/**
+ * The page's GTIN — under a deliberately STRICTER rule than the generic
+ * adapter uses. A GTIN is a worldwide identity: reading a stale one off an
+ * SPA page would bind this shop page to a completely different product in the
+ * catalog, permanently. So the node must PROVE it describes this page, either
+ * by carrying this exact URL path or the shop article number from the URL.
+ * "Same brand word in the heading" is not proof and is not accepted here.
+ *
+ * Worth the strictness: a GTIN lifts a sighting onto the free catalog path
+ * (Icecat & co.) and lets it merge with the same product seen in other shops —
+ * a shop article number can do neither.
+ */
+export function strictGtinForPage(
+  doc: Document,
+  href: string,
+  shopSku?: string,
+): string | undefined {
+  for (const node of productNodes(doc)) {
+    if (!urlPathMatches(node, href) && !skuMatches(node, shopSku)) continue;
+    const gtin = gtinDigits(node);
+    if (gtin) return gtin;
+  }
+  return undefined;
+}
+
+/** Proof #1: the node names this exact page. */
+function urlPathMatches(product: Record<string, unknown>, href: string): boolean {
+  const candidate = productUrl(product);
+  if (!candidate) return false;
+  try {
+    const current = new URL(href);
+    const candidateUrl = new URL(candidate, current.origin);
+    return normalizePath(candidateUrl.pathname) === normalizePath(current.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/** Proof #2: the node carries the shop article number this page is served under. */
+function skuMatches(product: Record<string, unknown>, shopSku?: string): boolean {
+  if (!shopSku) return false;
+  const wanted = shopSku.toLowerCase();
+  return ['sku', 'productID', 'mpn'].some((key) => {
+    const value = asString(product[key])?.trim().toLowerCase();
+    return Boolean(value) && (value === wanted || value === `sku:${wanted}`);
+  });
 }
 
 const PRODUCT_TYPES = new Set(['product', 'productgroup']);
@@ -157,18 +212,10 @@ function toDetected(product: Record<string, unknown>, href: string): DetectedPro
   const title = asString(product.name);
   if (!title || title.trim().length < 4) return null;
 
-  const gtin =
-    asString(product.gtin13) ??
-    asString(product.gtin) ??
-    asString(product.gtin14) ??
-    asString(product.gtin8) ??
-    asString(product.ean);
-  const digits = gtin?.replace(/[^0-9]/g, '');
+  const digits = gtinDigits(product);
 
   return {
-    ...(digits && digits.length >= 8 && digits.length <= 14
-      ? { identifierType: 'GTIN' as const, identifierValue: digits }
-      : {}),
+    ...(digits ? { identifierType: 'GTIN' as const, identifierValue: digits } : {}),
     title: title.trim().slice(0, 300),
     brand: brandName(product.brand),
     imageUrl: imageUrl(product.image),
@@ -176,6 +223,19 @@ function toDetected(product: Record<string, unknown>, href: string): DetectedPro
     domain: new URL(href).hostname,
     rating: ratingFrom(product.aggregateRating),
   };
+}
+
+/** GTIN/EAN of a product node, digits only, valid lengths only (GTIN-8…14). */
+function gtinDigits(product: Record<string, unknown>): string | undefined {
+  const raw =
+    asString(product.gtin13) ??
+    asString(product.gtin) ??
+    asString(product.gtin14) ??
+    asString(product.gtin12) ??
+    asString(product.gtin8) ??
+    asString(product.ean);
+  const digits = raw?.replace(/[^0-9]/g, '');
+  return digits && digits.length >= 8 && digits.length <= 14 ? digits : undefined;
 }
 
 /**
@@ -187,13 +247,26 @@ export function ratingFrom(agg: unknown): DetectedProduct['rating'] {
   const obj = agg as Record<string, unknown>;
   const value = asNumber(obj.ratingValue);
   const maxValue = asNumber(obj.bestRating) ?? 5;
-  const count = asNumber(obj.ratingCount) ?? asNumber(obj.reviewCount);
+  const count = asCount(obj.ratingCount) ?? asCount(obj.reviewCount);
   if (value === undefined || value < 0 || value > maxValue || maxValue > 100) return undefined;
   return {
     value,
     maxValue,
-    ...(count !== undefined && count > 0 ? { count: Math.round(count) } : {}),
+    ...(count !== undefined && count > 0 ? { count } : {}),
   };
+}
+
+/**
+ * Review counts, which German shops write with thousands dots ("1.204").
+ * Deliberately NOT asNumber: that reads "1.204" as one-point-two-oh-four,
+ * i.e. 1 review — and the server drops ratings below its minimum count, so a
+ * well-reviewed product would silently lose its shop rating entirely.
+ */
+function asCount(v: unknown): number | undefined {
+  if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v) : undefined;
+  if (typeof v !== 'string') return undefined;
+  const digits = v.replace(/[^0-9]/g, '');
+  return digits ? Number.parseInt(digits, 10) : undefined;
 }
 
 /** Numbers arrive as numbers or strings, German pages with a decimal comma. */

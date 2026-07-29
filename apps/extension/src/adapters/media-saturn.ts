@@ -1,5 +1,5 @@
 import type { DetectedProduct } from '../types';
-import { cleanUrl, visibleProductHeading } from './jsonld';
+import { cleanUrl, strictGtinForPage, visibleProductHeading } from './jsonld';
 
 /**
  * MediaMarkt/Saturn are SPA-heavy and can leave the previous product's JSON-LD
@@ -18,19 +18,34 @@ export function detectFromMediaSaturn(doc: Document, href: string): DetectedProd
   // already carries the new article number. The visible "Art.-Nr." is the only
   // proof that the DOM matches this URL — until both agree, report nothing and
   // let the observer/poll re-check once the page has settled.
+  //
+  // One read of the page text for both facts below: `innerText` forces a full
+  // layout pass, and detection runs on every DOM mutation of a very busy page.
+  const pageText = doc.body?.innerText ?? '';
   const urlSku = skuFromUrl(url.pathname);
-  const textSku = skuFromText(doc.body?.innerText ?? '');
+  const textSku = skuFromText(pageText);
   if (urlSku && textSku !== urlSku) return null;
   const sku = urlSku ?? textSku;
 
+  // Prefer the GTIN when the structured data provably belongs to THIS page:
+  // it dedupes worldwide, rides the free catalog lookup instead of paid AI
+  // research, and merges with the same product seen in other shops. The shop
+  // article number is the fallback identity when no GTIN is published.
+  const gtin = strictGtinForPage(doc, href, sku);
+  const identity = gtin
+    ? { identifierType: 'GTIN' as const, identifierValue: gtin }
+    : sku
+      ? { identifierType: 'SKU' as const, identifierValue: sku }
+      : {};
+
   return {
-    ...(sku ? { identifierType: 'SKU' as const, identifierValue: sku } : {}),
+    ...identity,
     title: title.slice(0, 300),
     brand: brandFromTitle(title),
     imageUrl: imageFrom(doc, title),
     productUrl: cleanUrl(href),
     domain: url.hostname,
-    rating: ratingFromText(doc.body?.innerText ?? ''),
+    rating: ratingFromText(pageText),
   };
 }
 

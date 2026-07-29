@@ -764,6 +764,14 @@ export interface SightingResolutionDto {
   topAlternative: string | null;
   /** Absolute URL of the 30-second owner verdict flow ("Ich besitze es"). */
   ownUrl: string | null;
+  /**
+   * Absolute URL of the Wudly check/search prefilled with the page title —
+   * the one useful action for a product the catalog does not know yet. Never
+   * promise "wird aufgenommen" without offering this: the staged pipeline only
+   * enriches products that prove demand, so a queued sighting can wait a long
+   * time (or never make it, if the research finds nothing).
+   */
+  searchUrl: string | null;
 }
 
 /** Admin observability for the extension ingestion pipeline. */

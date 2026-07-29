@@ -119,7 +119,7 @@ importers:
         version: 1.5.9(@swc/core@1.15.40)(rollup@4.60.4)
       vitest:
         specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.19.19)(lightningcss@1.32.0)(terser@5.48.0)
+        version: 2.1.9(@types/node@22.19.19)(happy-dom@15.11.7)(lightningcss@1.32.0)(terser@5.48.0)
 
   apps/extension:
     dependencies:
@@ -133,9 +133,15 @@ importers:
       esbuild:
         specifier: ^0.24.2
         version: 0.24.2
+      happy-dom:
+        specifier: ^15.11.7
+        version: 15.11.7
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.19.19)(happy-dom@15.11.7)(lightningcss@1.32.0)(terser@5.48.0)
 
   apps/mobile:
     dependencies:
@@ -330,7 +336,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.19.19)(lightningcss@1.32.0)(terser@5.48.0)
+        version: 2.1.9(@types/node@22.19.19)(happy-dom@15.11.7)(lightningcss@1.32.0)(terser@5.48.0)
 
 packages:
 
@@ -1595,7 +1601,7 @@ packages:
 
   '@expo/bunyan@4.0.1':
     resolution: {integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==}
-    engines: {'0': node >=0.10.0}
+    engines: {node: '>=0.10.0'}
 
   '@expo/cli@0.22.28':
     resolution: {integrity: sha512-lvt72KNitGuixYD2l3SZmRKVu2G4zJpmg5V7WfUBNpmUU5oODBw/6qmiJ6kSLAlfDozscUk+BBGknBBzxUrwrA==}
@@ -4772,6 +4778,10 @@ packages:
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
+  happy-dom@15.11.7:
+    resolution: {integrity: sha512-KyrFvnl+J9US63TEzwoiJOQzZBJY7KgBushJA8X61DMbNsH+2ONkDuLDnCnwUiPTF42tLoEmrPyoqbenVA5zrg==}
+    engines: {node: '>=18.0.0'}
+
   has-bigints@1.1.0:
     resolution: {integrity: sha512-R3pbpkcIqv2Pm3dUwgjclDRVmWpTJW2DcMzcIhEXEx1oh/CEMObMm3KLmRJOdvhM7o4uQBnwr8pzRK2sJWIqfg==}
     engines: {node: '>= 0.4'}
@@ -7380,6 +7390,10 @@ packages:
     resolution: {integrity: sha512-VlZwKPCkYKxQgeSbH5EyngOmRp7Ww7I9rQLERETtf5ofd9pGeswWiOtogpEO850jziPRarreGxn5QIiTqpb2wA==}
     engines: {node: '>=8'}
 
+  webidl-conversions@7.0.0:
+    resolution: {integrity: sha512-VwddBukDzu71offAQR975unBIGqfKZpM+8ZX6ySk8nYhVoo5CYaZyzt3YBvYtRtO+aoGlqxPg/B87NGVZ/fu6g==}
+    engines: {node: '>=12'}
+
   webpack-node-externals@3.0.0:
     resolution: {integrity: sha512-LnL6Z3GGDPht/AigwRh2dvL9PQPFQ8skEpVrWZXLWBYmqcaojHNN0onvHzie6rq7EWKrrBfPYqNEzTJgiwEQDQ==}
     engines: {node: '>=6'}
@@ -7403,6 +7417,10 @@ packages:
 
   whatwg-fetch@3.6.20:
     resolution: {integrity: sha512-EqhiFU6daOA8kpjOWTL0olhVOF3i7OrFzSYiGsEMB8GcXS+RrzauAERX65xMeNWVqxA6HXH2m69Z9LaKKdisfg==}
+
+  whatwg-mimetype@3.0.0:
+    resolution: {integrity: sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q==}
+    engines: {node: '>=12'}
 
   whatwg-url-without-unicode@8.0.0-3:
     resolution: {integrity: sha512-HoKuzZrUlgpz35YO27XgD28uh/WJH4B0+3ttFqRo//lmq+9T/mIOJ6kqmINI9HpUpz1imRC/nR/lxKpJiv0uig==}
@@ -12668,6 +12686,12 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
+  happy-dom@15.11.7:
+    dependencies:
+      entities: 4.5.0
+      webidl-conversions: 7.0.0
+      whatwg-mimetype: 3.0.0
+
   has-bigints@1.1.0: {}
 
   has-flag@3.0.0: {}
@@ -15389,7 +15413,7 @@ snapshots:
       lightningcss: 1.32.0
       terser: 5.48.0
 
-  vitest@2.1.9(@types/node@22.19.19)(lightningcss@1.32.0)(terser@5.48.0):
+  vitest@2.1.9(@types/node@22.19.19)(happy-dom@15.11.7)(lightningcss@1.32.0)(terser@5.48.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.19.19)(lightningcss@1.32.0)(terser@5.48.0))
@@ -15413,6 +15437,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.19.19
+      happy-dom: 15.11.7
     transitivePeerDependencies:
       - less
       - lightningcss
@@ -15456,6 +15481,8 @@ snapshots:
   webidl-conversions@3.0.1: {}
 
   webidl-conversions@5.0.0: {}
+
+  webidl-conversions@7.0.0: {}
 
   webpack-node-externals@3.0.0: {}
 
@@ -15503,6 +15530,8 @@ snapshots:
       - uglify-js
 
   whatwg-fetch@3.6.20: {}
+
+  whatwg-mimetype@3.0.0: {}
 
   whatwg-url-without-unicode@8.0.0-3:
     dependencies:

@@ -77,55 +77,80 @@ export class SightingsService {
     if (!this.qualityGate(input)) return this.emptyResolution('rejected');
     if (!this.ingestEnabled) return this.resolveOnly(this.toResolveQuery(input));
 
-    const resolved = await this.resolveProduct(
-      input.identifierType ?? null,
-      input.identifierValue ?? null,
-      input.title,
-      input.brand ?? null,
-    );
-    const row = await this.upsertSighting(input, resolved?.id ?? null);
+    const matched = await this.resolveProduct({
+      type: input.identifierType ?? null,
+      value: input.identifierValue ?? null,
+      title: input.title,
+      brand: input.brand ?? null,
+      domain: input.domain,
+    });
+    const row = await this.upsertSighting(input, matched?.id ?? null);
 
-    if (resolved) {
+    // Second resolution path, and the one that matters after the pipeline ran:
+    // the sighting row itself REMEMBERS which product it became. Fresh matching
+    // cannot rediscover that link — the worker's AI cleans the spammy shop
+    // title into a canonical name ("TCL 75C7K"), and the raw title never gets
+    // near the 0.85 duplicate threshold again. Without this fallback the
+    // overlay would keep telling the user "wird gerade aufgenommen" forever,
+    // long after the product went live in the catalog.
+    //
+    // Third path: an EARLIER sighting of the same shop page already became a
+    // product, but under a different row (see adoptLinkFromPageHistory).
+    const product =
+      matched ??
+      (await this.loadProduct(row.productId)) ??
+      (await this.adoptLinkFromPageHistory(input.productUrl ?? null, row));
+
+    if (product) {
       // The page may show one CONFIGURATION of the family (65", 256 GB, a
       // color). Record it as a variant — never as a separate product. Shop
       // identifiers then attach variant-scoped, so the catalog knows which
       // EAN/SKU belongs to which configuration.
-      const variant = await this.variants.ensureVariantFromTitle(resolved.id, input.title);
-      // Remember the shop identifier on the matched product so every future
-      // sighting of it resolves via the O(1) identifier path, not name matching.
+      const variant = await this.variants.ensureVariantFromTitle(product.id, input.title);
+      // Remember the shop identifier on the product so every future sighting
+      // resolves via the O(1) identifier path instead of name matching. Doing
+      // this on the row-linked path too is what turns the fallback above into
+      // a one-time repair: the next view resolves directly.
       if (input.identifierType && input.identifierValue) {
         await this.attachIdentifier(
-          resolved.id,
+          product.id,
           input.identifierType,
           input.identifierValue,
+          input.domain,
           variant?.id ?? null,
         );
       }
+      // Apply the shop rating right away — free, attributed Netz-Konsens.
+      await this.applyShopRating(product.id, row);
     }
-    // A product exists (matched now or created by an earlier pipeline run)?
-    // Apply the shop rating right away — free, attributed Netz-Konsens.
-    const productId = resolved?.id ?? row.productId;
-    if (productId) await this.applyShopRating(productId, row);
 
-    if (!resolved) return this.emptyResolution('queued');
-    if (resolved.status === 'HIDDEN') return this.emptyResolution('rejected');
-    return this.knownResolution(resolved);
+    if (!product) return this.emptyResolution('queued', input.title);
+    if (product.status === 'HIDDEN') return this.emptyResolution('rejected');
+    return this.knownResolution(product);
   }
 
   /** Pure lookup that records nothing — for users who disabled reporting. */
   async resolveOnly(query: SightingResolveQuery): Promise<SightingResolutionDto> {
-    const resolved = await this.resolveProduct(
-      query.type ?? null,
-      query.value ?? null,
-      query.q ?? '',
-    );
+    const resolved = await this.resolveProduct({
+      type: query.type ?? null,
+      value: query.value ?? null,
+      title: query.q ?? '',
+      domain: query.domain ?? null,
+    });
     if (!resolved || resolved.status === 'HIDDEN') {
-      return this.emptyResolution('queued');
+      return this.emptyResolution('queued', query.q ?? null);
     }
     return this.knownResolution(resolved);
   }
 
-  private emptyResolution(status: 'queued' | 'rejected'): SightingResolutionDto {
+  /**
+   * No catalog product (yet). The card must not be a dead end: it carries the
+   * prefilled Wudly check so the user can look it up — or add it — right now.
+   */
+  private emptyResolution(
+    status: 'queued' | 'rejected',
+    searchTitle: string | null = null,
+  ): SightingResolutionDto {
     return {
       status,
       product: null,
@@ -133,7 +158,54 @@ export class SightingsService {
       topRegretReason: null,
       topAlternative: null,
       ownUrl: null,
+      searchUrl:
+        status === 'queued' && searchTitle
+          ? `${this.webBase()}/check?q=${encodeURIComponent(searchTitle.slice(0, 120))}`
+          : null,
     };
+  }
+
+  /**
+   * Recover the catalog product from an EARLIER sighting of the same shop page.
+   *
+   * A page's identity in this table is its `dedupeKey`, and that key can change
+   * for the same shelf item: a marketing title rewrite changes a name-keyed
+   * row, and a shop page that used to be reported by article number reports its
+   * GTIN once the adapter learns to read it — a different key, so a different
+   * row, with no link to the product the pipeline already built. The shop URL
+   * does not move. Using it here means such a change costs nothing: no
+   * re-queued product, no second (paid) research run for something the catalog
+   * already has.
+   *
+   * The link is copied onto the current row, so this repair runs once.
+   */
+  private async adoptLinkFromPageHistory(
+    productUrl: string | null,
+    row: ProductSighting,
+  ): Promise<ProductWithRelations | null> {
+    if (!productUrl) return null;
+    const previous = await this.prisma.productSighting.findFirst({
+      where: { productUrl, productId: { not: null }, NOT: { id: row.id } },
+      orderBy: { lastSeenAt: 'desc' },
+      select: { productId: true },
+    });
+    const product = await this.loadProduct(previous?.productId ?? null);
+    if (!product) return null;
+    await this.prisma.productSighting.update({
+      where: { id: row.id },
+      data: { productId: product.id, status: 'MATCHED' },
+    });
+    this.logger.log(`Sighting ${row.dedupeKey} adopted product ${product.id} via page URL.`);
+    return product;
+  }
+
+  /** The product a sighting row already resolved to in an earlier pipeline run. */
+  private loadProduct(productId: string | null): Promise<ProductWithRelations | null> {
+    if (!productId) return Promise.resolve(null);
+    return this.prisma.product.findUnique({
+      where: { id: productId },
+      include: PRODUCT_INCLUDE,
+    });
   }
 
   /**
@@ -153,6 +225,7 @@ export class SightingsService {
       topRegretReason: topNegative,
       topAlternative,
       ownUrl: `${this.webBase()}/products/${product.id}/own`,
+      searchUrl: null,
     };
   }
 
@@ -194,6 +267,13 @@ export class SightingsService {
       const ns = type === 'ASIN' ? 'asin' : 'ean';
       return `${ns}:${ns === 'asin' ? value.toUpperCase() : value}`;
     }
+    // Shop article numbers are stable identity; shop TITLES are not (marketing
+    // rewrites them). Keying those sightings by title would fork a new PENDING
+    // row on every rewrite — re-queuing a product the pipeline already built
+    // and re-spending research budget on it.
+    if (type && value) {
+      return `${type.toLowerCase()}:${shopSource(input.domain).source}:${value.toUpperCase()}`;
+    }
     return `name:${normalizeProductNameLoose(input.title).slice(0, 120)}@${input.domain.toLowerCase()}`;
   }
 
@@ -217,17 +297,20 @@ export class SightingsService {
   /** DB-only resolution: identifier first (exact), then strong name match —
    *  raw shop title first, then the cleaned core (shop titles carry keyword
    *  spam that drags the similarity below the duplicate threshold). */
-  private async resolveProduct(
-    type: ProductIdentifierType | null,
-    value: string | null,
-    title: string,
-    brand: string | null = null,
-  ): Promise<ProductWithRelations | null> {
-    if (type && value) {
+  private async resolveProduct(params: {
+    type: ProductIdentifierType | null;
+    value: string | null;
+    title: string;
+    brand?: string | null;
+    domain: string | null;
+  }): Promise<ProductWithRelations | null> {
+    const { type, value, title, brand = null, domain } = params;
+    const stored = type && value ? storedIdentifierValue(type, value, domain) : null;
+    if (type && stored) {
       const types: ProductIdentifierType[] =
         type === 'EAN' || type === 'GTIN' ? ['EAN', 'GTIN'] : [type];
       const identifier = await this.prisma.productIdentifier.findFirst({
-        where: { type: { in: types }, value: type === 'ASIN' ? value.toUpperCase() : value },
+        where: { type: { in: types }, value: stored },
         include: { product: { include: PRODUCT_INCLUDE } },
       });
       if (identifier?.product) return identifier.product;
@@ -333,9 +416,11 @@ export class SightingsService {
     productId: string,
     type: ProductIdentifierType,
     value: string,
+    domain: string | null,
     variantId: string | null = null,
   ): Promise<void> {
-    const normalized = type === 'ASIN' ? value.toUpperCase() : value.trim();
+    const normalized = storedIdentifierValue(type, value, domain);
+    if (!normalized) return;
     try {
       const existing = await this.prisma.productIdentifier.findUnique({
         where: { type_value: { type, value: normalized } },
@@ -379,6 +464,7 @@ export class SightingsService {
       type: input.identifierType,
       value: input.identifierValue,
       q: input.title,
+      domain: input.domain,
     };
   }
 
@@ -403,6 +489,32 @@ export function researchQuery(title: string, brand: string | null): string {
     core = `${brand} ${core}`;
   }
   return core.slice(0, 160);
+}
+
+/**
+ * How an identifier value is stored in (and looked up from) ProductIdentifier,
+ * whose unique constraint is GLOBAL over (type, value).
+ *
+ * EAN/GTIN/ASIN/MPN are worldwide identities and are stored as-is. A SKU is
+ * NOT: it is the shop's own article number, and "2982243" at MediaMarkt has
+ * nothing to do with "2982243" at Cyberport. Storing it bare would let the
+ * first shop that reports an article number hijack every other shop's product
+ * with the same number — the same class of permanent mis-binding that already
+ * had to be cleaned up once. So SKUs are stored shop-scoped
+ * ("mediamarkt:2982243"), and a SKU without a shop simply cannot be used.
+ * Exported for the worker and tests.
+ */
+export function storedIdentifierValue(
+  type: ProductIdentifierType,
+  value: string,
+  domain: string | null,
+): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (type === 'ASIN') return trimmed.toUpperCase();
+  if (type !== 'SKU') return trimmed;
+  if (!domain) return null;
+  return `${shopSource(domain).source}:${trimmed.toUpperCase()}`;
 }
 
 /** Slug/title words too generic to identify a product across shops. */

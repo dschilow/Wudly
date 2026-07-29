@@ -16,6 +16,7 @@ Besitz-Shortcut in den 30-Sekunden-Urteils-Flow (`/products/<id>/own`).
 pnpm install
 pnpm --filter @wudly/extension build     # einmalig → dist/
 pnpm --filter @wudly/extension dev       # watch-Modus
+pnpm --filter @wudly/extension test      # Adapter gegen HTML-Fixtures (happy-dom)
 ```
 
 Laden in Chrome/Edge: `chrome://extensions` → „Entwicklermodus" →
@@ -30,12 +31,23 @@ als API-URL `http://localhost:4000/api` eintragen.
   ist der primäre, redesign-feste Weg — er deckt MediaMarkt, Saturn, Otto,
   Kaufland, Cyberport, Alternate, Galaxus ab. Amazon liefert kein Produkt-JSON-LD
   und hat als einziger Shop einen DOM-Adapter (ASIN aus der URL).
+  MediaMarkt/Saturn nutzen zusätzlich einen DOM-first-Adapter (sichtbare
+  Art.-Nr. gegen URL geprüft) und übernehmen die GTIN nur, wenn die
+  strukturierten Daten **beweisen**, dass sie zu dieser Seite gehören
+  (gleicher URL-Pfad oder gleiche Art.-Nr.) — siehe `strictGtinForPage`.
+- **Identität** (wichtig): GTIN/EAN/ASIN sind weltweit eindeutig; eine
+  **Art.-Nr. (SKU) ist es nicht** — sie gilt nur zusammen mit ihrem Shop und
+  wird serverseitig deshalb shop-skopiert gespeichert (`mediamarkt:2982243`).
+  Darum bevorzugt der Adapter die GTIN: nur sie erlaubt den kostenlosen
+  Katalog-Weg (Icecat) und das Zusammenführen desselben Produkts über Shops.
 - **Background-Worker** ([src/background.ts](src/background.ts)): einziger Ort
   mit Netzwerkzugriff; cached Ergebnisse pro Session, setzt das Toolbar-Badge
-  (✓ bekannt, + in Aufnahme).
+  (✓ bekannt, + vorgemerkt). Ein Reload umgeht den Cache bewusst — sonst
+  beantwortet die Extension „Kennst du es jetzt?" mit einer alten Absage.
 - **Overlay** ([src/overlay.ts](src/overlay.ts)): Shadow-DOM-Insel unten rechts;
-  Pill → aufklappbare Verdict-Karte. Ein Klick zählt serverseitig als
-  „engage" (starkes Nachfrage-Signal, zieht bezahlte Anreicherung vor).
+  Pill → aufklappbare Verdict-Karte (Escape schließt, Farbschema folgt dem
+  System). Ein Klick zählt serverseitig als „engage" (starkes Nachfrage-Signal,
+  zieht bezahlte Anreicherung vor) — genau einmal pro Seitenaufruf.
 
 ## Troubleshooting: „Es wird nichts angezeigt"
 

@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Wudly Signal",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Das ehrliche Besitzer-Urteil direkt beim Shoppen — Wiederkauf-Quote, Sterne-Lücke und Kaufreue-Gründe auf der Produktseite.",
+  "minimum_chrome_version": "110",
   "permissions": ["storage"],
   "host_permissions": [
     "https://wudly-api-production.up.railway.app/*",
@@ -17,7 +18,9 @@
         "https://www.amazon.de/*",
         "https://amazon.de/*",
         "https://www.mediamarkt.de/*",
+        "https://mediamarkt.de/*",
         "https://www.saturn.de/*",
+        "https://saturn.de/*",
         "https://www.otto.de/*",
         "https://www.kaufland.de/*",
         "https://www.cyberport.de/*",

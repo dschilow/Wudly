@@ -24,13 +24,16 @@ const QUEUED_TTL_MS = 3 * 60 * 1000;
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, sender, sendResponse: (r: LookupResponse) => void) => {
     if (message?.kind === 'wudly:lookup') {
-      void handleLookup(message.payload, sender.tab?.id)
+      void handleLookup(message.payload, sender.tab?.id, message.fresh === true)
         .then(sendResponse)
         .catch((err) => sendResponse({ result: null, error: describe(err) }));
       return true; // async response
     }
     if (message?.kind === 'wudly:engage') {
       void handleEngage(message.payload);
+    }
+    if (message?.kind === 'wudly:clear-badge') {
+      void badge(sender.tab?.id, null);
     }
     return undefined;
   },
@@ -44,13 +47,21 @@ chrome.action.onClicked.addListener((tab) => {
   });
 });
 
-async function handleLookup(product: DetectedProduct, tabId?: number): Promise<LookupResponse> {
+async function handleLookup(
+  product: DetectedProduct,
+  tabId?: number,
+  fresh = false,
+): Promise<LookupResponse> {
   const settings = await loadSettings();
   if (!settings.enabled) return { result: null };
 
   const key = cacheKey(product);
   const cached = sessionCache.get(key);
-  if (cached && (cached.result?.status === 'known' || Date.now() - cached.at < QUEUED_TTL_MS)) {
+  // A reload is the user asking again. Never answer that with a cached
+  // "Wudly kennt es noch nicht" — that is exactly the moment the catalog may
+  // have caught up. A cached "known" is safe to reuse: it only gets richer.
+  const stillQueued = !fresh && cached && Date.now() - cached.at < QUEUED_TTL_MS;
+  if (cached && (cached.result?.status === 'known' || stillQueued)) {
     void badge(tabId, cached.result);
     return { result: cached.result };
   }
@@ -118,6 +129,8 @@ async function resolveOnly(apiUrl: string, product: DetectedProduct): Promise<Lo
   if (product.identifierType && product.identifierValue) {
     params.set('type', product.identifierType);
     params.set('value', product.identifierValue);
+    // Shop article numbers only mean something together with their shop.
+    params.set('domain', product.domain);
   } else {
     params.set('q', product.title);
   }

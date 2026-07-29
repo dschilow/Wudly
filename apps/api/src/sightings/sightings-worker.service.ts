@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import type { ProductSighting } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductsService } from '../products/products.service';
-import { SightingsService, researchQuery } from './sightings.service';
+import { SightingsService, researchQuery, storedIdentifierValue } from './sightings.service';
 import type { AppConfig } from '../config/configuration';
 
 const INITIAL_DELAY_MS = 60 * 1000;
@@ -270,23 +270,30 @@ export class SightingsWorkerService implements OnModuleInit, OnModuleDestroy {
       lastError: null,
       processedAt: new Date(),
     });
-    if (row.identifierType === 'ASIN' && row.identifierValue) {
-      await this.attachAsin(ensured.product.id, row.identifierValue);
-    }
+    await this.attachSightingIdentifier(ensured.product.id, row);
     await this.sightings.applyShopRating(ensured.product.id, row);
     return true;
   }
 
-  private async attachAsin(productId: string, asin: string): Promise<void> {
+  /**
+   * Teach the fresh product the identifier it was seen under. Without this the
+   * next visit to the same shop page has nothing to look up: the AI renamed
+   * the product to its canonical name, so the raw shop title will never
+   * name-match it again. (EANs are already attached by `ensureFromSighting`.)
+   */
+  private async attachSightingIdentifier(productId: string, row: ProductSighting): Promise<void> {
+    const { identifierType: type, identifierValue } = row;
+    if (!type || !identifierValue || type === 'EAN' || type === 'GTIN') return;
+    const value = storedIdentifierValue(type, identifierValue, row.domain);
+    if (!value) return;
     try {
-      const value = asin.toUpperCase();
       await this.prisma.productIdentifier.upsert({
-        where: { type_value: { type: 'ASIN', value } },
-        create: { productId, type: 'ASIN', value, source: 'extension' },
+        where: { type_value: { type, value } },
+        create: { productId, type, value, source: 'extension' },
         update: {},
       });
     } catch (err) {
-      this.logger.warn(`Attach ASIN failed: ${err instanceof Error ? err.message : err}`);
+      this.logger.warn(`Attach ${type} failed: ${err instanceof Error ? err.message : err}`);
     }
   }
 

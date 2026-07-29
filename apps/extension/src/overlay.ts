@@ -9,8 +9,15 @@ import type { DetectedProduct } from './types';
 
 const HOST_ID = 'wudly-signal-host';
 
+/** Closes the open card on Escape; unregistered together with the overlay. */
+let escapeHandler: ((event: KeyboardEvent) => void) | null = null;
+
 export function removeOverlay(): void {
   document.getElementById(HOST_ID)?.remove();
+  if (escapeHandler) {
+    document.removeEventListener('keydown', escapeHandler, true);
+    escapeHandler = null;
+  }
 }
 
 export function mountLoadingPill(product: DetectedProduct): void {
@@ -47,20 +54,35 @@ export function mountOverlay(
   const root = host.attachShadow({ mode: 'closed' });
   root.appendChild(styles());
 
+  // One demand signal per page view, no matter how many parts of the card the
+  // user touches — otherwise opening and then clicking a CTA counts twice and
+  // inflates the ranking that decides where research budget goes.
+  let engaged = false;
+  const engageOnce = (): void => {
+    if (engaged) return;
+    engaged = true;
+    onEngage(product);
+  };
+
   const pill = buildPill(result);
-  const card = buildCard(product, result, onEngage);
+  const card = buildCard(product, result, engageOnce);
   card.hidden = true;
 
-  pill.addEventListener('click', () => {
-    const opening = card.hidden;
-    card.hidden = !card.hidden;
-    pill.classList.toggle('open', opening);
-    // Opening the card is the "engage" demand signal (once per page view).
-    if (opening && !pill.dataset.engaged) {
-      pill.dataset.engaged = '1';
-      onEngage(product);
-    }
-  });
+  const setOpen = (open: boolean): void => {
+    card.hidden = !open;
+    pill.classList.toggle('open', open);
+    pill.setAttribute('aria-expanded', String(open));
+    if (open) engageOnce();
+  };
+
+  pill.addEventListener('click', () => setOpen(card.hidden));
+
+  escapeHandler = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || card.hidden) return;
+    setOpen(false);
+    pill.focus();
+  };
+  document.addEventListener('keydown', escapeHandler, true);
 
   root.append(card, pill);
   document.documentElement.appendChild(host);
@@ -70,7 +92,7 @@ function buildPill(result: SightingResolutionDto): HTMLButtonElement {
   const pill = document.createElement('button');
   pill.className = 'pill';
   pill.type = 'button';
-  pill.title = 'Wudly Signal';
+  pill.setAttribute('aria-expanded', 'false');
 
   const known = result.status === 'known';
   const rebuy = result.product?.rebuyScore;
@@ -80,6 +102,8 @@ function buildPill(result: SightingResolutionDto): HTMLButtonElement {
   let label = 'Wudly';
   if (known && rebuy != null) label = `Wiederkauf ${Math.round(rebuy)} %`;
   else if (known && consensus != null) label = `Netz-Konsens ${Math.round(consensus)} %`;
+  pill.title = known ? `Wudly Signal — ${label}` : 'Wudly Signal — noch kein Besitzer-Urteil';
+  pill.setAttribute('aria-label', pill.title);
   pill.innerHTML = `${dot}<span class="label">${escapeHtml(label)}</span>`;
   return pill;
 }
@@ -87,10 +111,12 @@ function buildPill(result: SightingResolutionDto): HTMLButtonElement {
 function buildCard(
   product: DetectedProduct,
   result: SightingResolutionDto,
-  onEngage: (product: DetectedProduct) => void,
+  onEngage: () => void,
 ): HTMLDivElement {
   const card = document.createElement('div');
   card.className = 'card';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-label', 'Wudly Signal');
   const p = result.product;
   const name = p?.canonicalName ?? product.title;
 
@@ -152,14 +178,18 @@ function buildCard(
       );
     }
   } else {
-    rows.push(
-      `<p class="note">Wudly kennt dieses Produkt noch nicht — es wird gerade in den Katalog aufgenommen.</p>`,
-    );
+    // Deliberately no "wird gerade aufgenommen" any more: that was a promise
+    // the backend cannot keep. Paid enrichment is budgeted and only reaches
+    // products that prove demand, so a queued sighting may wait — or never
+    // make it. State the fact, and hand over the one action that helps now.
+    rows.push(`<p class="note">Zu diesem Produkt gibt es bei Wudly noch kein Besitzer-Urteil.</p>`);
   }
 
   const cta = result.webUrl
     ? `<a class="cta" href="${escapeAttr(result.webUrl)}" target="_blank" rel="noopener">Bei Wudly ansehen</a>`
-    : '';
+    : result.searchUrl
+      ? `<a class="cta" href="${escapeAttr(result.searchUrl)}" target="_blank" rel="noopener">Auf Wudly prüfen</a>`
+      : '';
   // Owner shortcut: the extension is not just a consumer of the owner truth,
   // it recruits the next voice — straight into the 30-second verdict flow.
   const ownCta = result.ownUrl
@@ -181,8 +211,8 @@ function buildCard(
     sessionStorage.setItem(dismissKey(product), '1');
     removeOverlay();
   });
-  card.querySelector('.cta')?.addEventListener('click', () => onEngage(product));
-  card.querySelector('.own')?.addEventListener('click', () => onEngage(product));
+  card.querySelector('.cta')?.addEventListener('click', () => onEngage());
+  card.querySelector('.own')?.addEventListener('click', () => onEngage());
   return card;
 }
 
@@ -215,62 +245,112 @@ export function clearDismissals(): void {
 function styles(): HTMLStyleElement {
   const style = document.createElement('style');
   // Verdict design language: ink on paper, one green accent, no gradients.
+  // Every color goes through a token so the dark scheme is one override block
+  // — the overlay sits on top of shops that are themselves light or dark.
   style.textContent = `
-    :host { all: initial; }
+    :host {
+      all: initial;
+      --ink: #0c0d12;
+      --paper: #ffffff;
+      --muted: #5b5f6d;
+      --faint: #9aa0ae;
+      --body: #3a3d49;
+      --line: #0c0d1226;
+      --hairline: #0c0d1216;
+      --accent: #0aa06a;
+      --accent-ink: #077951;
+      --accent-wash: #0aa06a14;
+      --warn-ink: #8f1d1d;
+      --warn-wash: #c6282812;
+      --cta-bg: #14151b;
+      --cta-bg-hover: #24262f;
+      --cta-ink: #ffffff;
+      --shadow: 0 12px 32px #0c0d122e;
+      --shadow-pill: 0 4px 16px #0c0d1224;
+    }
+    @media (prefers-color-scheme: dark) {
+      :host {
+        --ink: #f1f2f5;
+        --paper: #17181e;
+        --muted: #a2a7b4;
+        --faint: #767b89;
+        --body: #d3d6dd;
+        --line: #ffffff26;
+        --hairline: #ffffff1a;
+        --accent: #21c58a;
+        --accent-ink: #4ed6a5;
+        --accent-wash: #21c58a1f;
+        --warn-ink: #ff9d9d;
+        --warn-wash: #c628281f;
+        --cta-bg: #f1f2f5;
+        --cta-bg-hover: #ffffff;
+        --cta-ink: #14151b;
+        --shadow: 0 12px 32px #00000066;
+        --shadow-pill: 0 4px 16px #00000059;
+      }
+    }
     * { box-sizing: border-box; font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
     .pill {
       position: fixed; right: 16px; bottom: 16px; z-index: 2147483646;
       display: inline-flex; align-items: center; gap: 8px;
-      padding: 9px 14px; border: 1px solid #0c0d1226; border-radius: 999px;
-      background: #ffffff; color: #0c0d12; cursor: pointer;
+      padding: 9px 14px; border: 1px solid var(--line); border-radius: 999px;
+      background: var(--paper); color: var(--ink); cursor: pointer;
       font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
-      box-shadow: 0 4px 16px #0c0d1224; transition: transform 120ms ease;
+      box-shadow: var(--shadow-pill); transition: transform 120ms ease;
     }
     .pill:hover { transform: translateY(-1px); }
     .pill:disabled { cursor: wait; }
     .pill.open { box-shadow: 0 2px 8px #0c0d121a; }
+    :is(.pill, .close, .cta, .own):focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
     .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-    .dot.known { background: #0aa06a; }
-    .dot.queued { background: #9aa0ae; }
+    .dot.known { background: var(--accent); }
+    .dot.queued { background: var(--faint); }
     .dot.pulse { animation: wudly-pulse 900ms ease-in-out infinite; }
     @keyframes wudly-pulse {
       0%, 100% { opacity: 0.45; transform: scale(0.86); }
       50% { opacity: 1; transform: scale(1); }
     }
+    @media (prefers-reduced-motion: reduce) {
+      .pill { transition: none; }
+      .pill:hover { transform: none; }
+      .dot.pulse { animation: none; opacity: 0.7; }
+    }
     .card {
       position: fixed; right: 16px; bottom: 64px; z-index: 2147483646;
-      width: 300px; padding: 14px 16px 16px;
-      background: #ffffff; color: #0c0d12;
-      border: 1px solid #0c0d1226; border-radius: 16px;
-      box-shadow: 0 12px 32px #0c0d122e;
+      width: 300px; max-width: calc(100vw - 32px); padding: 14px 16px 16px;
+      background: var(--paper); color: var(--ink);
+      border: 1px solid var(--line); border-radius: 16px;
+      box-shadow: var(--shadow);
       font-size: 13px; line-height: 1.45;
     }
     .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-    .brand { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5b5f6d; }
-    .close { border: 0; background: none; color: #9aa0ae; font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 4px; }
-    .close:hover { color: #0c0d12; }
+    .brand { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .close { border: 0; background: none; color: var(--faint); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 4px; }
+    .close:hover { color: var(--ink); }
     .name { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
-    .seal { display: inline-block; margin-bottom: 8px; padding: 3px 8px; border-radius: 999px; background: #0aa06a14; color: #077951; font-size: 11px; font-weight: 700; }
-    .stat { display: flex; align-items: baseline; gap: 8px; padding: 7px 0; border-top: 1px solid #0c0d1216; }
-    .stat-label { color: #5b5f6d; flex: 1; }
+    .seal { display: inline-block; margin-bottom: 8px; padding: 3px 8px; border-radius: 999px; background: var(--accent-wash); color: var(--accent-ink); font-size: 11px; font-weight: 700; }
+    .stat { display: flex; align-items: baseline; gap: 8px; padding: 7px 0; border-top: 1px solid var(--hairline); }
+    .stat-label { color: var(--muted); flex: 1; }
     .stat-value { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
-    .stat-hint { color: #9aa0ae; font-size: 11px; }
+    .stat-hint { color: var(--faint); font-size: 11px; }
     .gap {
       margin: 8px 0 0; padding: 8px 10px; border-radius: 10px;
-      background: #c6282812; color: #8f1d1d; font-size: 12px; line-height: 1.45;
+      background: var(--warn-wash); color: var(--warn-ink); font-size: 12px; line-height: 1.45;
     }
-    .line { margin: 0; padding: 7px 0 2px; border-top: 1px solid #0c0d1216; color: #3a3d49; font-size: 12px; }
-    .line-label { color: #5b5f6d; font-weight: 600; }
-    .note { margin: 0; padding: 7px 0 2px; border-top: 1px solid #0c0d1216; color: #3a3d49; }
+    .line { margin: 0; padding: 7px 0 2px; border-top: 1px solid var(--hairline); color: var(--body); font-size: 12px; }
+    .line-label { color: var(--muted); font-weight: 600; }
+    .note { margin: 0; padding: 7px 0 2px; border-top: 1px solid var(--hairline); color: var(--body); }
     .cta {
       display: block; margin-top: 12px; padding: 9px 12px; border-radius: 10px;
-      background: #14151b; color: #ffffff; text-align: center; text-decoration: none;
+      background: var(--cta-bg); color: var(--cta-ink); text-align: center; text-decoration: none;
       font-weight: 700; font-size: 13px;
     }
-    .cta:hover { background: #24262f; }
+    .cta:hover { background: var(--cta-bg-hover); }
     .own {
       display: block; margin-top: 8px; text-align: center; text-decoration: none;
-      color: #077951; font-weight: 600; font-size: 12px;
+      color: var(--accent-ink); font-weight: 600; font-size: 12px;
     }
     .own:hover { text-decoration: underline; }
   `;

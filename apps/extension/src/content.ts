@@ -18,6 +18,16 @@ const URL_POLL_MS = 150;
 const NAV_RECHECK_MS = 12_000;
 /** Distrust window for detections equal to the pre-navigation product. */
 const STALE_GRACE_MS = 12_000;
+/**
+ * Once a page state is answered, run the adapters at most this often. Shop
+ * pages mutate continuously (carousels, lazy images, price tickers) and each
+ * mutation lands in check(); detection reads the rendered page text, which
+ * costs a layout pass. Throttling instead of stopping keeps late-arriving
+ * structured data (SPA shops inject JSON-LD after the heading) discoverable.
+ */
+const SETTLED_DETECT_MS = 750;
+/** Backoff after a failed lookup — never hammer a cold-starting API. */
+const RETRY_AFTER_MS = 15_000;
 
 let lastHref = location.href;
 let lastPageFingerprint = pageFingerprint(document, location.href);
@@ -25,6 +35,8 @@ let lastPageFingerprint = pageFingerprint(document, location.href);
 let renderedKey: string | null = null;
 /** Identity currently being resolved against the API. */
 let resolvingKey: string | null = null;
+/** Identity the API answered with "show nothing" — asking again is pointless. */
+let silentKey: string | null = null;
 /** Last product identity detected, even if no overlay was rendered yet. */
 let lastDetectedKey: string | null = null;
 let lastDetectedTitle: string | null = null;
@@ -35,6 +47,16 @@ let titleBeforeNav: string | null = null;
 let navRecheckUntil = 0;
 let runToken = 0;
 let debounceTimer: number | undefined;
+/** When the adapters last ran, and when a failed lookup may be retried. */
+let lastDetectAt = 0;
+let retryAfter = 0;
+/**
+ * True until the first lookup of this document. A reload (or a bfcache
+ * restore, or the toolbar icon) is how a user asks "and NOW?" — such a lookup
+ * must reach the API instead of being answered from the worker's short-lived
+ * cache with a stale "Wudly kennt es noch nicht".
+ */
+let freshLoad = true;
 
 /** Stable client-side identity — mirrors the background worker's cache key. */
 function identityOf(p: DetectedProduct): string {
@@ -63,11 +85,20 @@ function check(): void {
     titleBeforeNav = lastDetectedTitle;
     renderedKey = null;
     resolvingKey = null;
+    silentKey = null;
+    retryAfter = 0;
     runToken++; // cancel any in-flight resolution for the old page
     removeOverlay();
+    clearBadge(); // the old page's ✓ must not linger on the new one
     debug('page change →', lastHref, fingerprint);
+  } else if (
+    (renderedKey !== null || resolvingKey !== null || silentKey !== null) &&
+    now - lastDetectAt < SETTLED_DETECT_MS
+  ) {
+    return; // answered page state, and the adapters just ran — see SETTLED_DETECT_MS
   }
 
+  lastDetectAt = now;
   const product = detectProduct(document, location.href);
   if (!product) return; // Product data may still be loading; observer/poll will re-fire.
 
@@ -91,7 +122,10 @@ function check(): void {
     debug('ignoring mixed detection (new URL, old DOM title):', key);
     return;
   }
-  if (key === renderedKey || key === resolvingKey) return;
+  if (key === renderedKey || key === resolvingKey || key === silentKey) return;
+  // A failed lookup (offline, cold-starting API) must not turn every following
+  // DOM mutation into another request.
+  if (now < retryAfter) return;
 
   navRecheckUntil = 0;
   debug('detected', product);
@@ -105,12 +139,24 @@ async function resolveAndRender(
 ): Promise<void> {
   resolvingKey = key;
   mountLoadingPill(product); // instant feedback while the API (cold-)starts
-  const { result, error } = await lookup(product);
+  const fresh = freshLoad;
+  freshLoad = false;
+  const { result, error } = await lookup(product, fresh);
   if (token !== runToken) return; // superseded by a newer navigation/detection
   if (error) debug('lookup FEHLGESCHLAGEN:', error);
   else debug('resolution', result);
   resolvingKey = null;
-  if (!result || result.status === 'rejected') {
+  if (!result) {
+    // No answer at all (network/API problem) — back off, then try again.
+    retryAfter = Date.now() + RETRY_AFTER_MS;
+    removeOverlay();
+    return;
+  }
+  retryAfter = 0;
+  if (result.status === 'rejected') {
+    // A deliberate "show nothing" (junk title, hidden product). Final for this
+    // identity — re-asking on every mutation would only burn the rate limit.
+    silentKey = key;
     removeOverlay();
     return;
   }
@@ -118,15 +164,20 @@ async function resolveAndRender(
   renderedKey = key;
 }
 
-function lookup(product: DetectedProduct): Promise<LookupResponse> {
+function lookup(product: DetectedProduct, fresh: boolean): Promise<LookupResponse> {
   return chrome.runtime
-    .sendMessage({ kind: 'wudly:lookup', payload: product })
+    .sendMessage({ kind: 'wudly:lookup', payload: product, fresh })
     .then((response: LookupResponse | undefined) => response ?? { result: null })
     .catch((err) => ({ result: null, error: err instanceof Error ? err.message : String(err) }));
 }
 
 function engage(product: DetectedProduct): void {
   void chrome.runtime.sendMessage({ kind: 'wudly:engage', payload: product }).catch(() => null);
+}
+
+/** No (longer a) product here — drop the toolbar badge of the previous page. */
+function clearBadge(): void {
+  void chrome.runtime.sendMessage({ kind: 'wudly:clear-badge' }).catch(() => null);
 }
 
 function pageFingerprint(doc: Document, href: string): string {
@@ -170,9 +221,12 @@ chrome.runtime.onMessage.addListener((message: ShowMessage) => {
   if (message?.kind !== 'wudly:show') return;
   clearDismissals();
   renderedKey = null;
+  silentKey = null;
+  retryAfter = 0; // an explicit request skips the failure backoff
   lastDetectedKey = null;
-  keyBeforeNav = null; // an explicit user request overrides the stale guard
+  keyBeforeNav = null; // …and overrides the stale guard
   titleBeforeNav = null;
+  freshLoad = true; // …and asks the API again instead of the cache
   navRecheckUntil = Date.now() + NAV_RECHECK_MS;
   check();
 });
@@ -185,11 +239,23 @@ new MutationObserver(scheduleCheck).observe(document.documentElement, {
   characterData: true,
 });
 
-window.addEventListener('pageshow', scheduleCheck, true);
+// bfcache restore: the document is old, the question ("is it in Wudly now?")
+// is new — treat it like a fresh load.
+window.addEventListener(
+  'pageshow',
+  () => {
+    freshLoad = true;
+    scheduleCheck();
+  },
+  true,
+);
 window.addEventListener('popstate', scheduleCheck, true);
 window.addEventListener('hashchange', scheduleCheck, true);
 window.addEventListener('focus', scheduleCheck, true);
 
+// A new document in this tab starts without a verdict — the previous page's
+// badge would otherwise claim one until something else overwrites it.
+clearBadge();
 check();
 // Safety net: URL/heading changes without a useful DOM mutation are rare, but cheap to poll.
 setInterval(() => {

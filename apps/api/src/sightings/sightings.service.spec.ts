@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SightingsService, researchQuery, shopSource, titleMatchesProductUrl } from './sightings.service';
+import {
+  SightingsService,
+  researchQuery,
+  shopSource,
+  storedIdentifierValue,
+  titleMatchesProductUrl,
+} from './sightings.service';
 import type { ProductSightingInput } from '@wudly/shared';
 
 /** Minimal collaborator fakes — the service only touches what a test arms. */
@@ -11,13 +17,22 @@ function makeService(overrides: {
   /** What ensureVariantFromTitle reports (null = no variant attributes). */
   ensuredVariant?: { id: string } | null;
   ingestEnabled?: boolean;
+  /** Product the EXISTING sighting row already points at (pipeline output). */
+  linkedProduct?: unknown;
+  /** Product an EARLIER sighting of the same shop URL resolved to. */
+  pageHistoryProduct?: { id: string } | null;
 } = {}) {
   const prisma = {
+    product: {
+      findUnique: vi.fn(async () => overrides.linkedProduct ?? overrides.pageHistoryProduct ?? null),
+    },
     productSighting: {
       upsert: vi.fn(async (args: { create: Record<string, unknown> }) => ({
         id: 's1',
         status: args.create.status,
         ...args.create,
+        // A row the pipeline already processed carries its product link.
+        ...(overrides.linkedProduct ? { productId: 'p1', status: 'RESEARCHED' } : {}),
       })),
       update: vi.fn(async (args: { data: Record<string, unknown> }) => ({
         id: 's1',
@@ -26,6 +41,12 @@ function makeService(overrides: {
       count: vi.fn(async () => 0),
       groupBy: vi.fn(async () => []),
       findMany: vi.fn(async () => []),
+      // An earlier sighting of the same shop page, already linked to a product.
+      findFirst: vi.fn(async () =>
+        overrides.pageHistoryProduct
+          ? { productId: overrides.pageHistoryProduct.id }
+          : null,
+      ),
     },
     productIdentifier: {
       findFirst: vi.fn(async () => overrides.identifierHit ?? null),
@@ -122,6 +143,85 @@ describe('SightingsService.resolveAndRecord', () => {
     };
     expect(upsert.create.status).toBe('PENDING');
     expect(String(upsert.create.dedupeKey)).toMatch(/^name:.*@www\.mediamarkt\.de$/);
+  });
+
+  it('offers the prefilled Wudly check for a product the catalog does not know', async () => {
+    const { service } = makeService();
+    const result = await service.resolveAndRecord(baseInput);
+    expect(result.status).toBe('queued');
+    expect(result.searchUrl).toBe(
+      `https://wudly.app/check?q=${encodeURIComponent(baseInput.title)}`,
+    );
+  });
+
+  /**
+   * The regression that made the overlay lie: after the pipeline created the
+   * product, the AI-cleaned canonical name no longer name-matches the spammy
+   * shop title, so fresh resolution finds nothing — and the user kept reading
+   * "wird gerade aufgenommen" on every reload. The sighting row remembers the
+   * link, and one visit is enough to repair the identifier binding.
+   */
+  it('resolves through the sighting row once the pipeline created the product', async () => {
+    const { service, prisma } = makeService({ linkedProduct: catalogProduct });
+    const result = await service.resolveAndRecord({
+      ...baseInput,
+      title: 'TCL 75C7K Fernseher 190,5 cm (75 Zoll) 4K Ultra HD Smart-TV WLAN',
+      identifierType: 'SKU',
+      identifierValue: '2982243',
+    });
+    expect(result.status).toBe('known');
+    expect(result.product?.id).toBe('p1');
+    expect(result.webUrl).toContain('p1');
+    // Self-healing: the shop article number is now bound, so the NEXT view
+    // resolves in O(1) instead of walking this fallback again.
+    const attach = prisma.productIdentifier.create.mock.calls[0]![0] as {
+      data: Record<string, unknown>;
+    };
+    expect(attach.data).toMatchObject({
+      productId: 'p1',
+      type: 'SKU',
+      value: 'mediamarkt:2982243',
+    });
+  });
+
+  /**
+   * The same shelf item can arrive under a NEW dedupeKey — a rewritten title,
+   * or an adapter that learned to read the page's GTIN where it used to send
+   * the shop article number. The row is then new and unlinked; only the shop
+   * URL still ties it to the product the pipeline already built.
+   */
+  it('adopts the product of an earlier sighting of the same shop page', async () => {
+    const { service, prisma } = makeService({ pageHistoryProduct: catalogProduct });
+    const result = await service.resolveAndRecord({
+      ...baseInput,
+      identifierType: 'GTIN',
+      identifierValue: '8718863038000',
+      productUrl: 'https://www.mediamarkt.de/de/product/_sony-wh-1000xm5-2982243.html',
+    });
+    expect(result.status).toBe('known');
+    expect(result.product?.id).toBe('p1');
+    // The link moves onto the new row, so this repair happens exactly once.
+    expect(prisma.productSighting.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { productId: 'p1', status: 'MATCHED' } }),
+    );
+  });
+
+  it('does not guess a product for a page nobody has resolved before', async () => {
+    const { service } = makeService();
+    const result = await service.resolveAndRecord({
+      ...baseInput,
+      productUrl: 'https://www.mediamarkt.de/de/product/_sony-wh-1000xm5-2982243.html',
+    });
+    expect(result.status).toBe('queued');
+  });
+
+  it('keeps a hidden product hidden even when the sighting row links to it', async () => {
+    const { service } = makeService({
+      linkedProduct: { ...catalogProduct, status: 'HIDDEN' },
+    });
+    const result = await service.resolveAndRecord(baseInput);
+    expect(result.status).toBe('rejected');
+    expect(result.product).toBeNull();
   });
 
   it('hides HIDDEN products from the extension', async () => {
@@ -331,6 +431,48 @@ describe('SightingsService.dedupeKey', () => {
     const a = service.dedupeKey({ title: 'Sony WH-1000XM5', domain: 'www.otto.de' });
     const b = service.dedupeKey({ title: 'Sony WH-1000XM5', domain: 'www.saturn.de' });
     expect(a).not.toBe(b);
+  });
+
+  it('keys shop article numbers by shop, independent of the title', () => {
+    const before = service.dedupeKey({
+      identifierType: 'SKU',
+      identifierValue: '2982243',
+      title: 'PHILIPS 65OLED810/12 OLED Ambilight TV',
+      domain: 'www.mediamarkt.de',
+    });
+    // Marketing rewrites the title — the same shelf item must stay one row,
+    // otherwise the pipeline re-queues (and re-pays for) a known product.
+    const after = service.dedupeKey({
+      identifierType: 'SKU',
+      identifierValue: '2982243',
+      title: 'PHILIPS 65OLED810/12 OLED TV | JETZT 300 € SPAREN',
+      domain: 'www.mediamarkt.de',
+    });
+    expect(after).toBe(before);
+    // Different shop, same article number = a different product.
+    const otherShop = service.dedupeKey({
+      identifierType: 'SKU',
+      identifierValue: '2982243',
+      title: 'Irgendein anderes Gerät',
+      domain: 'www.cyberport.de',
+    });
+    expect(otherShop).not.toBe(before);
+  });
+});
+
+describe('storedIdentifierValue', () => {
+  it('keeps worldwide identities as they are', () => {
+    expect(storedIdentifierValue('EAN', '4548736141549', 'www.otto.de')).toBe('4548736141549');
+    expect(storedIdentifierValue('ASIN', 'b0abc12345', 'www.amazon.de')).toBe('B0ABC12345');
+  });
+
+  it('scopes shop article numbers so one shop cannot hijack another', () => {
+    expect(storedIdentifierValue('SKU', '2982243', 'www.mediamarkt.de')).toBe('mediamarkt:2982243');
+    expect(storedIdentifierValue('SKU', '2982243', 'www.cyberport.de')).toBe('cyberport:2982243');
+  });
+
+  it('refuses a shop article number without a shop', () => {
+    expect(storedIdentifierValue('SKU', '2982243', null)).toBeNull();
   });
 });
 

@@ -407,6 +407,18 @@ export const sightingResolveQuerySchema = z
     type: z.enum(['EAN', 'GTIN', 'ASIN', 'MPN', 'SKU']).optional(),
     value: z.string().trim().min(4).max(40).optional(),
     q: z.string().trim().min(4).max(300).optional(),
+    /**
+     * Shop host of the lookup. Required to resolve SKUs: article numbers are
+     * shop-scoped, so "2982243" only means something together with the shop
+     * it was read from.
+     */
+    domain: z
+      .string()
+      .trim()
+      .min(3)
+      .max(120)
+      .regex(/^[a-z0-9.-]+$/i, 'Erwartet einen Hostnamen.')
+      .optional(),
   })
   .refine((d) => Boolean(d.type && d.value) || Boolean(d.q), {
     message: 'type+value oder q erforderlich.',

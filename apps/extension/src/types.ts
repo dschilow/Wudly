@@ -18,8 +18,11 @@ export interface DetectedProduct {
 
 /** Content script → background messages. */
 export type ExtensionMessage =
-  | { kind: 'wudly:lookup'; payload: DetectedProduct }
-  | { kind: 'wudly:engage'; payload: DetectedProduct };
+  /** `fresh`: page (re)load — bypass a cached "not in the catalog" answer. */
+  | { kind: 'wudly:lookup'; payload: DetectedProduct; fresh?: boolean }
+  | { kind: 'wudly:engage'; payload: DetectedProduct }
+  /** Left a product page — drop this tab's toolbar badge. */
+  | { kind: 'wudly:clear-badge' };
 
 /** Background → content script: re-show a dismissed overlay (toolbar click). */
 export interface ShowMessage {

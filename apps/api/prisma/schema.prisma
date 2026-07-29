@@ -460,6 +460,9 @@ model ProductSighting {
 
   @@index([status, lastSeenAt])
   @@index([productId])
+  /// Resolution fallback: find an earlier sighting of the SAME shop page that
+  /// already became a catalog product (see SightingsService).
+  @@index([productUrl])
 }
 
 /// Aggregated rating FACTS from other platforms (average + count + link), shown
