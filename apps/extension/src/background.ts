@@ -125,14 +125,14 @@ async function postSighting(
 }
 
 async function resolveOnly(apiUrl: string, product: DetectedProduct): Promise<LookupResult> {
-  const params = new URLSearchParams();
+  // The title always goes along, even next to an identifier: it is the second
+  // resolution path server-side, and the only thing a "not in the catalog"
+  // answer can offer the user (the prefilled Wudly check).
+  const params = new URLSearchParams({ q: product.title, domain: product.domain });
   if (product.identifierType && product.identifierValue) {
     params.set('type', product.identifierType);
-    params.set('value', product.identifierValue);
     // Shop article numbers only mean something together with their shop.
-    params.set('domain', product.domain);
-  } else {
-    params.set('q', product.title);
+    params.set('value', product.identifierValue);
   }
   const res = await fetch(`${trim(apiUrl)}/sightings/resolve?${params}`, {
     credentials: 'omit',
