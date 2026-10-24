@@ -10,6 +10,7 @@ import {
   ExperienceMood,
   QuickAnswer,
   AspectSentiment,
+  OwnershipEndReason,
   DisclosureType,
   ProfessionalProfileType,
   PulseActionStatus,
@@ -23,6 +24,7 @@ import type {
   UsageDuration as UsageDurationType,
   ExperienceMood as ExperienceMoodType,
   QuickAnswer as QuickAnswerType,
+  OwnershipEndReason as OwnershipEndReasonType,
 } from './enums';
 
 export interface EnumOption<T extends string> {
@@ -79,6 +81,17 @@ export const USAGE_DURATION_LABEL: Record<UsageDurationType, string> =
 export const EXPERIENCE_MOOD_LABEL: Record<ExperienceMoodType, string> =
   optionMap(EXPERIENCE_MOOD_OPTIONS);
 export const QUICK_ANSWER_LABEL: Record<QuickAnswerType, string> = optionMap(QUICK_ANSWER_OPTIONS);
+
+export const OWNERSHIP_END_REASON_OPTIONS: ReadonlyArray<EnumOption<OwnershipEndReasonType>> = [
+  { value: OwnershipEndReason.BROKEN, label: 'Kaputt gegangen', tone: 'negative' },
+  { value: OwnershipEndReason.REPLACED, label: 'Durch etwas anderes ersetzt', tone: 'neutral' },
+  { value: OwnershipEndReason.SOLD, label: 'Verkauft oder verschenkt', tone: 'neutral' },
+  { value: OwnershipEndReason.RETURNED, label: 'Zurückgegeben', tone: 'warning' },
+  { value: OwnershipEndReason.OTHER, label: 'Nutze ich einfach nicht mehr', tone: 'neutral' },
+];
+export const OWNERSHIP_END_REASON_LABEL: Record<OwnershipEndReasonType, string> = optionMap(
+  OWNERSHIP_END_REASON_OPTIONS,
+);
 
 export const ASPECT_SENTIMENT_LABEL: Record<string, string> = {
   [AspectSentiment.POSITIVE]: 'Positiv',

@@ -1,6 +1,7 @@
 import type {
   ExperienceReport,
   ExperienceAspect,
+  ExperienceRevision,
   User,
   Ownership,
   Product,
@@ -20,6 +21,8 @@ export type ExperienceWithRelations = ExperienceReport & {
   ownership?: Pick<Ownership, 'verificationStatus' | 'verificationMethod' | 'verifiedAt'> | null;
   product?: Pick<Product, 'id' | 'canonicalName'> | null;
   variant?: Pick<ProductVariant, 'id' | 'name'> | null;
+  /** Newest first, as loaded; mapped oldest first. */
+  revisions?: Pick<ExperienceRevision, 'createdAt' | 'wouldBuyAgain' | 'usageDuration'>[];
 };
 
 export function toExperienceDto(
@@ -52,6 +55,11 @@ export function toExperienceDto(
         severity: a.severity,
       }),
     ),
+    checkpoints: [...(report.revisions ?? [])].reverse().map((revision) => ({
+      at: revision.createdAt.toISOString(),
+      wouldBuyAgain: revision.wouldBuyAgain,
+      usageDuration: revision.usageDuration,
+    })),
     createdAt: report.createdAt.toISOString(),
     updatedAt: report.updatedAt.toISOString(),
   };

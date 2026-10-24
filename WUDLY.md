@@ -97,7 +97,7 @@ packages/
   `apps/api/prisma/schema.prisma` synchron bleiben.
 
 ### Backend-Module
-`Auth, Users, Categories, Products, ProductMatching, Insights, Experiences, Questions, Ownership, Rankings, Sightings, Admin, Health, Ai`.
+`Auth, Users, Categories, Products, ProductMatching, Insights, Experiences, Questions, Ownership, Companion, Rankings, Sightings, Admin, Health, Ai`.
 Controller = nur HTTP. Services = Use Cases. Reine Logik (Scoring/Matching/Insights) liegt in `@wudly/shared`.
 
 ### Extension-Ingestion (Sightings, kostenbegrenzt)
@@ -109,6 +109,22 @@ Views oder 1 Overlay-Klick) und gedeckelt pro Tag (`EXTENSION_RESEARCH_DAILY_CAP
 `0` = KI aus). ASIN/Namens-Sichtungen warten immer auf die Nachfrage-Schwelle,
 weil erst die KI-Recherche die Spam-Titel in saubere Produktnamen übersetzt.
 Admin-Einblick: `GET /sightings/stats`.
+
+### Besitz-Begleiter (Check-ins über die Nutzungszeit)
+Jedes besessene Produkt ist eine Reise mit Etappen **Start → 1 Monat → 6 Monate → 1 Jahr →
+2 Jahre**. Reine Zeitlogik in `packages/shared/src/companion.ts` (`buildCheckInJourney`,
+`nextCheckInReminderAt`, getestet): Zeit läuft ab dem **geschätzten Nutzungsbeginn**
+(konservativ = Untergrenze der angegebenen Nutzungsdauer, `Ownership.ownedSince`), nicht ab
+Anlage in Wudly. Jeder Check-in ist ein `ExperienceRevision`-Checkpoint.
+- API (`apps/api/src/companion`): `GET /me/companion` (Hub), `GET /me/companion/:productId`,
+  `POST …/confirm` („Alles wie gehabt" = echter Checkpoint mit längerer Nutzung, Texte/Aspekte
+  bleiben), `PATCH …` (`snooze` 14 Tage, `mute`/`unmute`, `end` mit Grund, `reactivate`).
+- Erinnerungen: `RebuyReminderService` scannt stündlich `Ownership.nextCheckInAt`, sendet nur
+  9–20 Uhr (Europe/Berlin), eine Erinnerung pro Etappe, mehrere fällige pro Nutzer gebündelt,
+  Replica-sicher per Compare-and-Set.
+- Erfahrung aktualisieren: weggelassene Text-/Aspektfelder bleiben erhalten, `""`/`[]` löscht.
+- Web: `/me/products` = Begleiter-Hub, Wizard `/products/:id/own` mit Check-in-Modus,
+  Urteils-Verlauf („Urteil im Zeitverlauf") im Stimmen-Tab der Produktseite.
 
 ### Scoring (duration-gewichtet, in `@wudly/shared`)
 Gewichte nach Nutzungsdauer: `<1 Woche=0.5`, `1–4 Wochen=0.7`, `1–6 Monate=1.0`, `6–12 Monate=1.3`, `>1 Jahr=1.5`.

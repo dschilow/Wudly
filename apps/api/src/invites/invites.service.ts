@@ -10,6 +10,7 @@ import type {
 import type { InvitedVote } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductInsightsService } from '../products/product-insights.service';
+import { refreshCompanionSchedule } from '../companion/companion-journey';
 
 function toInvitedVoteDto(v: InvitedVote): InvitedVoteDto {
   return {
@@ -154,11 +155,12 @@ export class InvitesService {
       data: { claimedByUserId: userId, weight: 1 },
     });
     if (result.count === 1) {
-      await this.prisma.ownership.upsert({
+      const ownership = await this.prisma.ownership.upsert({
         where: { userId_productId: { userId, productId: invite.productId } },
         create: { userId, productId: invite.productId },
         update: {},
       });
+      await refreshCompanionSchedule(this.prisma, ownership.id);
       void this.insights.regenerate(invite.productId).catch(() => {});
     }
     return { claimed: result.count };

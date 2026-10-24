@@ -79,6 +79,16 @@ export const OwnershipVerificationMethod = {
 export type OwnershipVerificationMethod =
   (typeof OwnershipVerificationMethod)[keyof typeof OwnershipVerificationMethod];
 
+/** Why an owner stopped using a product — closes the companion check-ins. */
+export const OwnershipEndReason = {
+  BROKEN: 'BROKEN',
+  REPLACED: 'REPLACED',
+  SOLD: 'SOLD',
+  RETURNED: 'RETURNED',
+  OTHER: 'OTHER',
+} as const;
+export type OwnershipEndReason = (typeof OwnershipEndReason)[keyof typeof OwnershipEndReason];
+
 export const FunnelEvent = {
   SEARCH_PERFORMED: 'SEARCH_PERFORMED',
   RESEARCH_STARTED: 'RESEARCH_STARTED',

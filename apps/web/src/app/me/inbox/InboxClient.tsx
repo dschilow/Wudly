@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   Bell,
+  BellRing,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -201,11 +202,11 @@ export function InboxClient() {
       <section className="premium-panel relative overflow-hidden rounded-[var(--radius-2xl)] p-5 shadow-[var(--shadow-elevated)]">
         <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-white/20" />
         <div className="relative flex items-start gap-4">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[0.9rem] bg-white/10 text-accent-ink ring-1 ring-white/10">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[0.9rem] bg-white/10 text-[#7df2c2] ring-1 ring-white/10">
             <Inbox className="h-6 w-6" strokeWidth={2.1} />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-accent-ink">
+            <p className="mono-data text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-[#7df2c2]">
               Arbeits-Inbox
             </p>
             <h1 className="font-display mt-2 max-w-[30rem] text-balance text-[2rem] leading-[1.02] text-white sm:text-[2.5rem]">
@@ -347,7 +348,7 @@ function InboxMetric({
       <p
         className={
           tone === 'hot'
-            ? 'font-display text-[1.8rem] leading-none text-accent-ink'
+            ? 'font-display text-[1.8rem] leading-none text-[#7df2c2]'
             : 'font-display text-[1.8rem] leading-none text-white'
         }
       >
@@ -369,8 +370,11 @@ function ProductNotificationCard({
   const pending = group.questions.filter((question) => question.canAnswer).length;
   const latest = group.notifications[0];
   const totalAnswers = group.questions.reduce((sum, question) => sum + question.answerCount, 0);
-  const statusLabel =
-    pending > 0 ? `${pending} Antwort${pending === 1 ? '' : 'en'} offen` : 'Aktuell gelesen';
+  const statusLabel = group.checkIn
+    ? `${group.checkIn.label} fällig`
+    : pending > 0
+      ? `${pending} Antwort${pending === 1 ? '' : 'en'} offen`
+      : 'Aktuell gelesen';
 
   return (
     <motion.button
@@ -423,8 +427,21 @@ function ProductNotificationCard({
             {latest?.body ?? latest?.title ?? 'Fragen und Antworten zu diesem Produkt'}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <MetricPill icon={MessageCircleQuestion} label={`${group.questions.length} Fragen`} />
-            <MetricPill icon={UsersRound} label={`${totalAnswers} Antworten`} />
+            {group.checkIn && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-[0.75rem] font-semibold text-accent-ink">
+                <BellRing className="h-3 w-3" aria-hidden />
+                Check-in
+              </span>
+            )}
+            {group.questions.length > 0 && (
+              <>
+                <MetricPill
+                  icon={MessageCircleQuestion}
+                  label={`${group.questions.length} Fragen`}
+                />
+                <MetricPill icon={UsersRound} label={`${totalAnswers} Antworten`} />
+              </>
+            )}
             {pending > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-[0.75rem] font-semibold text-accent-ink">
                 <Send className="h-3 w-3" aria-hidden />
@@ -494,6 +511,29 @@ function ProductInboxSheet({
         </div>
       </header>
 
+      {group.checkIn && (
+        <section className="rounded-[var(--radius-lg)] bg-accent-soft p-4 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]">
+          <p className="mono-data flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-accent-ink">
+            <BellRing className="h-3.5 w-3.5" aria-hidden />
+            {group.checkIn.label} fällig
+          </p>
+          <h3 className="mt-1.5 text-[1.25rem] font-semibold leading-tight text-label">
+            Würdest du es heute wieder kaufen?
+          </h3>
+          <p className="mt-1 text-[0.875rem] leading-snug text-muted-foreground">
+            {group.checkIn.hasVerdict
+              ? 'Ist alles wie gehabt, reicht ein Tap – sonst passt du dein Urteil kurz an.'
+              : 'Dein erstes Urteil fehlt noch. Dauert nur 20 Sekunden.'}
+          </p>
+          <Link
+            href={`/products/${group.product.id}/own`}
+            className="press sheen brand-gradient mt-3.5 flex h-11 items-center justify-center gap-2 rounded-full text-[0.9375rem] font-semibold text-white shadow-[var(--shadow-glow)]"
+          >
+            {group.checkIn.hasVerdict ? 'Check-in starten' : 'Urteil abgeben'}
+          </Link>
+        </section>
+      )}
+
       {primaryQuestion ? (
         <section className="rounded-[var(--radius-lg)] border border-accent/20 bg-accent/5 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div>
@@ -519,7 +559,7 @@ function ProductInboxSheet({
             )}
           </div>
         </section>
-      ) : (
+      ) : group.checkIn ? null : (
         <div className="rounded-[var(--radius-lg)] bg-fill-1 p-5 text-center">
           <CheckCircle2 className="mx-auto h-7 w-7 text-positive" />
           <p className="mt-2 font-semibold text-label">Keine offenen Fragen</p>
@@ -854,7 +894,12 @@ function GeneralNotification({
   groups: NotificationProductGroupDto[];
   onOpenGroup: (group: NotificationProductGroupDto, questionId?: string | null) => void;
 }) {
-  const Icon = notification.type === 'ANSWER_HELPFUL' ? ThumbsUp : Clock3;
+  const Icon =
+    notification.type === 'ANSWER_HELPFUL'
+      ? ThumbsUp
+      : notification.type === 'REBUY_REMINDER'
+        ? BellRing
+        : Clock3;
   const target = notificationTarget(notification);
   const group = target
     ? findGroupForNotificationTarget(groups, target.productId, target.questionId)

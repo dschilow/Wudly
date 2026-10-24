@@ -1,13 +1,20 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import {
+  dueCheckInLabel,
   NotificationType,
   type GroupedNotificationInboxDto,
+  type InboxCheckInDto,
   type InboxQuestionDto,
   type NotificationDto,
   type NotificationListDto,
 } from '@wudly/shared';
 import type { Notification } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  COMPANION_OWNERSHIP_FIELDS,
+  COMPANION_REPORT_FIELDS,
+  journeyFor,
+} from '../companion/companion-journey';
 import { PushService } from './push.service';
 import { toProductSummaryDto, type ProductWithRelations } from '../products/product.mapper';
 import { toQuestionDto, type QuestionWithRelations } from '../questions/question.mapper';
@@ -127,17 +134,33 @@ export class NotificationsService {
   }
 
   async groupedInbox(userId: string): Promise<GroupedNotificationInboxDto> {
-    const [rows, ownerships, unreadCount] = await Promise.all([
+    const [rows, ownerships, reports, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
         take: 100,
       }),
-      this.prisma.ownership.findMany({ where: { userId }, select: { productId: true } }),
+      this.prisma.ownership.findMany({ where: { userId }, select: COMPANION_OWNERSHIP_FIELDS }),
+      this.prisma.experienceReport.findMany({ where: { userId }, select: COMPANION_REPORT_FIELDS }),
       this.prisma.notification.count({ where: { userId, readAt: null } }),
     ]);
 
     const eligibleProductIds = new Set(ownerships.map((ownership) => ownership.productId));
+    // The owner's check-in that is due right now, per product — a reminder in the
+    // inbox must lead straight to it instead of an empty question thread.
+    const reportByProduct = new Map(reports.map((report) => [report.productId, report]));
+    const now = new Date();
+    const checkInByProduct = new Map<string, InboxCheckInDto>();
+    for (const ownership of ownerships) {
+      const journey = journeyFor(ownership, reportByProduct.get(ownership.productId) ?? null, now);
+      const label = dueCheckInLabel(journey);
+      if (!journey.due || !label) continue;
+      checkInByProduct.set(ownership.productId, {
+        milestone: journey.due.key,
+        label,
+        hasVerdict: journey.latest !== null,
+      });
+    }
     const notifiedProductIds = rows
       .map((row) => row.productId)
       .filter((id): id is string => Boolean(id));
@@ -205,6 +228,7 @@ export class NotificationsService {
           questions: productQuestions,
           unreadCount: notifications.filter((item) => !item.read).length,
           latestAt: latestAt ?? new Date(0).toISOString(),
+          checkIn: checkInByProduct.get(product.id) ?? null,
         };
       })
       .filter(

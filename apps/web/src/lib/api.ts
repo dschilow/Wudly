@@ -14,6 +14,11 @@ import type {
   ProductPromptDto,
   AnswerDto,
   OwnershipDto,
+  OwnershipCompanionDto,
+  CompanionOverviewDto,
+  ProductCompanionDto,
+  CompanionActionInput,
+  ConfirmCheckInInput,
   RankingEntryDto,
   MergeCandidateDto,
   CatalogQualityOverviewDto,
@@ -224,6 +229,25 @@ export const api = {
     create: (input: CreateOwnershipInput) =>
       apiFetch<OwnershipDto>('/ownerships', { method: 'POST', json: input }),
     mine: (opts?: RequestOptions) => apiFetch<OwnershipDto[]>('/me/ownerships', opts),
+  },
+
+  /** The owner companion ("Besitz-Begleiter"): check-in journeys + controls. */
+  companion: {
+    overview: (opts?: RequestOptions) =>
+      apiFetch<CompanionOverviewDto>('/me/companion', opts),
+    forProduct: (productId: string, opts?: RequestOptions) =>
+      apiFetch<ProductCompanionDto>(`/me/companion/${productId}`, opts),
+    /** "Alles wie gehabt" — re-confirm the verdict after more time of use. */
+    confirm: (productId: string, input: ConfirmCheckInInput = {}) =>
+      apiFetch<OwnershipCompanionDto>(`/me/companion/${productId}/confirm`, {
+        method: 'POST',
+        json: input,
+      }),
+    act: (productId: string, input: CompanionActionInput) =>
+      apiFetch<OwnershipCompanionDto>(`/me/companion/${productId}`, {
+        method: 'PATCH',
+        json: input,
+      }),
   },
 
   rankings: {

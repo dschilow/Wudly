@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProductInsightsService } from '../products/product-insights.service';
 import { toProductSummaryDto, type ProductWithRelations } from '../products/product.mapper';
 import { FunnelMetricsService } from '../metrics/funnel-metrics.service';
+import { refreshCompanionSchedule } from '../companion/companion-journey';
 
 const PRODUCT_INCLUDE = { category: true, insightSnapshot: true } as const;
 
@@ -53,7 +54,11 @@ export class OwnershipService {
       update: variantId ? { variantId } : {},
     });
 
-    if (!existing) this.metrics.increment('OWNERSHIP_CREATED');
+    if (!existing) {
+      this.metrics.increment('OWNERSHIP_CREATED');
+      // Starts the companion: a first-verdict nudge unless a verdict follows.
+      await refreshCompanionSchedule(this.prisma, ownership.id);
+    }
     // Owner counts feed the snapshot.
     await this.insights.regenerate(input.productId);
 

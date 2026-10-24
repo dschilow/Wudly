@@ -29,10 +29,12 @@ export function Reveal({
   return (
     <motion.div
       className={className}
-      initial={reduced ? false : { opacity: 0, y }}
+      // Same initial markup on server and client; reduced motion only makes the
+      // (unserialised) transition instant, so hydration never mismatches.
+      initial={{ opacity: 0, y }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount }}
-      transition={{ type: 'spring', stiffness: 320, damping: 34, delay }}
+      transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 320, damping: 34, delay }}
     >
       {children}
     </motion.div>

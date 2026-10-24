@@ -9,6 +9,7 @@ import {
   ChevronRight,
   LogOut,
   MessageCircle,
+  Route,
   Share2,
   ShieldCheck,
   ShoppingBag,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import {
   WouldBuyAgain,
+  type CompanionOverviewDto,
   type ExperienceDto,
   type ProfessionalProfileDto,
   type ProfileSummaryDto,
@@ -30,35 +32,38 @@ import { Barcode } from '@/components/receipt/Barcode';
 import { LedgerRow } from '@/components/receipt/LedgerRow';
 import { Stamp } from '@/components/receipt/Stamp';
 import { PageSkeleton } from '@/components/states/States';
+import { useToast } from '@/components/ui/Toast';
+import { shareProfileCard } from '@/lib/profile-card';
 import { cn } from '@/lib/utils';
 
 const rise = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 
-function ListItem({
+const LIST_ITEM_TONE = {
+  positive: 'bg-positive-soft text-positive-ink',
+  regret: 'bg-regret-soft text-regret-ink',
+  accent: 'bg-accent-soft text-accent-ink',
+} as const;
+
+function ListItemBody({
   icon: Icon,
   label,
   subtitle,
-  href,
-  tone = 'positive',
+  tone,
+  badge,
 }: {
   icon: typeof Star;
   label: string;
   subtitle?: string;
-  href: string;
-  tone?: 'positive' | 'regret' | 'accent';
+  tone: keyof typeof LIST_ITEM_TONE;
+  badge?: number;
 }) {
-  const colors = {
-    positive: 'bg-positive-soft text-positive-ink',
-    regret: 'bg-regret-soft text-regret-ink',
-    accent: 'bg-accent-soft text-accent-ink',
-  };
   return (
-    <Link
-      href={href}
-      className="tap hairline flex items-center gap-3.5 px-4 py-3.5 last:after:hidden"
-    >
+    <>
       <span
-        className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-[0.7rem]', colors[tone])}
+        className={cn(
+          'grid h-11 w-11 shrink-0 place-items-center rounded-[0.7rem]',
+          LIST_ITEM_TONE[tone],
+        )}
       >
         <Icon className="h-[1.35rem] w-[1.35rem]" strokeWidth={2.1} />
       </span>
@@ -72,7 +77,34 @@ function ListItem({
           </span>
         )}
       </span>
+      {badge ? (
+        <span className="grid min-h-6 min-w-6 place-items-center rounded-full bg-accent px-1.5 text-[0.75rem] font-bold text-[#04140d]">
+          {badge}
+        </span>
+      ) : null}
       <ChevronRight className="h-5 w-5 shrink-0 text-label-3" strokeWidth={2.3} />
+    </>
+  );
+}
+
+function ListItem({
+  href,
+  tone = 'positive',
+  ...body
+}: {
+  icon: typeof Star;
+  label: string;
+  subtitle?: string;
+  href: string;
+  tone?: keyof typeof LIST_ITEM_TONE;
+  badge?: number;
+}) {
+  return (
+    <Link
+      href={href}
+      className="tap hairline flex items-center gap-3.5 px-4 py-3.5 last:after:hidden"
+    >
+      <ListItemBody tone={tone} {...body} />
     </Link>
   );
 }
@@ -83,7 +115,10 @@ export function ProfileClient() {
   const [summary, setSummary] = useState<ProfileSummaryDto | null>(null);
   const [experiences, setExperiences] = useState<ExperienceDto[]>([]);
   const [proProfile, setProProfile] = useState<ProfessionalProfileDto | null>(null);
+  const [companion, setCompanion] = useState<CompanionOverviewDto | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  const [sharing, setSharing] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     if (loading) return;
@@ -95,11 +130,13 @@ export function ProfileClient() {
       api.profile.summary({ cache: 'no-store' }),
       api.experiences.mine({ cache: 'no-store' }),
       api.showcase.myProfile({ cache: 'no-store' }).catch(() => null),
+      api.companion.overview({ cache: 'no-store' }).catch(() => null),
     ])
-      .then(([s, e, p]) => {
+      .then(([s, e, p, c]) => {
         setSummary(s);
         setExperiences(e);
         setProProfile(p);
+        setCompanion(c);
       })
       .catch(() => undefined)
       .finally(() => setDataLoading(false));
@@ -116,8 +153,23 @@ export function ProfileClient() {
     return Math.round((yes / experiences.length) * 100);
   }, [experiences]);
 
+  const shareCard = async () => {
+    if (!user) return;
+    setSharing(true);
+    const result = await shareProfileCard({
+      rebuyRate,
+      experienceCount: experiences.length,
+      longTermCount: companion?.stats.longTermCheckIns ?? 0,
+      displayName: user.displayName,
+    }).catch(() => 'failed' as const);
+    setSharing(false);
+    if (result === 'downloaded') toast.show('Profilkarte als Bild gespeichert.', 'success');
+    if (result === 'failed') toast.show('Die Karte konnte nicht erstellt werden.', 'error');
+  };
+
   if (loading || (!user && dataLoading)) return <PageSkeleton />;
   if (!user) return null;
+  const dueCount = companion?.dueCount ?? 0;
 
   return (
     <motion.div
@@ -202,16 +254,28 @@ export function ProfileClient() {
 
       <motion.section className="card overflow-hidden" variants={rise}>
         <ListItem
+          icon={Route}
+          label="Meine Begleitung"
+          subtitle={
+            dueCount > 0
+              ? `${dueCount} ${dueCount === 1 ? 'Check-in ist' : 'Check-ins sind'} fällig`
+              : 'Check-ins nach 1 Monat, 6 Monaten, 1 und 2 Jahren'
+          }
+          href={dueCount > 0 ? '/me/products?filter=due' : '/me/products'}
+          tone="accent"
+          badge={dueCount}
+        />
+        <ListItem
           icon={Star}
           label="Meine Top-Käufe"
           subtitle="Produkte, die sich wirklich gelohnt haben"
-          href="/me/products"
+          href="/me/products?filter=top"
         />
         <ListItem
           icon={ShoppingBag}
           label="Meine Fehlkäufe"
           subtitle="Produkte, die enttäuscht haben"
-          href="/me/products"
+          href="/me/products?filter=regret"
           tone="regret"
         />
         <ListItem
@@ -221,13 +285,19 @@ export function ProfileClient() {
           href="/me/inbox"
           tone="accent"
         />
-        <ListItem
-          icon={Share2}
-          label="Profilkarte teilen"
-          subtitle="Dein Kaufprofil als Karte"
-          href="/me"
-          tone="accent"
-        />
+        <button
+          type="button"
+          onClick={() => void shareCard()}
+          disabled={sharing}
+          className="tap hairline flex w-full items-center gap-3.5 px-4 py-3.5 text-left last:after:hidden disabled:opacity-60"
+        >
+          <ListItemBody
+            icon={Share2}
+            label="Profilkarte teilen"
+            subtitle={sharing ? 'Karte wird erstellt …' : 'Dein Kaufprofil als Bild'}
+            tone="accent"
+          />
+        </button>
       </motion.section>
 
       <motion.section className="card flex items-center gap-4 p-4" variants={rise}>

@@ -52,14 +52,15 @@ export function UsageDurationChart({ stats }: UsageDurationChartProps) {
                     ? 'linear-gradient(90deg, var(--brand-mid), var(--color-accent))'
                     : 'color-mix(in srgb, var(--color-accent) 55%, transparent)',
                 }}
-                initial={reduced ? false : { scaleX: 0 }}
+                // Same initial markup on server and client; reduced motion
+                // only makes the (unserialised) transition instant.
+                initial={{ scaleX: 0 }}
                 animate={inView || reduced ? { scaleX: 1 } : undefined}
-                transition={{
-                  type: 'spring',
-                  stiffness: 170,
-                  damping: 26,
-                  delay: i * 0.07,
-                }}
+                transition={
+                  reduced
+                    ? { duration: 0 }
+                    : { type: 'spring', stiffness: 170, damping: 26, delay: i * 0.07 }
+                }
               />
             </div>
             <span

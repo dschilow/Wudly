@@ -6,7 +6,8 @@ import { motion, useMotionValueEvent, useReducedMotion, useScroll } from 'motion
 import { BadgeCheck, MessagesSquare, PenLine } from 'lucide-react';
 import { AskForm } from '@/components/AskForm';
 import { Sheet } from '@/components/ui/Sheet';
-import { useViewerOwnsProduct } from '@/lib/use-viewer-owns-product';
+import { dueCheckInLabel } from '@wudly/shared';
+import { useViewerCompanion } from '@/lib/use-viewer-companion';
 
 /**
  * The product page's floating action pair. "Fragen" opens the composer as a
@@ -32,7 +33,8 @@ export function ProductActionBar({
   const lastY = useRef(0);
   const reduced = useReducedMotion();
   const { scrollY } = useScroll();
-  const owns = useViewerOwnsProduct(productId);
+  const companion = useViewerCompanion(productId);
+  const dueLabel = companion ? dueCheckInLabel(companion.journey) : null;
 
   useMotionValueEvent(scrollY, 'change', (y) => {
     const delta = y - lastY.current;
@@ -59,10 +61,18 @@ export function ProductActionBar({
             href={`/products/${productId}/own`}
             className="press sheen flex h-[3rem] flex-[1.4] items-center justify-center gap-2 rounded-full bg-accent text-[1rem] font-semibold text-[#f1efe6] shadow-[var(--shadow-glow)]"
           >
-            {owns ? (
+            {companion && dueLabel ? (
+              <>
+                <span className="relative flex h-2.5 w-2.5" aria-hidden>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-70" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
+                </span>
+                {companion.journey.latest ? 'Check-in fällig' : 'Urteil abgeben'}
+              </>
+            ) : companion ? (
               <>
                 <PenLine className="h-5 w-5" strokeWidth={2.2} />
-                Erfahrung aktualisieren
+                Urteil aktualisieren
               </>
             ) : (
               <>

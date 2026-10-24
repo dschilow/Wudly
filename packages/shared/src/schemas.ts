@@ -13,6 +13,7 @@ import {
   ExperienceMood,
   AspectSentiment,
   QuickAnswer,
+  OwnershipEndReason,
   ProfessionalProfileType,
   ShowcaseStatus,
   ShowcaseBlockType,
@@ -194,6 +195,30 @@ export const createOwnershipSchema = z.object({
 });
 export type CreateOwnershipInput = z.infer<typeof createOwnershipSchema>;
 
+const ownershipEndReasonSchema = z.enum(
+  enumValues(OwnershipEndReason) as [string, ...string[]],
+) as z.ZodType<(typeof OwnershipEndReason)[keyof typeof OwnershipEndReason]>;
+
+/** Owner controls for the companion check-ins of one product. */
+export const companionActionSchema = z.discriminatedUnion('action', [
+  /** "Später erinnern" — postpone the due check-in. */
+  z.object({ action: z.literal('snooze') }),
+  /** Stop check-in reminders for this product (the journey stays visible). */
+  z.object({ action: z.literal('mute') }),
+  z.object({ action: z.literal('unmute') }),
+  /** "Nutze ich nicht mehr" — closes the journey with a reason. */
+  z.object({ action: z.literal('end'), reason: ownershipEndReasonSchema }),
+  z.object({ action: z.literal('reactivate') }),
+]);
+export type CompanionActionInput = z.infer<typeof companionActionSchema>;
+
+/** One-tap check-in: re-confirm the current verdict after more time of use. */
+export const confirmCheckInSchema = z.object({
+  /** Defaults to the conservative estimate of today's usage bucket. */
+  usageDuration: usageDurationSchema.optional(),
+});
+export type ConfirmCheckInInput = z.infer<typeof confirmCheckInSchema>;
+
 /* ------------------------------------------------------------------ *
  * Experiences
  * ------------------------------------------------------------------ */
@@ -216,6 +241,11 @@ export const promptResponseInputSchema = z.object({
 });
 export type PromptResponseInput = z.infer<typeof promptResponseInputSchema>;
 
+/**
+ * Creates or updates the owner's experience. On an update, an omitted text field
+ * or aspect list keeps what is stored (a quick check-in never wipes earlier
+ * notes); an empty string or empty list clears it explicitly.
+ */
 export const createExperienceSchema = z.object({
   wouldBuyAgain: wouldBuyAgainSchema,
   usageDuration: usageDurationSchema,

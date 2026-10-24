@@ -268,7 +268,9 @@ export function PushOptIn() {
       <div className="rounded-[var(--radius-lg)] bg-positive-soft px-4 py-3">
         <div className="flex flex-wrap items-center gap-2.5 text-[0.875rem] font-medium text-positive-ink">
           <BellRing className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2.2} />
-          <span className="flex-1">Push aktiv — du wirst bei neuen Fragen benachrichtigt.</span>
+          <span className="flex-1">
+            Push aktiv — du hörst von neuen Fragen und fälligen Check-ins.
+          </span>
           {needsRepair && (
             <button
               type="button"
@@ -326,7 +328,7 @@ export function PushOptIn() {
         ? 'Push ist serverseitig noch nicht aktiviert.'
         : state === 'error'
           ? 'Konnte nicht aktiviert werden. Versuch es nochmal.'
-          : 'Werde benachrichtigt, sobald jemand zu deinen Produkten fragt — auch bei geschlossener App.';
+          : 'Werde benachrichtigt, wenn jemand zu deinen Produkten fragt oder ein Check-in fällig ist — auch bei geschlossener App.';
 
   const showButton = state === 'idle' || state === 'working' || state === 'error';
 

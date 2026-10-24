@@ -91,6 +91,15 @@ enum OwnershipVerificationMethod {
   MODERATOR
 }
 
+// Why an owner stopped using a product — closes the companion check-ins.
+enum OwnershipEndReason {
+  BROKEN
+  REPLACED
+  SOLD
+  RETURNED
+  OTHER
+}
+
 enum FunnelEvent {
   SEARCH_PERFORMED
   RESEARCH_STARTED
@@ -571,8 +580,20 @@ model Ownership {
   verifiedAt         DateTime?
   createdAt          DateTime                     @default(now())
   updatedAt          DateTime                     @updatedAt
-  // When the 6-month rebuy reminder was sent (null = not yet). Avoids re-sending.
+  // When the last companion check-in reminder went out (null = never).
   reminderSentAt     DateTime?
+  // --- Companion ("Besitz-Begleiter"): check-ins after 1 month … 2 years ---
+  // Conservative start-of-use estimate (lower bound of the reported usage).
+  ownedSince         DateTime?
+  // When the next check-in reminder is planned (null = none). Scanned daily.
+  nextCheckInAt      DateTime?
+  // "Später erinnern": re-nudge the due check-in from this moment.
+  snoozedUntil       DateTime?
+  // The owner paused check-in reminders for this product.
+  checkInsMutedAt    DateTime?
+  // The owner stopped using the product; closes the journey.
+  endedAt            DateTime?
+  endReason          OwnershipEndReason?
 
   user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -584,6 +605,7 @@ model Ownership {
   @@unique([userId, productId])
   @@index([productId])
   @@index([userId])
+  @@index([nextCheckInAt])
 }
 
 model ExperienceReport {

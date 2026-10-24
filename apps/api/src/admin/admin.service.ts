@@ -201,6 +201,12 @@ export class AdminService {
         where: { ownershipId: ownership.id },
         data: { ownershipId: existing.id },
       });
+      // The merged checkpoints change this owner's journey: let the companion
+      // scanner re-plan it on its next pass.
+      await tx.ownership.update({
+        where: { id: existing.id },
+        data: { nextCheckInAt: new Date() },
+      });
       await tx.ownership.delete({ where: { id: ownership.id } });
     }
   }

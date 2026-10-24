@@ -30,8 +30,10 @@ import type {
   PulseChangeType,
   PulseSignalSeverity,
   PulseConfidence,
+  OwnershipEndReason,
 } from './enums';
 import type { UsageDurationStats } from './scoring';
+import type { CheckInJourney, CheckInMilestone } from './companion';
 
 export interface UserDto {
   id: string;
@@ -278,8 +280,17 @@ export interface ExperienceDto {
   /** Which configuration the owner has ("65 Zoll"); null = not specified. */
   variantName: string | null;
   aspects: ExperienceAspectDto[];
+  /** The owner's dated verdicts over time, oldest first (one per check-in). */
+  checkpoints: ExperienceCheckpointDto[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** One dated verdict on an owner's journey — what they said, after how long. */
+export interface ExperienceCheckpointDto {
+  at: string;
+  wouldBuyAgain: WouldBuyAgain;
+  usageDuration: UsageDuration;
 }
 
 export interface AnswerDto {
@@ -324,6 +335,53 @@ export interface OwnershipDto {
   createdAt: string;
   verificationMethod: OwnershipVerificationMethod | null;
   verifiedAt: string | null;
+}
+
+/**
+ * The owner's companion view of one product ("Besitz-Begleiter"): the journey
+ * of check-ins (first impression → 1 month → 6 months → 1 year → 2 years), what
+ * is due now, and the reminder controls.
+ */
+export interface OwnershipCompanionDto {
+  ownershipId: string;
+  productId: string;
+  product: ProductSummaryDto;
+  /** Which configuration the owner has; null = not specified. */
+  variantName: string | null;
+  /** When the product was added to Wudly. */
+  createdAt: string;
+  journey: CheckInJourney;
+  /** Planned moment of the next check-in reminder (null = none planned). */
+  nextReminderAt: string | null;
+  lastReminderAt: string | null;
+  snoozedUntil: string | null;
+  /** Reminders paused by the owner. */
+  muted: boolean;
+  endedAt: string | null;
+  endReason: OwnershipEndReason | null;
+  /** Whether the owner's verdict is public; null while there is none. */
+  isPublic: boolean | null;
+}
+
+export interface CompanionOverviewDto {
+  /** Due check-ins first, then by the next milestone. */
+  items: OwnershipCompanionDto[];
+  dueCount: number;
+  stats: {
+    products: number;
+    checkIns: number;
+    /** Check-ins after 6+ months of use — the data buyers trust most. */
+    longTermCheckIns: number;
+    verdicts: { yes: number; unsure: number; no: number; none: number };
+  };
+  /** Products the user added to Wudly but doesn't own. */
+  created: ProductSummaryDto[];
+}
+
+/** What the check-in wizard needs about the viewer and one product. */
+export interface ProductCompanionDto {
+  companion: OwnershipCompanionDto | null;
+  experience: ExperienceDto | null;
 }
 
 /** One aggregated owner answer to a prompt: the label and how many owners gave it. */
@@ -586,6 +644,15 @@ export interface NotificationProductGroupDto {
   questions: InboxQuestionDto[];
   unreadCount: number;
   latestAt: string;
+  /** The viewer's owner check-in for this product, when one is due right now. */
+  checkIn: InboxCheckInDto | null;
+}
+
+export interface InboxCheckInDto {
+  milestone: CheckInMilestone;
+  /** "6-Monats-Check", or "Dein erstes Urteil" without any verdict yet. */
+  label: string;
+  hasVerdict: boolean;
 }
 
 export interface GroupedNotificationInboxDto {

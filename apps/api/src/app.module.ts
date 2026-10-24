@@ -18,6 +18,7 @@ import { QuestionsModule } from './questions/questions.module';
 import { InvitesModule } from './invites/invites.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OwnershipModule } from './ownership/ownership.module';
+import { CompanionModule } from './companion/companion.module';
 import { RankingsModule } from './rankings/rankings.module';
 import { ShowcaseModule } from './showcase/showcase.module';
 import { SightingsModule } from './sightings/sightings.module';
@@ -47,6 +48,7 @@ import { HealthModule } from './health/health.module';
     NotificationsModule,
     ProductsModule,
     OwnershipModule,
+    CompanionModule,
     RankingsModule,
     ShowcaseModule,
     SightingsModule,

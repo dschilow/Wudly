@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
+import { PageSkeleton } from '@/components/states/States';
 import { MyProductsClient } from './MyProductsClient';
 
 export const metadata: Metadata = {
@@ -7,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function MyProductsPage() {
-  return <MyProductsClient />;
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <MyProductsClient />
+    </Suspense>
+  );
 }

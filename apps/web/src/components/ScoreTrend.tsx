@@ -115,20 +115,17 @@ export function ScoreTrend({ experiences }: { experiences: ExperienceDto[] }) {
           />
         </svg>
         {/* End-of-line dot with a soft "live" pulse halo. */}
-        {!reduced && (
-          <motion.span
-            aria-hidden
-            className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
-            style={{ left: dotLeft, top: dotTop, backgroundColor: color }}
-            initial={{ opacity: 0 }}
-            animate={
-              inView
-                ? { opacity: [0, 0.45, 0], scale: [1, 2.6, 1] }
-                : undefined
-            }
-            transition={{ delay: 1.1, duration: 2.4, repeat: Infinity, repeatDelay: 1.2 }}
-          />
-        )}
+        {/* Always rendered (SSR and client must agree); hidden for reduced motion. */}
+        <motion.span
+          aria-hidden
+          className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full motion-reduce:hidden"
+          style={{ left: dotLeft, top: dotTop, backgroundColor: color }}
+          initial={{ opacity: 0 }}
+          animate={
+            inView && !reduced ? { opacity: [0, 0.45, 0], scale: [1, 2.6, 1] } : undefined
+          }
+          transition={{ delay: 1.1, duration: 2.4, repeat: Infinity, repeatDelay: 1.2 }}
+        />
         <span
           className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-surface"
           style={{ left: dotLeft, top: dotTop, backgroundColor: color, opacity: inView ? 1 : 0, transition: 'opacity 0.3s ease 1s' }}

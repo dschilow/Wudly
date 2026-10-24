@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   Calendar,
@@ -27,6 +26,8 @@ import {
 } from 'lucide-react';
 import type {
   CategoryAspectDto,
+  OwnershipCompanionDto,
+  ProductCompanionDto,
   ProductPromptDto,
   ProductVariantDto,
   WouldBuyAgain,
@@ -39,12 +40,12 @@ import {
   EXPERIENCE_MOOD_OPTIONS,
 } from '@wudly/shared';
 import { api } from '@/lib/api';
-import { productPath } from '@/lib/seo';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { MultiSelectChips } from '@/components/OptionGrid';
+import { CheckInDone, CheckInIntro, FirstVerdictDone } from './CheckInScreens';
 
 /* ------------------------------------------------------------------ *
  * Choice cards — bold, modern single-select cards for the core verdict
@@ -190,6 +191,8 @@ interface FlowProps {
   aspects: CategoryAspectDto[];
   /** Known configurations of the family — offers the "Welche Ausführung?" card. */
   variants: ProductVariantDto[];
+  /** A verdict tapped elsewhere (hub, inbox) — the wizard continues after it. */
+  initialVerdict?: WouldBuyAgain | null;
 }
 
 /** One owner answer to a product prompt (a tapped quick answer or own text). */
@@ -226,9 +229,49 @@ type StepKey =
 
 const draftKey = (productId: string) => `wudly:own-draft:${productId}`;
 
-export function OwnExperienceFlow({ productId, productName, aspects, variants }: FlowProps) {
+export function OwnExperienceFlow({
+  productId,
+  productName,
+  aspects,
+  variants,
+  initialVerdict = null,
+}: FlowProps) {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+
+  /* ----- Companion: a returning owner gets a check-in, not a blank form. ----- */
+  const [companionData, setCompanionData] = useState<ProductCompanionDto | null>(null);
+  const [companionReady, setCompanionReady] = useState(false);
+  /** In check-in mode: the owner chose "Etwas hat sich geändert". */
+  const [changing, setChanging] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [doneKind, setDoneKind] = useState<'first' | 'checkin'>('first');
+  const [doneCompanion, setDoneCompanion] = useState<OwnershipCompanionDto | null>(null);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setCompanionReady(true);
+      return;
+    }
+    let active = true;
+    api.companion
+      .forProduct(productId, { cache: 'no-store' })
+      .then((res) => {
+        if (active) setCompanionData(res);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setCompanionReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [authLoading, user, productId]);
+
+  const ownCompanion = companionData?.companion ?? null;
+  const ownExperience = companionData?.experience ?? null;
+  const checkInMode = Boolean(ownCompanion && ownExperience);
 
   const [step, setStep] = useState(0);
   /** +1 when moving forward, -1 backward — drives the slide direction. */
@@ -290,7 +333,8 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
    * loaded — always before the core cards are exhausted, so the index is stable.
    */
   const hasAspects = positiveAspects.length > 0 || negativeAspects.length > 0;
-  const hasVariants = variants.length > 0;
+  // A check-in keeps the configuration already on file instead of asking again.
+  const hasVariants = variants.length > 0 && !(checkInMode && ownCompanion?.variantName);
   const steps = useMemo<StepKey[]>(() => {
     const nextSteps: StepKey[] = hasVariants ? ['variant'] : [];
     nextSteps.push('buyAgain', 'duration', 'mood');
@@ -311,6 +355,43 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
   const total = steps.length;
   const current = steps[Math.min(step, total - 1)]!;
   const promptById = useMemo(() => new Map(prompts.map((p) => [p.id, p])), [prompts]);
+
+  /** "Etwas hat sich geändert": start from the verdict on file, with today's usage. */
+  const startChanging = useCallback(() => {
+    if (!ownExperience || !ownCompanion) return;
+    const vocabulary = new Set(aspects.map((aspect) => aspect.key));
+    setBuyAgain(ownExperience.wouldBuyAgain);
+    setDuration(ownCompanion.journey.suggestedUsageDuration);
+    setMood(ownExperience.experienceMood);
+    setWish(ownExperience.wishKnownText ?? '');
+    setInsteadOf(ownExperience.insteadOfText ?? '');
+    setPositives(
+      ownExperience.aspects
+        .filter((a) => a.sentiment === 'POSITIVE' && vocabulary.has(a.aspectKey))
+        .map((a) => a.aspectKey),
+    );
+    setNegatives(
+      ownExperience.aspects.filter((a) => a.sentiment === 'NEGATIVE').map((a) => a.aspectKey),
+    );
+    setCustomAspects(
+      ownExperience.aspects
+        .filter((a) => a.sentiment === 'POSITIVE' && !vocabulary.has(a.aspectKey))
+        .map((a) => a.aspectKey),
+    );
+    setIsPublic(ownExperience.isPublic);
+    setStep(0);
+    setDir(1);
+    setChanging(true);
+  }, [ownExperience, ownCompanion, aspects]);
+
+  /* ----- A verdict tapped in the hub/inbox: pick it and continue after it. ----- */
+  const initialVerdictApplied = useRef(false);
+  useEffect(() => {
+    if (initialVerdictApplied.current || !initialVerdict || !companionReady || checkInMode) return;
+    initialVerdictApplied.current = true;
+    setBuyAgain(initialVerdict);
+    setStep(steps.indexOf('buyAgain') + 1);
+  }, [initialVerdict, companionReady, checkInMode, steps]);
 
   const goNext = useCallback(() => {
     navigator.vibrate?.(6);
@@ -350,7 +431,7 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
   /** Persist the experience. Pulls from an explicit draft so the resume path
    *  (after sign-in) never races React state that hasn't rehydrated yet. */
   const submitDraft = useCallback(
-    async (draft: ExperienceDraft) => {
+    async (draft: ExperienceDraft, options: { replace?: boolean } = {}) => {
       setSubmitting(true);
       setError(null);
       try {
@@ -359,17 +440,22 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
           answerLabel: a.answerLabel,
           isCustom: a.isCustom,
         }));
+        const positiveAspects = [...draft.positives, ...draft.customAspects];
+        // A check-in edits what is on file: send every field so cleared texts and
+        // deselected aspects really clear. A first verdict only sends what's there.
         await api.experiences.create(productId, {
           wouldBuyAgain: draft.buyAgain,
           usageDuration: draft.duration,
           experienceMood: draft.mood,
           variantId: draft.variantId ?? undefined,
-          wishKnownText: draft.wish.trim() || undefined,
-          insteadOfText: draft.insteadOf.trim() || undefined,
-          positiveAspects: [...draft.positives, ...draft.customAspects].length
-            ? [...draft.positives, ...draft.customAspects]
-            : undefined,
-          negativeAspects: draft.negatives.length ? draft.negatives : undefined,
+          wishKnownText: options.replace ? draft.wish.trim() : draft.wish.trim() || undefined,
+          insteadOfText: options.replace
+            ? draft.insteadOf.trim()
+            : draft.insteadOf.trim() || undefined,
+          positiveAspects:
+            options.replace || positiveAspects.length ? positiveAspects : undefined,
+          negativeAspects:
+            options.replace || draft.negatives.length ? draft.negatives : undefined,
           promptResponses: promptResponses.length ? promptResponses : undefined,
           isPublic: draft.isPublic,
         });
@@ -378,6 +464,11 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
         } catch {
           /* private mode — nothing to clean up */
         }
+        const after = await api.companion
+          .forProduct(productId, { cache: 'no-store' })
+          .catch(() => null);
+        setDoneCompanion(after?.companion ?? null);
+        setDoneKind(options.replace ? 'checkin' : 'first');
         setDone(true);
       } catch (err) {
         setError(err instanceof ApiError ? err.displayMessage : 'Speichern fehlgeschlagen.');
@@ -436,7 +527,24 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
       router.push(`/login?redirect=${encodeURIComponent(`/products/${productId}/own`)}`);
       return;
     }
-    await submitDraft(draft);
+    await submitDraft(draft, { replace: checkInMode });
+  };
+
+  /** "Alles wie gehabt" — one tap re-confirms the verdict with today's usage. */
+  const confirmCheckIn = async () => {
+    setConfirming(true);
+    setError(null);
+    try {
+      const updated = await api.companion.confirm(productId);
+      navigator.vibrate?.(12);
+      setDoneCompanion(updated);
+      setDoneKind('checkin');
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.displayMessage : 'Check-in fehlgeschlagen.');
+    } finally {
+      setConfirming(false);
+    }
   };
 
   /* ----- Resume: a draft survived the sign-in detour → save it automatically. */
@@ -488,45 +596,43 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
 
   /* ----- The verdict is in ----- */
   if (done) {
+    return doneKind === 'checkin' ? (
+      <CheckInDone
+        productId={productId}
+        productName={productName}
+        before={ownCompanion?.journey.latest ?? null}
+        after={doneCompanion}
+      />
+    ) : (
+      <FirstVerdictDone
+        productId={productId}
+        productName={productName}
+        isPublic={isPublic}
+        companion={doneCompanion}
+      />
+    );
+  }
+
+  /* ----- A signed-in visitor: find out whether this is a check-in first. ----- */
+  if (user && !companionReady) {
     return (
-      <div className="mx-auto max-w-md px-2 pt-16 text-center">
-        <div className="animate-pop mx-auto grid h-16 w-16 place-items-center rounded-full bg-positive text-white shadow-[var(--shadow-glow)]">
-          <Check className="h-9 w-9" strokeWidth={3} aria-hidden />
-        </div>
-        <h1 className="font-display mt-5 text-[1.9rem] leading-tight text-label">
-          Urteil gefällt.
-        </h1>
-        <p className="mx-auto mt-2 max-w-sm text-pretty text-[1.0625rem] leading-snug text-muted-foreground">
-          {isPublic
-            ? `Deine Erfahrung mit ${productName} zählt jetzt einmalig zum Wudly Signal.`
-            : `${productName} ist jetzt privat in deinem Produktprofil gespeichert.`}
-        </p>
-        <div className="mt-8 space-y-2.5">
-          <p className="mx-auto mt-4 max-w-sm rounded-[var(--radius-md)] bg-accent-soft px-4 py-3 text-left text-[0.875rem] leading-relaxed text-accent-ink">
-            Keine Rechnung nötig: Wenn du deine Erfahrung später erneut aktualisierst, kann Wudly
-            den längerfristigen Besitz transparent plausibilisieren. Deine Meinung bleibt jederzeit
-            änderbar.
-          </p>
-          <Link
-            href={productPath({ id: productId, canonicalName: productName })}
-            className="tap-dim flex h-[3.125rem] items-center justify-center rounded-[var(--radius-md)] bg-accent text-[1.0625rem] font-semibold text-white"
-          >
-            Produktseite ansehen
-          </Link>
-          <Link
-            href="/check?own=1"
-            className="tap-dim flex h-[3.125rem] items-center justify-center rounded-[var(--radius-md)] bg-fill-2 text-[1.0625rem] font-semibold text-label"
-          >
-            Noch ein eigenes Produkt hinzufügen
-          </Link>
-        </div>
-        <Link
-          href="/me"
-          className="tap-dim mt-5 inline-block text-[0.9375rem] font-medium text-accent"
-        >
-          Dein Kaufprofil ansehen →
-        </Link>
+      <div className="mx-auto max-w-md px-2 pt-24 text-center">
+        <Loader2 className="mx-auto h-7 w-7 animate-spin text-accent" strokeWidth={2.2} aria-hidden />
       </div>
+    );
+  }
+
+  /* ----- Returning owner: one tap if nothing changed. ----- */
+  if (checkInMode && ownCompanion && ownExperience && !changing) {
+    return (
+      <CheckInIntro
+        productName={productName}
+        companion={ownCompanion}
+        busy={confirming}
+        error={error}
+        onConfirm={() => void confirmCheckIn()}
+        onChange={startChanging}
+      />
     );
   }
 
@@ -541,9 +647,13 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
     current === 'variant'
       ? 'Welche Ausführung hast du?'
       : current === 'buyAgain'
-        ? 'Würdest du es wieder kaufen?'
+        ? changing
+          ? 'Würdest du es heute noch wieder kaufen?'
+          : 'Würdest du es wieder kaufen?'
         : current === 'duration'
-          ? 'Wie lange nutzt du es?'
+          ? changing
+            ? 'Wie lange nutzt du es inzwischen?'
+            : 'Wie lange nutzt du es?'
           : current === 'mood'
             ? 'Was trifft am besten zu?'
             : current === 'aspects'
@@ -626,15 +736,23 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
             />
           )}
           {current === 'duration' && (
-            <ChoiceCards
-              options={USAGE_DURATION_OPTIONS}
-              meta={DURATION_META}
-              value={duration}
-              onChange={(v) => {
-                setDuration(v);
-                advanceSoon();
-              }}
-            />
+            <>
+              <ChoiceCards
+                options={USAGE_DURATION_OPTIONS}
+                meta={DURATION_META}
+                value={duration}
+                onChange={(v) => {
+                  setDuration(v);
+                  advanceSoon();
+                }}
+              />
+              {changing && (
+                <p className="px-1 text-[0.8125rem] leading-snug text-muted-foreground">
+                  Vorausgewählt aus deinen bisherigen Check-ins – lieber zu kurz als zu lang
+                  schätzen.
+                </p>
+              )}
+            </>
           )}
           {current === 'mood' && (
             <ChoiceCards
@@ -737,10 +855,10 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 h-32 bg-gradient-to-t from-canvas via-canvas/90 to-transparent md:h-24" />
       <div className="fixed inset-x-0 bottom-[4.6rem] z-30 px-5 pb-[max(env(safe-area-inset-bottom),0px)] md:bottom-4">
         <div className="mx-auto flex max-w-md items-center gap-2.5">
-          {step > 0 && (
+          {(step > 0 || changing) && (
             <Button
               variant="gray"
-              onClick={goBack}
+              onClick={step > 0 ? goBack : () => setChanging(false)}
               size="lg"
               className="rounded-full bg-surface/95 shadow-[0_0_0_1px_var(--color-border-strong),var(--shadow-card)] backdrop-blur-xl"
             >
@@ -754,7 +872,19 @@ export function OwnExperienceFlow({ productId, productName, aspects, variants }:
               size="lg"
               className="flex-1 rounded-full shadow-[var(--shadow-glow)]"
             >
-              Urteil abschicken
+              {changing ? 'Check-in speichern' : 'Urteil abschicken'}
+            </Button>
+          ) : changing &&
+            ((current === 'buyAgain' && buyAgain) ||
+              (current === 'duration' && duration) ||
+              (current === 'mood' && mood)) ? (
+            // Pre-filled answers can be kept without re-tapping them.
+            <Button
+              onClick={goNext}
+              size="lg"
+              className="flex-1 rounded-full shadow-[var(--shadow-glow)]"
+            >
+              Weiter
             </Button>
           ) : isPromptStep || current === 'variant' ? (
             <Button

@@ -1,26 +1,50 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Inject } from '@nestjs/common';
-import { NotificationType } from '@wudly/shared';
+import {
+  dueCheckInLabel,
+  NotificationType,
+  ownershipAgeLabel,
+  type CheckInJourney,
+} from '@wudly/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from './notifications.service';
+import {
+  COMPANION_OWNERSHIP_FIELDS,
+  COMPANION_REPORT_FIELDS,
+  journeyFor,
+  plannedReminderAt,
+  type CompanionOwnershipRow,
+} from '../companion/companion-journey';
 
-/** Six months in milliseconds — the honeymoon phase is over, the truth is in. */
-const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182;
-/** How often the in-process scheduler scans. Daily is plenty for a 6-month nudge. */
-const SCAN_INTERVAL_MS = 1000 * 60 * 60 * 24;
+/** Hourly passes keep reminders close to their slot at negligible cost (indexed). */
+const SCAN_INTERVAL_MS = 1000 * 60 * 60;
 /** Wait after boot before the first scan, so startup stays snappy. */
 const INITIAL_DELAY_MS = 1000 * 60 * 2;
-/** Cap per scan so a backlog can't fan out a flood of pushes at once. */
-const MAX_PER_SCAN = 200;
+/** Rows per page and pages per pass — bounds one pass even after a backlog. */
+const PAGE_SIZE = 200;
+const MAX_PAGES = 10;
+/** Reminders go out in the daytime (Europe/Berlin) only — never a 3 a.m. push. */
+const SEND_FROM_HOUR = 9;
+const SEND_UNTIL_HOUR = 20;
+
+type ScanRow = CompanionOwnershipRow & {
+  product: { canonicalName: string; status: string };
+};
+
+interface DueReminder {
+  row: ScanRow;
+  journey: CheckInJourney;
+}
 
 /**
- * The most important contribution loop: when someone has owned a product for ~6
- * months, nudge them once — "would you buy it again?" — deep-linking into the
- * quick rebuy flow. The right moment, after the honeymoon, is what makes Wudly's
- * data honest.
+ * The companion's reminder loop ("Besitz-Begleiter"). Owners are nudged when a
+ * check-in comes due: a first verdict a few days after registering a product,
+ * then after 1 month, 6 months, 1 year and 2 years of real use — the moments
+ * that make Wudly's data honest. One nudge per milestone; an owner with several
+ * due check-ins gets one bundled notification instead of a burst.
  *
- * Runs as a lightweight in-process interval (no extra scheduler dependency). The
- * scan is idempotent (`reminderSentAt` gates re-sends) so multiple replicas or a
- * restart can't double-notify the same ownership.
+ * Runs as a lightweight in-process interval (no scheduler dependency). Every row
+ * is claimed with a compare-and-set on `nextCheckInAt`, so several replicas or a
+ * restart can never double-notify, and a failed inbox write releases the claim.
  */
 @Injectable()
 export class RebuyReminderService implements OnModuleInit, OnModuleDestroy {
@@ -47,68 +71,149 @@ export class RebuyReminderService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  /** One pass: atomically claim due ownerships, notify, and release failed claims. */
-  async runScan(): Promise<number> {
+  /** One pass: plan every ownership whose slot came up, notify the due ones. */
+  async runScan(now = new Date()): Promise<number> {
     try {
-      const cutoff = new Date(Date.now() - SIX_MONTHS_MS);
-      const due = await this.prisma.ownership.findMany({
-        where: { reminderSentAt: null, createdAt: { lte: cutoff } },
-        select: {
-          id: true,
-          userId: true,
-          productId: true,
-          product: { select: { canonicalName: true } },
-          experienceReports: { select: { id: true }, take: 1 },
-        },
-        take: MAX_PER_SCAN,
-      });
-      if (due.length === 0) return 0;
-
-      // Claim rows with a compare-and-set so multiple Railway replicas cannot
-      // send the same reminder. A failed durable inbox write releases the claim.
-      const claimedAt = new Date();
-      const claimed: typeof due = [];
-      for (const ownership of due) {
-        const result = await this.prisma.ownership.updateMany({
-          where: { id: ownership.id, reminderSentAt: null },
-          data: { reminderSentAt: claimedAt },
-        });
-        if (result.count === 1) claimed.push(ownership);
-      }
-      if (claimed.length === 0) return 0;
-
-      const created = await this.notifications.createMany(
-        claimed.map((ownership) => {
-          const isUpdate = ownership.experienceReports.length > 0;
-          return {
-            userId: ownership.userId,
-            type: NotificationType.REBUY_REMINDER,
-            title: isUpdate ? 'Dein Langzeit-Check' : 'Schon 6 Monate dabei',
-            body: isUpdate
-              ? `Hat sich dein Urteil zu „${ownership.product.canonicalName}“ verändert? Aktualisiere es – ganz ohne Rechnung.`
-              : `Würdest du „${ownership.product.canonicalName}“ wieder kaufen?`,
-            link: `/products/${ownership.productId}/own`,
-            productId: ownership.productId,
-          };
-        }),
-      );
-
-      if (!created) {
-        await this.prisma.ownership.updateMany({
-          where: {
-            id: { in: claimed.map((ownership) => ownership.id) },
-            reminderSentAt: claimedAt,
+      if (!isSendingHour(now)) return 0;
+      let sent = 0;
+      for (let page = 0; page < MAX_PAGES; page += 1) {
+        const rows = await this.prisma.ownership.findMany({
+          where: { nextCheckInAt: { lte: now } },
+          select: {
+            ...COMPANION_OWNERSHIP_FIELDS,
+            product: { select: { canonicalName: true, status: true } },
           },
-          data: { reminderSentAt: null },
+          orderBy: { nextCheckInAt: 'asc' },
+          take: PAGE_SIZE,
         });
-        return 0;
+        if (rows.length === 0) break;
+        sent += await this.processPage(rows, now);
+        if (rows.length < PAGE_SIZE) break;
       }
-
-      this.logger.log(`Sent ${claimed.length} 6-month owner check-in reminder(s).`);
-      return claimed.length;
+      if (sent > 0) this.logger.log(`Sent ${sent} companion check-in reminder(s).`);
+      return sent;
     } catch (err) {
-      this.logger.warn(`Rebuy reminder scan failed: ${err instanceof Error ? err.message : err}`);
+      this.logger.warn(`Check-in reminder scan failed: ${err instanceof Error ? err.message : err}`);
       return 0;
     }
+  }
+
+  private async processPage(rows: ScanRow[], now: Date): Promise<number> {
+    const reports = await this.prisma.experienceReport.findMany({
+      where: { OR: rows.map((row) => ({ userId: row.userId, productId: row.productId })) },
+      select: COMPANION_REPORT_FIELDS,
+    });
+    const reportByKey = new Map(
+      reports.map((report) => [`${report.userId}:${report.productId}`, report]),
+    );
+
+    const claimed: DueReminder[] = [];
+    for (const row of rows) {
+      const journey = journeyFor(
+        row,
+        reportByKey.get(`${row.userId}:${row.productId}`) ?? null,
+        now,
+      );
+      const remindAt = plannedReminderAt(row, journey);
+      const send =
+        journey.due !== null &&
+        remindAt !== null &&
+        remindAt.getTime() <= now.getTime() &&
+        row.product.status !== 'HIDDEN';
+      const nextCheckInAt = send
+        ? plannedReminderAt({ ...row, snoozedUntil: null }, journey, now)
+        : remindAt && remindAt.getTime() > now.getTime()
+          ? remindAt
+          : null;
+
+      const result = await this.prisma.ownership.updateMany({
+        where: { id: row.id, nextCheckInAt: row.nextCheckInAt },
+        data: send
+          ? {
+              reminderSentAt: now,
+              snoozedUntil: null,
+              nextCheckInAt,
+              ownedSince: new Date(journey.startedAt),
+            }
+          : { nextCheckInAt, ownedSince: new Date(journey.startedAt) },
+      });
+      if (send && result.count === 1) claimed.push({ row, journey });
+    }
+    if (claimed.length === 0) return 0;
+
+    const byUser = new Map<string, DueReminder[]>();
+    for (const item of claimed) {
+      byUser.set(item.row.userId, [...(byUser.get(item.row.userId) ?? []), item]);
+    }
+    const delivered = await this.notifications.createMany(
+      [...byUser.values()].map((items) =>
+        items.length === 1 ? singleReminder(items[0]!) : bundledReminder(items),
+      ),
+    );
+
+    if (!delivered) {
+      // Release the claims so the next pass retries these reminders.
+      await Promise.all(
+        claimed.map(({ row }) =>
+          this.prisma.ownership.updateMany({
+            where: { id: row.id, reminderSentAt: now },
+            data: {
+              reminderSentAt: row.reminderSentAt,
+              snoozedUntil: row.snoozedUntil,
+              nextCheckInAt: row.nextCheckInAt,
+            },
+          }),
+        ),
+      );
+      return 0;
+    }
+    return claimed.length;
+  }
+}
+
+function singleReminder({ row, journey }: DueReminder) {
+  const name = row.product.canonicalName;
+  const age = ownershipAgeLabel(journey.ageDays);
+  const hasVerdict = journey.latest !== null;
+  return {
+    userId: row.userId,
+    type: NotificationType.REBUY_REMINDER,
+    title: hasVerdict ? `Zeit für deinen ${dueCheckInLabel(journey)}` : 'Dein erstes Urteil fehlt noch',
+    body: hasVerdict
+      ? `Du nutzt „${name}“ ${age}. Würdest du es heute wieder kaufen? Ist alles wie gehabt, reicht ein Tap.`
+      : `Du hast „${name}“ ${age}. Würdest du es wieder kaufen? Dauert nur 20 Sekunden.`,
+    link: `/products/${row.productId}/own`,
+    productId: row.productId,
+  };
+}
+
+function bundledReminder(items: DueReminder[]) {
+  const names = items.map(({ row }) => `„${row.product.canonicalName}“`);
+  const list =
+    names.length === 2
+      ? `${names[0]} und ${names[1]}`
+      : `${names[0]}, ${names[1]} und ${names.length - 2} weitere`;
+  return {
+    userId: items[0]!.row.userId,
+    type: NotificationType.REBUY_REMINDER,
+    title: `${items.length} Check-ins sind fällig`,
+    body: `${list}: Würdest du sie heute wieder kaufen? Ist alles wie gehabt, reicht je ein Tap.`,
+    link: '/me/products',
+    productId: null,
+  };
+}
+
+function isSendingHour(now: Date): boolean {
+  try {
+    const hour = Number(
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Berlin',
+        hour: '2-digit',
+        hourCycle: 'h23',
+      }).format(now),
+    );
+    return hour >= SEND_FROM_HOUR && hour < SEND_UNTIL_HOUR;
+  } catch {
+    return true;
   }
 }

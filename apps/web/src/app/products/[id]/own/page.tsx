@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import type { CategoryAspectDto } from '@wudly/shared';
+import { WouldBuyAgain, type CategoryAspectDto } from '@wudly/shared';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-client';
 import { apiFetch } from '@/lib/api-client';
@@ -13,10 +13,14 @@ export const metadata: Metadata = {
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ verdict?: string }>;
 }
 
-export default async function OwnPage({ params }: PageProps) {
+export default async function OwnPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { verdict } = await searchParams;
+  // A verdict tapped in the hub or inbox ("?verdict=YES") — the wizard continues after it.
+  const initialVerdict = Object.values(WouldBuyAgain).find((value) => value === verdict) ?? null;
 
   let product;
   try {
@@ -42,6 +46,7 @@ export default async function OwnPage({ params }: PageProps) {
       productName={product.canonicalName}
       aspects={aspects}
       variants={product.variants}
+      initialVerdict={initialVerdict}
     />
   );
 }
